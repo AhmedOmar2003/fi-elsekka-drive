@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -8,10 +8,12 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
+  ExternalLink,
   LocateFixed,
   MapPinned,
   Navigation,
   PlaneTakeoff,
+  Search,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -47,6 +49,7 @@ type EstimatePayload = {
   maxPrice: number;
 };
 
+type SearchLocation = EstimatePayload["pickup"];
 type MapField = "pickup" | "destination" | null;
 type SheetMode = "expanded" | "collapsed";
 
@@ -77,15 +80,55 @@ export function BookingForm() {
   const [mapLocation, setMapLocation] = useState<[number, number]>(DEFAULT_CENTER);
   const [activeMapField, setActiveMapField] = useState<MapField>(null);
   const [isResolvingMap, setIsResolvingMap] = useState(false);
+  const [mapSearchField, setMapSearchField] = useState<Exclude<MapField, null>>(
+    "pickup"
+  );
+  const [mapSearchQuery, setMapSearchQuery] = useState("");
+  const [mapSearchResults, setMapSearchResults] = useState<SearchLocation[]>([]);
+  const [isMapSearchOpen, setIsMapSearchOpen] = useState(false);
+  const [isSearchingMap, setIsSearchingMap] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("expanded");
-  const [dragOffset, setDragOffset] = useState(0);
-  const dragStartY = useRef<number | null>(null);
 
   useEffect(() => {
     if (tripType === "airport_ride") {
       setPreferredVehicleType("car");
     }
   }, [tripType]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      return;
+    }
+
+    const permissionsApi = (navigator as Navigator & {
+      permissions?: {
+        query: (descriptor: { name: "geolocation" }) => Promise<{
+          state: "granted" | "denied" | "prompt";
+        }>;
+      };
+    }).permissions;
+
+    void permissionsApi
+      ?.query({ name: "geolocation" })
+      .then((result) => {
+        if (result.state !== "granted") {
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setMapLocation([position.coords.latitude, position.coords.longitude]);
+          },
+          () => {},
+          {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 300000,
+          }
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   const handleEstimate = async () => {
     if (!pickup.trim() || !destination.trim()) {
@@ -198,8 +241,16 @@ export function BookingForm() {
   };
 
   const handleUseCurrentLocation = () => {
+    const openGoogleMaps = (query = "Current Location") => {
+      window.open(
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+        "_blank"
+      );
+    };
+
     if (!navigator.geolocation) {
-      toast.error("الموبايل ده مش مدي صلاحية للموقع الحالي.");
+      toast.error("الموقع الحالي مش متاح هنا، هنفتحلك خرائط جوجل.");
+      openGoogleMaps();
       return;
     }
 
@@ -210,16 +261,78 @@ export function BookingForm() {
           position.coords.longitude,
         ];
         setMapLocation(nextLocation);
-        setSheetMode("collapsed");
         await resolveMapLocation(nextLocation[0], nextLocation[1], "pickup");
+        toast.success("حددنا موقعك الحالي.");
       },
-      () => toast.error("مش قادر أوصل لموقعك الحالي دلوقتي.")
+      () => {
+        toast.error("مش قادر أوصل لموقعك الحالي، هنفتحلك خرائط جوجل.");
+        openGoogleMaps();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
     );
+  };
+
+  const handleOpenMapSearch = (field: Exclude<MapField, null>) => {
+    setMapSearchField(field);
+    setMapSearchQuery(field === "pickup" ? pickup : destination);
+    setMapSearchResults([]);
+    setIsMapSearchOpen(true);
+    setActiveMapField(null);
+  };
+
+  const handleSearchMapLocations = async () => {
+    if (mapSearchQuery.trim().length < 2) {
+      toast.error("اكتب اسم مكان أو عنوان أوضح.");
+      return;
+    }
+
+    setIsSearchingMap(true);
+    try {
+      const response = await fetch(
+        `/api/rides/search-locations?q=${encodeURIComponent(mapSearchQuery.trim())}`
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || "تعذر البحث عن المكان.");
+      }
+
+      setMapSearchResults(Array.isArray(payload.results) ? payload.results : []);
+      if (!payload.results?.length) {
+        toast.error("ملقيناش نتيجة واضحة، جرّب عنوان أدق.");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "تعذر البحث عن المكان.");
+    } finally {
+      setIsSearchingMap(false);
+    }
+  };
+
+  const applyLocationFromSearch = (
+    location: SearchLocation,
+    field: Exclude<MapField, null>
+  ) => {
+    if (field === "pickup") {
+      setPickup(location.address);
+    } else {
+      setDestination(location.address);
+    }
+
+    setMapLocation([location.latitude, location.longitude]);
+    setEstimate(null);
+    setIsMapSearchOpen(false);
+    setMapSearchResults([]);
+    toast.success(field === "pickup" ? "اخترنا نقطة التحرك." : "اخترنا الوجهة.");
   };
 
   const beginMapPick = (field: Exclude<MapField, null>) => {
     setActiveMapField(field);
     setSheetMode("collapsed");
+    setIsMapSearchOpen(false);
     setEstimate(null);
     toast.message(
       field === "pickup"
@@ -228,42 +341,11 @@ export function BookingForm() {
     );
   };
 
-  const handleHandleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    dragStartY.current = event.touches[0]?.clientY ?? null;
-  };
-
-  const handleHandleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (dragStartY.current === null) return;
-
-    const currentY = event.touches[0]?.clientY ?? dragStartY.current;
-    const delta = currentY - dragStartY.current;
-
-    if (sheetMode === "expanded") {
-      setDragOffset(Math.max(0, Math.min(260, delta)));
-      return;
-    }
-
-    setDragOffset(Math.min(0, Math.max(-260, delta)));
-  };
-
-  const handleHandleTouchEnd = () => {
-    if (sheetMode === "expanded") {
-      setSheetMode(dragOffset > 100 ? "collapsed" : "expanded");
-    } else {
-      setSheetMode(dragOffset < -70 ? "expanded" : "collapsed");
-    }
-
-    dragStartY.current = null;
-    setDragOffset(0);
-  };
-
   const sheetTransform = useMemo(() => {
-    if (sheetMode === "expanded") {
-      return `translateY(${Math.max(0, dragOffset)}px)`;
-    }
-
-    return `translateY(calc(100% - 108px + ${Math.min(0, dragOffset)}px))`;
-  }, [dragOffset, sheetMode]);
+    return sheetMode === "expanded"
+      ? "translateY(0)"
+      : "translateY(calc(100% - 78px))";
+  }, [sheetMode]);
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-[linear-gradient(180deg,rgba(15,21,19,1),rgba(20,28,25,1))]">
@@ -323,63 +405,197 @@ export function BookingForm() {
           </>
         ) : null}
 
+        {isMapSearchOpen ? (
+          <div className="absolute inset-x-4 top-20 z-30 rounded-[24px] border border-white/10 bg-surface-container/95 p-3 shadow-[var(--shadow-premium)] backdrop-blur-xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex rounded-full bg-black/20 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMapSearchField("pickup")}
+                  className={`rounded-full px-4 py-2 text-xs font-black transition ${
+                    mapSearchField === "pickup"
+                      ? "bg-primary text-white"
+                      : "text-white/55"
+                  }`}
+                >
+                  نقطة التحرك
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapSearchField("destination")}
+                  className={`rounded-full px-4 py-2 text-xs font-black transition ${
+                    mapSearchField === "destination"
+                      ? "bg-primary text-white"
+                      : "text-white/55"
+                  }`}
+                >
+                  الوجهة
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMapSearchOpen(false)}
+                className="text-xs font-bold text-white/55"
+              >
+                قفل
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                value={mapSearchQuery}
+                onChange={(event) => setMapSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleSearchMapLocations();
+                  }
+                }}
+                className="h-12 rounded-[18px] border-white/10 bg-black/10"
+                placeholder={
+                  mapSearchField === "pickup"
+                    ? "دوّر على نقطة التحرك"
+                    : "دوّر على الوجهة"
+                }
+              />
+              <Button
+                type="button"
+                isLoading={isSearchingMap}
+                className="h-12 rounded-[18px] px-4"
+                onClick={() => void handleSearchMapLocations()}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-10 rounded-[16px] px-4 text-xs"
+                onClick={() => beginMapPick(mapSearchField)}
+              >
+                حدده يدوي من الخريطة
+              </Button>
+              {mapSearchField === "pickup" ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 rounded-[16px] px-4 text-xs"
+                  onClick={handleUseCurrentLocation}
+                >
+                  استخدم موقعي الحالي
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
+              {mapSearchResults.length ? (
+                mapSearchResults.map((result, index) => (
+                  <button
+                    key={`${result.latitude}-${result.longitude}-${index}`}
+                    type="button"
+                    onClick={() => applyLocationFromSearch(result, mapSearchField)}
+                    className="w-full rounded-[18px] border border-white/5 bg-black/10 px-4 py-3 text-right transition hover:border-primary/25 hover:bg-primary/10"
+                  >
+                    <p className="text-sm font-black text-white">{result.label}</p>
+                    <p className="mt-1 text-xs text-white/55">{result.address}</p>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-4 text-sm text-white/50">
+                  اكتب اسم المكان أو الشارع واضغط بحث.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
         <button
           onClick={handleUseCurrentLocation}
-          className="absolute right-4 bottom-[calc(52vh+10px)] z-20 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md sm:bottom-[410px]"
+          className="absolute right-4 top-24 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
           aria-label="استخدم موقعي الحالي"
         >
           <Navigation className="h-5 w-5 text-primary" />
         </button>
+
+        <div className="absolute left-4 top-24 z-20 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => handleOpenMapSearch("pickup")}
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
+            aria-label="ابحث عن مكان على الخريطة"
+          >
+            <Search className="h-5 w-5 text-primary" />
+          </button>
+          <button
+            type="button"
+            onClick={() => beginMapPick(pickup ? "destination" : "pickup")}
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
+            aria-label="حدد نقطة من الخريطة"
+          >
+            <MapPinned className="h-5 w-5 text-secondary" />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              window.open(
+                "https://www.google.com/maps/search/?api=1&query=Current+Location",
+                "_blank"
+              )
+            }
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
+            aria-label="افتح خرائط جوجل"
+          >
+            <ExternalLink className="h-5 w-5 text-white/75" />
+          </button>
+        </div>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center pb-0">
         <div
-          className="pointer-events-auto w-full max-w-xl rounded-t-[36px] border-t border-white/10 bg-surface-container/95 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-3xl transition-transform duration-300 md:rounded-[36px] md:border"
+          className="pointer-events-auto w-full max-w-xl rounded-t-[30px] border-t border-white/10 bg-surface-container/95 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-3xl transition-transform duration-300 md:rounded-[30px] md:border"
           style={{ transform: sheetTransform }}
         >
-          <div
-            className="cursor-grab px-5 pt-4 active:cursor-grabbing"
-            onTouchStart={handleHandleTouchStart}
-            onTouchMove={handleHandleTouchMove}
-            onTouchEnd={handleHandleTouchEnd}
-            onClick={() =>
-              setSheetMode((current) =>
-                current === "expanded" ? "collapsed" : "expanded"
-              )
-            }
-          >
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/10" />
-            <div className="mb-2 flex items-center justify-between rounded-[22px] border border-white/5 bg-black/10 px-4 py-3">
+          <div className="px-4 pt-3">
+            <div className="mb-2 flex items-center justify-between rounded-[18px] border border-white/5 bg-black/10 px-4 py-2.5">
               <div>
                 <p className="text-sm font-black text-white">
                   {pickup && destination ? "المشوار جاهز للمراجعة" : "حدد المشوار"}
                 </p>
-                <p className="mt-1 text-xs text-white/45">
-                  اسحب لتحت عشان تشوف الخريطة أو لفوق عشان تكمل الطلب
+                <p className="mt-0.5 text-[11px] text-white/45">
+                  من وإلى أو اختارهم من الخريطة
                 </p>
               </div>
-              <div className="text-primary">
+              <button
+                type="button"
+                onClick={() =>
+                  setSheetMode((current) =>
+                    current === "expanded" ? "collapsed" : "expanded"
+                  )
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary/15"
+                aria-label={sheetMode === "expanded" ? "طي الطلب" : "فتح الطلب"}
+              >
                 {sheetMode === "expanded" ? (
                   <ChevronDown className="h-5 w-5" />
                 ) : (
                   <ChevronUp className="h-5 w-5" />
                 )}
-              </div>
+              </button>
             </div>
           </div>
 
-          <div className="flex max-h-[72vh] flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto px-5 pb-5">
+          <div className="flex max-h-[48vh] flex-col">
+            <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
               <div className="mb-1 flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-foreground">رايح فين؟</h2>
-                  <p className="mt-0.5 flex items-center gap-1 text-[13px] font-bold text-primary">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    اكتب أو حدّد من على الخريطة واحسب الوقت والسعر
+                  <h2 className="text-xl font-black text-foreground">رايح فين؟</h2>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
+                    <Sparkles className="h-3 w-3" />
+                    اكتب أو اختار من الخريطة
                   </p>
-                </div>
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-primary/20 bg-gradient-to-br from-primary/20 to-primary/5 shadow-inner">
-                  <MapPinned className="h-7 w-7 text-primary" />
                 </div>
               </div>
 

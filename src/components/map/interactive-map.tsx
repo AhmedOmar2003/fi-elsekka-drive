@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, useMapEvents } from "react-leaflet";
+import { useEffect } from "react";
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 // Fix Leaflet icons issue in Next.js/Webpack
@@ -36,6 +36,26 @@ function MapMovementListener({
   return null;
 }
 
+function MapCenterSync({ center }: { center: [number, number] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const currentCenter = map.getCenter();
+    const hasMeaningfulDifference =
+      Math.abs(currentCenter.lat - center[0]) > 0.0001 ||
+      Math.abs(currentCenter.lng - center[1]) > 0.0001;
+
+    if (hasMeaningfulDifference) {
+      map.flyTo(center, map.getZoom(), {
+        animate: true,
+        duration: 0.8,
+      });
+    }
+  }, [center, map]);
+
+  return null;
+}
+
 export function InteractiveMap({
   initialCenter = [30.0444, 31.2357], // Default to Cairo
   onLocationChange,
@@ -60,6 +80,7 @@ export function InteractiveMap({
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           maxZoom={19}
         />
+        <MapCenterSync center={initialCenter} />
         <MapMovementListener onLocationChange={onLocationChange} />
       </MapContainer>
     </div>

@@ -40,11 +40,25 @@ function buildReadableAddress(payload: any) {
 }
 
 async function geocodePlace(query: string): Promise<GeocodedLocation> {
+  const matches = await searchLocations(query, 1);
+  const firstMatch = matches[0];
+
+  if (!firstMatch) {
+    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب تكتب العنوان بشكل أوضح.");
+  }
+
+  return firstMatch;
+}
+
+export async function searchLocations(
+  query: string,
+  limit = 5
+): Promise<GeocodedLocation[]> {
   const url = new URL(NOMINATIM_BASE_URL);
   url.searchParams.set("q", query);
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("limit", "1");
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 8)));
   url.searchParams.set("countrycodes", "eg");
 
   const response = await fetch(url.toString(), {
@@ -57,32 +71,36 @@ async function geocodePlace(query: string): Promise<GeocodedLocation> {
   }
 
   const payload = await response.json();
-  const match = Array.isArray(payload) ? payload[0] : null;
+  const matches = Array.isArray(payload) ? payload : [];
 
-  if (!match?.lat || !match?.lon) {
+  if (matches.length === 0) {
     throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب تكتب العنوان بشكل أوضح.");
   }
 
-  const city =
-    match.address?.city ||
-    match.address?.town ||
-    match.address?.state_district ||
-    match.address?.state ||
-    null;
-  const area =
-    match.address?.suburb ||
-    match.address?.neighbourhood ||
-    match.address?.quarter ||
-    null;
+  return matches
+    .filter((match) => match?.lat && match?.lon)
+    .map((match) => {
+      const city =
+        match.address?.city ||
+        match.address?.town ||
+        match.address?.state_district ||
+        match.address?.state ||
+        null;
+      const area =
+        match.address?.suburb ||
+        match.address?.neighbourhood ||
+        match.address?.quarter ||
+        null;
 
-  return {
-    label: match.name || match.display_name?.split(",")[0] || query,
-    address: buildReadableAddress(match) || match.display_name || query,
-    latitude: Number(match.lat),
-    longitude: Number(match.lon),
-    city,
-    area,
-  };
+      return {
+        label: match.name || match.display_name?.split(",")[0] || query,
+        address: buildReadableAddress(match) || match.display_name || query,
+        latitude: Number(match.lat),
+        longitude: Number(match.lon),
+        city,
+        area,
+      } satisfies GeocodedLocation;
+    });
 }
 
 async function getRouteDistanceAndDuration(
