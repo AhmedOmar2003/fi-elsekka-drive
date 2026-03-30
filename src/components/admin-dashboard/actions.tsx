@@ -281,6 +281,7 @@ export function NotificationComposer() {
 
 export function CreateCaptainForm() {
     const router = useRouter();
+    const [isOpen, setIsOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [vehicleType, setVehicleType] = useState("car");
     const [fullName, setFullName] = useState("");
@@ -289,6 +290,7 @@ export function CreateCaptainForm() {
     const [password, setPassword] = useState("");
     const [nationalId, setNationalId] = useState("");
     const [workingCity, setWorkingCity] = useState("");
+    const [workingArea, setWorkingArea] = useState("");
     const [brand, setBrand] = useState("");
     const [model, setModel] = useState("");
     const [color, setColor] = useState("");
@@ -296,8 +298,40 @@ export function CreateCaptainForm() {
     const [plateNumber, setPlateNumber] = useState("");
     const [seatCount, setSeatCount] = useState("4");
     const [operatingArea, setOperatingArea] = useState("");
+    const [vehicleCondition, setVehicleCondition] = useState("");
+    const [adminNotes, setAdminNotes] = useState("");
     const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
     const [nationalIdPhoto, setNationalIdPhoto] = useState<File | null>(null);
+    const [driverLicensePhoto, setDriverLicensePhoto] = useState<File | null>(null);
+    const [vehicleLicensePhoto, setVehicleLicensePhoto] = useState<File | null>(null);
+    const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null);
+    const [criminalRecordPhoto, setCriminalRecordPhoto] = useState<File | null>(null);
+
+    const resetForm = () => {
+        setFullName("");
+        setPhone("");
+        setEmail("");
+        setPassword("");
+        setNationalId("");
+        setWorkingCity("");
+        setWorkingArea("");
+        setBrand("");
+        setModel("");
+        setColor("");
+        setManufacturingYear(String(new Date().getFullYear()));
+        setPlateNumber("");
+        setSeatCount("4");
+        setOperatingArea("");
+        setVehicleCondition("");
+        setAdminNotes("");
+        setProfilePhoto(null);
+        setNationalIdPhoto(null);
+        setDriverLicensePhoto(null);
+        setVehicleLicensePhoto(null);
+        setVehiclePhoto(null);
+        setCriminalRecordPhoto(null);
+        setVehicleType("car");
+    };
 
     const handleSubmit = (event: FormEvent) => {
         event.preventDefault();
@@ -311,6 +345,7 @@ export function CreateCaptainForm() {
                 formData.set("password", password);
                 formData.set("nationalId", nationalId);
                 formData.set("workingCity", workingCity);
+                formData.set("workingArea", workingArea);
                 formData.set("vehicleType", vehicleType);
                 formData.set("brand", brand);
                 formData.set("model", model);
@@ -319,29 +354,20 @@ export function CreateCaptainForm() {
                 formData.set("plateNumber", plateNumber);
                 formData.set("seatCount", seatCount);
                 formData.set("operatingArea", operatingArea);
+                formData.set("vehicleCondition", vehicleCondition);
+                formData.set("adminNotes", adminNotes);
 
                 if (profilePhoto) formData.set("profilePhoto", profilePhoto);
                 if (nationalIdPhoto) formData.set("nationalIdPhoto", nationalIdPhoto);
+                if (driverLicensePhoto) formData.set("driverLicensePhoto", driverLicensePhoto);
+                if (vehicleLicensePhoto) formData.set("vehicleLicensePhoto", vehicleLicensePhoto);
+                if (vehiclePhoto) formData.set("vehiclePhoto", vehiclePhoto);
+                if (criminalRecordPhoto) formData.set("criminalRecordPhoto", criminalRecordPhoto);
 
                 await sendFormData("/api/admin/platform/drivers", formData);
                 toast.success(`تم إنشاء حساب الكابتن. رابط الدخول: /captain/login`);
-
-                setFullName("");
-                setPhone("");
-                setEmail("");
-                setPassword("");
-                setNationalId("");
-                setWorkingCity("");
-                setBrand("");
-                setModel("");
-                setColor("");
-                setManufacturingYear(String(new Date().getFullYear()));
-                setPlateNumber("");
-                setSeatCount("4");
-                setOperatingArea("");
-                setProfilePhoto(null);
-                setNationalIdPhoto(null);
-
+                resetForm();
+                setIsOpen(false);
                 router.refresh();
             } catch (error: any) {
                 toast.error(error?.message || "تعذر إنشاء حساب الكابتن.");
@@ -350,98 +376,172 @@ export function CreateCaptainForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-            <div>
-                <p className="text-lg font-black text-white">إضافة كابتن يدويًا</p>
-                <p className="mt-1 text-sm text-white/55">
-                    الكابتن بيتعمله حساب جاهز من الإدارة، ويدخل بعد كده من رابط دخول الكباتن بالإيميل والباسورد.
-                </p>
+        <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <p className="text-lg font-black text-white">قسم الكباتن</p>
+                    <p className="mt-1 text-sm text-white/55">
+                        إضافة كابتن جديد يدويًا من الإدارة مع إنشاء الحساب والمركبة والمستندات الأساسية مرة واحدة.
+                    </p>
+                </div>
+                <Button type="button" onClick={() => setIsOpen((current) => !current)} className="md:min-w-44">
+                    {isOpen ? "قفل الفورم" : "إضافة كابتن"}
+                </Button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <Label className="text-white/75">الاسم بالكامل</Label>
-                    <Input value={fullName} onChange={(event) => setFullName(event.target.value)} className="bg-white/5 text-white" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-white/75">رقم الموبايل</Label>
-                    <Input value={phone} onChange={(event) => setPhone(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-white/75">الإيميل</Label>
-                    <Input value={email} onChange={(event) => setEmail(event.target.value)} className="bg-white/5 text-white" dir="ltr" placeholder="captain@gmail.com" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-white/75">الباسورد</Label>
-                    <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-white/75">الرقم القومي</Label>
-                    <Input value={nationalId} onChange={(event) => setNationalId(event.target.value)} className="bg-white/5 text-white" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-white/75">المدينة الأساسية</Label>
-                    <Input value={workingCity} onChange={(event) => setWorkingCity(event.target.value)} className="bg-white/5 text-white" />
-                </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <Label className="text-white/75">صورة الكابتن</Label>
-                    <Input type="file" accept="image/*" onChange={(event) => setProfilePhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-white/75">صورة البطاقة</Label>
-                    <Input type="file" accept="image/*" onChange={(event) => setNationalIdPhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
-                </div>
-            </div>
-
-            <div className="rounded-[24px] border border-primary/15 bg-primary/5 p-4">
-                <p className="text-sm font-black text-white">بيانات تشغيل أساسية لاستقبال العروض</p>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label className="text-white/75">نوع المركبة</Label>
-                        <Select value={vehicleType} onChange={(event) => setVehicleType(event.target.value)} className="bg-white/5 text-white">
-                            <option value="car">عربية</option>
-                            <option value="tuk_tuk">توك توك</option>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-white/75">منطقة التشغيل</Label>
-                        <Input value={operatingArea} onChange={(event) => setOperatingArea(event.target.value)} className="bg-white/5 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-white/75">الماركة</Label>
-                        <Input value={brand} onChange={(event) => setBrand(event.target.value)} className="bg-white/5 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-white/75">الموديل</Label>
-                        <Input value={model} onChange={(event) => setModel(event.target.value)} className="bg-white/5 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-white/75">اللون</Label>
-                        <Input value={color} onChange={(event) => setColor(event.target.value)} className="bg-white/5 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-white/75">سنة الصنع</Label>
-                        <Input value={manufacturingYear} onChange={(event) => setManufacturingYear(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-white/75">رقم اللوحة</Label>
-                        <Input value={plateNumber} onChange={(event) => setPlateNumber(event.target.value)} className="bg-white/5 text-white" />
-                    </div>
-                    {vehicleType === "car" ? (
-                        <div className="space-y-2">
-                            <Label className="text-white/75">عدد المقاعد</Label>
-                            <Input value={seatCount} onChange={(event) => setSeatCount(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+            {isOpen ? (
+                <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+                    <div className="grid gap-3 md:grid-cols-4">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                            <p className="text-xs text-white/45">الحساب</p>
+                            <p className="mt-1 text-sm font-bold text-white">إيميل + باسورد</p>
                         </div>
-                    ) : null}
-                </div>
-            </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                            <p className="text-xs text-white/45">البيانات الشخصية</p>
+                            <p className="mt-1 text-sm font-bold text-white">اسم + رقم + قومي</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                            <p className="text-xs text-white/45">المركبة</p>
+                            <p className="mt-1 text-sm font-bold text-white">نوع + لوحة + تشغيل</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                            <p className="text-xs text-white/45">المرفقات</p>
+                            <p className="mt-1 text-sm font-bold text-white">صور ومستندات</p>
+                        </div>
+                    </div>
 
-            <Button type="submit" isLoading={isPending}>
-                إنشاء حساب الكابتن
-            </Button>
-        </form>
+                    <div className="max-h-[72vh] space-y-5 overflow-y-auto pe-2">
+                        <div className="rounded-[24px] border border-white/10 bg-black/15 p-4">
+                            <p className="text-sm font-black text-white">بيانات الحساب والدخول</p>
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">اسم الكابتن بالكامل</Label>
+                                    <Input value={fullName} onChange={(event) => setFullName(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">رقم الموبايل</Label>
+                                    <Input value={phone} onChange={(event) => setPhone(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">الإيميل</Label>
+                                    <Input value={email} onChange={(event) => setEmail(event.target.value)} className="bg-white/5 text-white" dir="ltr" placeholder="captain@gmail.com" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">الباسورد</Label>
+                                    <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="bg-white/5 text-white" dir="ltr" placeholder="هيستخدمه الكابتن في تسجيل الدخول" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">الرقم القومي</Label>
+                                    <Input value={nationalId} onChange={(event) => setNationalId(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">المدينة الأساسية</Label>
+                                    <Input value={workingCity} onChange={(event) => setWorkingCity(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-white/75">المنطقة / نطاق العمل</Label>
+                                    <Input value={workingArea} onChange={(event) => setWorkingArea(event.target.value)} className="bg-white/5 text-white" placeholder="مثال: منيا القمح - مشتول السوق" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-[24px] border border-primary/15 bg-primary/5 p-4">
+                            <p className="text-sm font-black text-white">بيانات المركبة والتشغيل</p>
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">نوع المركبة</Label>
+                                    <Select value={vehicleType} onChange={(event) => setVehicleType(event.target.value)} className="bg-white/5 text-white">
+                                        <option value="car">عربية</option>
+                                        <option value="tuk_tuk">توك توك</option>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">منطقة تشغيل المركبة</Label>
+                                    <Input value={operatingArea} onChange={(event) => setOperatingArea(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">الماركة</Label>
+                                    <Input value={brand} onChange={(event) => setBrand(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">الموديل</Label>
+                                    <Input value={model} onChange={(event) => setModel(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">اللون</Label>
+                                    <Input value={color} onChange={(event) => setColor(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">سنة الصنع</Label>
+                                    <Input value={manufacturingYear} onChange={(event) => setManufacturingYear(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">رقم اللوحة</Label>
+                                    <Input value={plateNumber} onChange={(event) => setPlateNumber(event.target.value)} className="bg-white/5 text-white" />
+                                </div>
+                                {vehicleType === "car" ? (
+                                    <div className="space-y-2">
+                                        <Label className="text-white/75">عدد المقاعد</Label>
+                                        <Input value={seatCount} onChange={(event) => setSeatCount(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                                    </div>
+                                ) : null}
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-white/75">حالة المركبة / ملاحظات تشغيل</Label>
+                                    <Input value={vehicleCondition} onChange={(event) => setVehicleCondition(event.target.value)} className="bg-white/5 text-white" placeholder="مثال: حالة ممتازة - شغال داخل المدينة فقط" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-[24px] border border-white/10 bg-black/15 p-4">
+                            <p className="text-sm font-black text-white">الصور والمستندات</p>
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">صورة الكابتن</Label>
+                                    <Input type="file" accept="image/*" onChange={(event) => setProfilePhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">صورة البطاقة</Label>
+                                    <Input type="file" accept="image/*,application/pdf" onChange={(event) => setNationalIdPhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">رخصة القيادة</Label>
+                                    <Input type="file" accept="image/*,application/pdf" onChange={(event) => setDriverLicensePhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">رخصة المركبة</Label>
+                                    <Input type="file" accept="image/*,application/pdf" onChange={(event) => setVehicleLicensePhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">صورة المركبة</Label>
+                                    <Input type="file" accept="image/*" onChange={(event) => setVehiclePhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/75">فيش / صحيفة حالة جنائية</Label>
+                                    <Input type="file" accept="image/*,application/pdf" onChange={(event) => setCriminalRecordPhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-white/75">ملاحظات داخلية للإدارة</Label>
+                                    <textarea
+                                        value={adminNotes}
+                                        onChange={(event) => setAdminNotes(event.target.value)}
+                                        className="min-h-28 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-white/35"
+                                        placeholder="أي ملاحظة داخلية عن الكابتن أو التشغيل أو المستندات"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-white/10 pt-4 md:flex-row md:justify-end">
+                        <Button type="button" variant="ghost" className="border border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={() => { resetForm(); setIsOpen(false); }}>
+                            إلغاء
+                        </Button>
+                        <Button type="submit" isLoading={isPending} className="md:min-w-48">
+                            حفظ الكابتن وإنشاء الحساب
+                        </Button>
+                    </div>
+                </form>
+            ) : null}
+        </div>
     );
 }

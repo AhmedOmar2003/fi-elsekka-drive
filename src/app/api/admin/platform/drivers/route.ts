@@ -27,6 +27,53 @@ async function uploadStorageFile(
     if (error) throw error;
 }
 
+async function createDriverDocument({
+    supabase,
+    driverId,
+    vehicleId = null,
+    bucket,
+    path,
+    file,
+    documentType,
+    reviewedBy,
+    now,
+}: {
+    supabase: NonNullable<ReturnType<typeof createAdminPlatformClient>>;
+    driverId: string;
+    vehicleId?: string | null;
+    bucket: string;
+    path: string;
+    file: File;
+    documentType:
+        | "profile_photo"
+        | "national_id"
+        | "driver_license"
+        | "vehicle_license"
+        | "vehicle_photo"
+        | "criminal_record"
+        | "other";
+    reviewedBy: string;
+    now: string;
+}) {
+    await uploadStorageFile(supabase, bucket, path, file);
+
+    const { error } = await supabase.from("driver_documents").insert({
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        document_type: documentType,
+        storage_bucket: bucket,
+        storage_path: path,
+        file_name: file.name,
+        mime_type: file.type || null,
+        file_size_bytes: file.size || null,
+        approval_status: "approved",
+        reviewed_at: now,
+        reviewed_by: reviewedBy,
+    });
+
+    if (error) throw error;
+}
+
 export async function POST(request: NextRequest) {
     const auth = await requireAdminApi(request);
     if (!auth.ok) return auth.response;
@@ -49,18 +96,24 @@ export async function POST(request: NextRequest) {
         const password = String(formData.get("password") || "");
         const nationalId = String(formData.get("nationalId") || "").trim();
         const workingCity = String(formData.get("workingCity") || "").trim();
-        const vehicleType =
-            formData.get("vehicleType") === "tuk_tuk" ? "tuk_tuk" : "car";
+        const workingArea = String(formData.get("workingArea") || formData.get("operatingArea") || "").trim() || null;
+        const vehicleType = formData.get("vehicleType") === "tuk_tuk" ? "tuk_tuk" : "car";
         const brand = String(formData.get("brand") || "").trim();
         const model = String(formData.get("model") || "").trim();
         const color = String(formData.get("color") || "").trim();
         const manufacturingYear = Number(formData.get("manufacturingYear") || 0);
         const plateNumber = String(formData.get("plateNumber") || "").trim() || null;
-        const seatCount =
-            vehicleType === "car" ? Number(formData.get("seatCount") || 0) : null;
+        const seatCount = vehicleType === "car" ? Number(formData.get("seatCount") || 0) : null;
         const operatingArea = String(formData.get("operatingArea") || "").trim() || null;
+        const vehicleCondition = String(formData.get("vehicleCondition") || "").trim() || null;
+        const adminNotes = String(formData.get("adminNotes") || "").trim() || null;
+
         const profilePhoto = formData.get("profilePhoto");
         const nationalIdPhoto = formData.get("nationalIdPhoto");
+        const driverLicensePhoto = formData.get("driverLicensePhoto");
+        const vehicleLicensePhoto = formData.get("vehicleLicensePhoto");
+        const vehiclePhoto = formData.get("vehiclePhoto");
+        const criminalRecordPhoto = formData.get("criminalRecordPhoto");
 
         if (!fullName || !phone || !email || !password || !nationalId || !workingCity) {
             return NextResponse.json({ error: "اكتب كل البيانات الأساسية للكابتن." }, { status: 400 });
@@ -117,6 +170,7 @@ export async function POST(request: NextRequest) {
                 metadata: {
                     auth_role: "driver",
                     created_via: "admin_dashboard",
+                    admin_notes: adminNotes,
                 },
             })
             .eq("id", userId);
@@ -131,11 +185,12 @@ export async function POST(request: NextRequest) {
             is_accepting_offers: true,
             national_id: nationalId,
             working_city: workingCity,
-            working_area: operatingArea,
+            working_area: workingArea,
             approved_at: now,
             approved_by: auth.profile.user.id,
             metadata: {
                 created_via: "admin_dashboard",
+                admin_notes: adminNotes,
             },
         });
 
@@ -153,11 +208,16 @@ export async function POST(request: NextRequest) {
                 plate_number: plateNumber,
                 seat_count: vehicleType === "car" ? seatCount : null,
                 operating_area: operatingArea,
+                condition_notes: vehicleCondition,
                 approval_status: "approved",
                 approved_at: now,
                 approved_by: auth.profile.user.id,
                 is_primary: true,
                 is_active: true,
+                metadata: {
+                    created_via: "admin_dashboard",
+                    admin_notes: adminNotes,
+                },
             })
             .select("id")
             .single();
@@ -189,20 +249,69 @@ export async function POST(request: NextRequest) {
         }
 
         if (nationalIdPhoto instanceof File && nationalIdPhoto.size > 0) {
-            const nationalIdPath = `drivers/${userId}/national-id-${Date.now()}.${fileExtension(nationalIdPhoto)}`;
-            await uploadStorageFile(supabase, "driver-documents", nationalIdPath, nationalIdPhoto);
+            await createDriverDocument({
+                supabase,
+                driverId: userId,
+                bucket: "driver-documents",
+                path: `drivers/${userId}/national-id-${Date.now()}.${fileExtension(nationalIdPhoto)}`,
+                file: nationalIdPhoto,
+                documentType: "national_id",
+                reviewedBy: auth.profile.user.id,
+                now,
+            });
+        }
 
-            await supabase.from("driver_documents").insert({
-                driver_id: userId,
-                document_type: "national_id",
-                storage_bucket: "driver-documents",
-                storage_path: nationalIdPath,
-                file_name: nationalIdPhoto.name,
-                mime_type: nationalIdPhoto.type || null,
-                file_size_bytes: nationalIdPhoto.size || null,
-                approval_status: "approved",
-                reviewed_at: now,
-                reviewed_by: auth.profile.user.id,
+        if (driverLicensePhoto instanceof File && driverLicensePhoto.size > 0) {
+            await createDriverDocument({
+                supabase,
+                driverId: userId,
+                bucket: "driver-documents",
+                path: `drivers/${userId}/driver-license-${Date.now()}.${fileExtension(driverLicensePhoto)}`,
+                file: driverLicensePhoto,
+                documentType: "driver_license",
+                reviewedBy: auth.profile.user.id,
+                now,
+            });
+        }
+
+        if (criminalRecordPhoto instanceof File && criminalRecordPhoto.size > 0) {
+            await createDriverDocument({
+                supabase,
+                driverId: userId,
+                bucket: "driver-documents",
+                path: `drivers/${userId}/criminal-record-${Date.now()}.${fileExtension(criminalRecordPhoto)}`,
+                file: criminalRecordPhoto,
+                documentType: "criminal_record",
+                reviewedBy: auth.profile.user.id,
+                now,
+            });
+        }
+
+        if (vehicleLicensePhoto instanceof File && vehicleLicensePhoto.size > 0) {
+            await createDriverDocument({
+                supabase,
+                driverId: userId,
+                vehicleId: vehicle.id,
+                bucket: "vehicle-files",
+                path: `vehicles/${vehicle.id}/license-${Date.now()}.${fileExtension(vehicleLicensePhoto)}`,
+                file: vehicleLicensePhoto,
+                documentType: "vehicle_license",
+                reviewedBy: auth.profile.user.id,
+                now,
+            });
+        }
+
+        if (vehiclePhoto instanceof File && vehiclePhoto.size > 0) {
+            await createDriverDocument({
+                supabase,
+                driverId: userId,
+                vehicleId: vehicle.id,
+                bucket: "vehicle-files",
+                path: `vehicles/${vehicle.id}/photo-${Date.now()}.${fileExtension(vehiclePhoto)}`,
+                file: vehiclePhoto,
+                documentType: "vehicle_photo",
+                reviewedBy: auth.profile.user.id,
+                now,
             });
         }
 
