@@ -6,6 +6,7 @@ export default function InstallPosterPage() {
   const origin =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || FALLBACK_SITE_URL;
   const installUrl = `${origin}/install-app`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=700x700&data=${encodeURIComponent(installUrl)}`;
 
   return (
     <main className="min-h-screen bg-[#08100e] p-4 md:p-10">
@@ -36,7 +37,7 @@ export default function InstallPosterPage() {
         <div className="mt-8 flex justify-center">
           <div className="rounded-[28px] bg-white p-5 shadow-[0_0_60px_rgba(255,255,255,0.14)]">
             <img
-              src="/app-download-qr.jpg"
+              src={qrUrl}
               alt="QR لتحميل تطبيق في السكة"
               className="h-[280px] w-[280px] rounded-[16px] object-contain"
             />

@@ -82,6 +82,8 @@ export default function InstallAppPage() {
     }
   }
 
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(installUrl)}`
+
   return (
     <main className="min-h-screen bg-background px-4 py-10 md:px-6">
       <div className="mx-auto max-w-xl">
@@ -135,7 +137,7 @@ export default function InstallAppPage() {
                 <div className="relative mt-6 flex justify-center">
                   <div className="rounded-[24px] bg-white p-4 shadow-[0_0_50px_rgba(255,255,255,0.14)]">
                     <img
-                      src="/app-download-qr.jpg"
+                      src={qrUrl}
                       alt="QR لتحميل تطبيق في السكة"
                       className="h-[220px] w-[220px] rounded-[12px] object-contain"
                     />
