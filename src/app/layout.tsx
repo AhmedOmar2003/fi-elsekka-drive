@@ -7,7 +7,7 @@ import { MaintenanceModeOverlay } from "@/components/system/maintenance-mode-ove
 import { fetchPublicAppSettingsServer } from "@/services/serverAppSettingsService";
 import "./globals.css";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://fi-elsekka.vercel.app";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://fi-elsekka-drive.vercel.app";
 
 const ibmPlex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic"],

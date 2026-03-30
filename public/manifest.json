@@ -1,11 +1,11 @@
 {
-  "name": "في السكة - Fi El Sekka",
+  "name": "في السكة | تطبيق المشاوير",
   "short_name": "في السكة",
-  "description": "صاحبك الجدع في التسوق. كل اللي تحتاجه، من البيت لحد البيت بأسهل طريقة وبأحسن سعر.",
-  "start_url": "/",
+  "description": "احجز مشوارك بسهولة من مكانك لوجهتك أو للمطار، واعتمد على كباتن في السكة في تنقلك اليومي.",
+  "start_url": "/book",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#10b981",
+  "background_color": "#08100e",
+  "theme_color": "#238267",
   "orientation": "portrait",
   "icons": [
     {
