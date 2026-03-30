@@ -77,6 +77,7 @@ export default async function AdminOverviewPage() {
                     <div className="space-y-3">
                         <EntityLink href="/admin/trips?status=pending" title="طلبات مشاوير معلقة" subtitle="راجع كل الطلبات اللي لسه ما اتسندتش" />
                         <EntityLink href="/admin/drivers?approvalStatus=pending" title="طلبات كباتن تحت المراجعة" subtitle="راجع الأوراق وبيانات المركبة وحالة الانضمام" />
+                        <EntityLink href="/admin/users" title="العملاء المسجلين" subtitle="شوف كل العملاء الجدد والحسابات اللي اتعملت من التطبيق" />
                         <EntityLink href="/admin/support" title="صندوق الدعم المفتوح" subtitle="رد على مشاكل المشاوير والشكاوى" />
                     </div>
                 </SectionCard>

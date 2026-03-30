@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,20 @@ async function sendJson(url: string, method: string, body: Record<string, unknow
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.error || "فشل تنفيذ الإجراء");
     }
+}
+
+async function sendFormData(url: string, body: FormData) {
+    const response = await fetch(url, {
+        method: "POST",
+        body,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload.error || "فشل تنفيذ الإجراء");
+    }
+
+    return payload;
 }
 
 export function TripStatusForm({ tripId, currentStatus }: { tripId: string; currentStatus: string }) {
@@ -260,6 +275,173 @@ export function NotificationComposer() {
                     إرسال الإعلان
                 </Button>
             </div>
+        </form>
+    );
+}
+
+export function CreateCaptainForm() {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [vehicleType, setVehicleType] = useState("car");
+    const [fullName, setFullName] = useState("");
+    const [phone, setPhone] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [nationalId, setNationalId] = useState("");
+    const [workingCity, setWorkingCity] = useState("");
+    const [brand, setBrand] = useState("");
+    const [model, setModel] = useState("");
+    const [color, setColor] = useState("");
+    const [manufacturingYear, setManufacturingYear] = useState(String(new Date().getFullYear()));
+    const [plateNumber, setPlateNumber] = useState("");
+    const [seatCount, setSeatCount] = useState("4");
+    const [operatingArea, setOperatingArea] = useState("");
+    const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+    const [nationalIdPhoto, setNationalIdPhoto] = useState<File | null>(null);
+
+    const handleSubmit = (event: FormEvent) => {
+        event.preventDefault();
+
+        startTransition(async () => {
+            try {
+                const formData = new FormData();
+                formData.set("fullName", fullName);
+                formData.set("phone", phone);
+                formData.set("email", email);
+                formData.set("password", password);
+                formData.set("nationalId", nationalId);
+                formData.set("workingCity", workingCity);
+                formData.set("vehicleType", vehicleType);
+                formData.set("brand", brand);
+                formData.set("model", model);
+                formData.set("color", color);
+                formData.set("manufacturingYear", manufacturingYear);
+                formData.set("plateNumber", plateNumber);
+                formData.set("seatCount", seatCount);
+                formData.set("operatingArea", operatingArea);
+
+                if (profilePhoto) formData.set("profilePhoto", profilePhoto);
+                if (nationalIdPhoto) formData.set("nationalIdPhoto", nationalIdPhoto);
+
+                await sendFormData("/api/admin/platform/drivers", formData);
+                toast.success(`تم إنشاء حساب الكابتن. رابط الدخول: /captain/login`);
+
+                setFullName("");
+                setPhone("");
+                setEmail("");
+                setPassword("");
+                setNationalId("");
+                setWorkingCity("");
+                setBrand("");
+                setModel("");
+                setColor("");
+                setManufacturingYear(String(new Date().getFullYear()));
+                setPlateNumber("");
+                setSeatCount("4");
+                setOperatingArea("");
+                setProfilePhoto(null);
+                setNationalIdPhoto(null);
+
+                router.refresh();
+            } catch (error: any) {
+                toast.error(error?.message || "تعذر إنشاء حساب الكابتن.");
+            }
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+            <div>
+                <p className="text-lg font-black text-white">إضافة كابتن يدويًا</p>
+                <p className="mt-1 text-sm text-white/55">
+                    الكابتن بيتعمله حساب جاهز من الإدارة، ويدخل بعد كده من رابط دخول الكباتن بالإيميل والباسورد.
+                </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label className="text-white/75">الاسم بالكامل</Label>
+                    <Input value={fullName} onChange={(event) => setFullName(event.target.value)} className="bg-white/5 text-white" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-white/75">رقم الموبايل</Label>
+                    <Input value={phone} onChange={(event) => setPhone(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-white/75">الإيميل</Label>
+                    <Input value={email} onChange={(event) => setEmail(event.target.value)} className="bg-white/5 text-white" dir="ltr" placeholder="captain@gmail.com" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-white/75">الباسورد</Label>
+                    <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-white/75">الرقم القومي</Label>
+                    <Input value={nationalId} onChange={(event) => setNationalId(event.target.value)} className="bg-white/5 text-white" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-white/75">المدينة الأساسية</Label>
+                    <Input value={workingCity} onChange={(event) => setWorkingCity(event.target.value)} className="bg-white/5 text-white" />
+                </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label className="text-white/75">صورة الكابتن</Label>
+                    <Input type="file" accept="image/*" onChange={(event) => setProfilePhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-white/75">صورة البطاقة</Label>
+                    <Input type="file" accept="image/*" onChange={(event) => setNationalIdPhoto(event.target.files?.[0] || null)} className="bg-white/5 text-white file:text-white" />
+                </div>
+            </div>
+
+            <div className="rounded-[24px] border border-primary/15 bg-primary/5 p-4">
+                <p className="text-sm font-black text-white">بيانات تشغيل أساسية لاستقبال العروض</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label className="text-white/75">نوع المركبة</Label>
+                        <Select value={vehicleType} onChange={(event) => setVehicleType(event.target.value)} className="bg-white/5 text-white">
+                            <option value="car">عربية</option>
+                            <option value="tuk_tuk">توك توك</option>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-white/75">منطقة التشغيل</Label>
+                        <Input value={operatingArea} onChange={(event) => setOperatingArea(event.target.value)} className="bg-white/5 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-white/75">الماركة</Label>
+                        <Input value={brand} onChange={(event) => setBrand(event.target.value)} className="bg-white/5 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-white/75">الموديل</Label>
+                        <Input value={model} onChange={(event) => setModel(event.target.value)} className="bg-white/5 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-white/75">اللون</Label>
+                        <Input value={color} onChange={(event) => setColor(event.target.value)} className="bg-white/5 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-white/75">سنة الصنع</Label>
+                        <Input value={manufacturingYear} onChange={(event) => setManufacturingYear(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-white/75">رقم اللوحة</Label>
+                        <Input value={plateNumber} onChange={(event) => setPlateNumber(event.target.value)} className="bg-white/5 text-white" />
+                    </div>
+                    {vehicleType === "car" ? (
+                        <div className="space-y-2">
+                            <Label className="text-white/75">عدد المقاعد</Label>
+                            <Input value={seatCount} onChange={(event) => setSeatCount(event.target.value)} className="bg-white/5 text-white" dir="ltr" />
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+
+            <Button type="submit" isLoading={isPending}>
+                إنشاء حساب الكابتن
+            </Button>
         </form>
     );
 }

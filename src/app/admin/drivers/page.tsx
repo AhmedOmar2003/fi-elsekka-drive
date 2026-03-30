@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CreateCaptainForm } from "@/components/admin-dashboard/actions";
 import { DataTable, FilterBar, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -23,6 +24,8 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
 
     return (
         <div className="space-y-6">
+            <CreateCaptainForm />
+
             <SectionCard title="إدارة الكباتن" subtitle="طلبات المراجعة، التواجد الحالي، وأداء الأسطول">
                 <form className="space-y-4">
                     <FilterBar>

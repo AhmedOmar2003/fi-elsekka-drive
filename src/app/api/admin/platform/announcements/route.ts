@@ -44,14 +44,24 @@ export async function POST(request: NextRequest) {
 
         if (error) throw error;
 
-        let recipientsQuery = supabase.from("profiles").select("id");
-        if (audience === "drivers") recipientsQuery = recipientsQuery.eq("role", "driver");
-        if (audience === "customers") recipientsQuery = recipientsQuery.eq("role", "customer");
-        if (audience === "admins") recipientsQuery = recipientsQuery.eq("role", "admin");
+        let recipients: Array<{ id: string }> = [];
+        if (audience === "drivers") {
+            const { data } = await supabase
+                .from("driver_profiles")
+                .select("id")
+                .in("application_status", ["approved", "pending", "requires_review"])
+                .limit(1000);
+            recipients = (data || []).map((item) => ({ id: String(item.id) }));
+        } else {
+            let recipientsQuery = supabase.from("profiles").select("id");
+            if (audience === "customers") recipientsQuery = recipientsQuery.eq("role", "customer");
+            if (audience === "admins") recipientsQuery = recipientsQuery.eq("role", "admin");
 
-        const { data: recipients } = await recipientsQuery.limit(1000);
+            const { data } = await recipientsQuery.limit(1000);
+            recipients = (data || []).map((item) => ({ id: String(item.id) }));
+        }
 
-        if (recipients?.length) {
+        if (recipients.length) {
             await supabase.from("notifications").insert(
                 recipients.map((recipient) => ({
                     recipient_user_id: recipient.id,
@@ -63,7 +73,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        return NextResponse.json({ success: true, announcementId: announcement.id, recipients: recipients?.length || 0 });
+        return NextResponse.json({ success: true, announcementId: announcement.id, recipients: recipients.length || 0 });
     } catch (error: any) {
         return NextResponse.json({ error: error.message || "Unexpected announcement failure" }, { status: 500 });
     }

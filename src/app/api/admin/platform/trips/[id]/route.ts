@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-guard";
 import { createAdminPlatformClient } from "@/lib/admin-platform-server";
 import { hasPermission } from "@/lib/permissions";
+import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -77,6 +78,14 @@ export async function PATCH(request: NextRequest, context: Context) {
                 body: "تم إرسال مشوار جديد لك من لوحة التشغيل.",
                 payload: { offer_id: offer.id },
                 related_trip_id: id,
+            });
+
+            await sendPushToUserDevices(supabase, driverId, {
+                title: "الإدارة بعتتلك مشوار جديد",
+                message: "فيه عرض مشوار جديد في انتظار ردك داخل تطبيق الكابتن.",
+                link: "/captain/offers",
+                requireInteraction: true,
+                topic: "admin-dispatch",
             });
 
             return NextResponse.json({ success: true, offerId: offer.id });

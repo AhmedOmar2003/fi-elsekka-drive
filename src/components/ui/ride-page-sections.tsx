@@ -46,7 +46,7 @@ export function HeroSection() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="rounded-full px-7">
-                <Link href="/register?role=captain">انضم ككابتن</Link>
+                <Link href="/captain/login">دخول الكباتن</Link>
               </Button>
             </div>
 

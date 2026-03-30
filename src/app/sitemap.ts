@@ -13,7 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/trips",
     "/notifications",
     "/account",
-    "/captain/join",
+    "/captain/login",
     "/support",
     "/login",
     "/register",

@@ -5,6 +5,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
+import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 function normalizeVehicleType(value: unknown) {
   return value === "car" || value === "tuk_tuk" ? value : "any";
@@ -224,6 +225,18 @@ export async function POST(request: Request) {
 
       if (offersError) throw offersError;
       if (notificationsError) throw notificationsError;
+
+      await Promise.all(
+        rankedDrivers.map((driver) =>
+          sendPushToUserDevices(serviceClient, driver.id, {
+            title: "وصلك طلب مشوار جديد",
+            message: `مشوار من ${estimate.pickup.label} إلى ${estimate.destination.label}. افتح التطبيق ورد بسرعة.`,
+            link: "/captain/offers",
+            requireInteraction: true,
+            topic: "ride-offer",
+          })
+        )
+      );
 
       await serviceClient
         .from("trips")

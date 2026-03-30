@@ -239,6 +239,24 @@ export type StaffListItem = {
     lastLogin: string | null;
 };
 
+export type AdminCustomerListItem = {
+    id: string;
+    fullName: string;
+    email: string | null;
+    phone: string | null;
+    status: string;
+    createdAt: string;
+};
+
+export type AdminInboxNotification = {
+    id: string;
+    title: string;
+    body: string;
+    isRead: boolean;
+    createdAt: string;
+    recipientName: string | null;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY || "";
 
@@ -812,6 +830,68 @@ export async function fetchAnnouncements() {
         createdAt: String(item.created_at),
         createdByName: String((profilesMap.get(String(item.created_by))?.full_name as string) || "Admin"),
     }));
+}
+
+export async function fetchAdminInboxNotifications() {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as AdminInboxNotification[];
+
+    const { data: admins } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("account_status", "active")
+        .limit(100);
+
+    const adminIds = (admins || []).map((admin) => String(admin.id));
+    if (adminIds.length === 0) return [] as AdminInboxNotification[];
+
+    const { data } = await supabase
+        .from("notifications")
+        .select("id, recipient_user_id, title, body, is_read, created_at, type")
+        .in("recipient_user_id", adminIds)
+        .eq("type", "admin_message")
+        .order("created_at", { ascending: false })
+        .limit(40);
+
+    const profilesMap = await loadProfilesMap((data || []).map((item) => String(item.recipient_user_id)));
+
+    return (data || []).map((item) => ({
+        id: String(item.id),
+        title: String(item.title),
+        body: String(item.body),
+        isRead: Boolean(item.is_read),
+        createdAt: String(item.created_at),
+        recipientName: (profilesMap.get(String(item.recipient_user_id))?.full_name as string | null) || null,
+    }));
+}
+
+export async function fetchCustomersList() {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as AdminCustomerListItem[];
+
+    const [{ data: profiles }, { data: driverProfiles }] = await Promise.all([
+        supabase
+            .from("profiles")
+            .select("id, full_name, email, phone, account_status, created_at, role")
+            .order("created_at", { ascending: false })
+            .limit(150),
+        supabase.from("driver_profiles").select("id"),
+    ]);
+
+    const driverIds = new Set((driverProfiles || []).map((item) => String(item.id)));
+
+    return (profiles || [])
+        .filter((profile) => String(profile.role || "customer") === "customer")
+        .filter((profile) => !driverIds.has(String(profile.id)))
+        .map((profile) => ({
+            id: String(profile.id),
+            fullName: String(profile.full_name || "مستخدم"),
+            email: (profile.email as string | null) || null,
+            phone: (profile.phone as string | null) || null,
+            status: String(profile.account_status || "active"),
+            createdAt: String(profile.created_at),
+        }));
 }
 
 export async function fetchStaffSnapshot() {

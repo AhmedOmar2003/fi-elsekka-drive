@@ -43,7 +43,7 @@ export function Footer() {
                   { href: "/book", label: "ابدأ مشوار" },
                   { href: "/book/airport", label: "مشوار المطار" },
                   { href: "/trips", label: "رحلاتي" },
-                  { href: "/register?role=captain", label: "سجل ككابتن" },
+                  { href: "/captain/login", label: "دخول الكباتن" },
                   { href: "/support", label: "الدعم والمساعدة" },
                 ].map((item) => (
                   <Link key={item.href} href={item.href} className="inline-flex items-center gap-2 transition-colors hover:text-white">

@@ -6,6 +6,7 @@ import {
   validateStrongPassword,
 } from "@/lib/auth-validation";
 import { createRideServiceClient } from "@/lib/ride-server-auth";
+import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 export async function POST(request: Request) {
   const serviceClient = createRideServiceClient();
@@ -22,13 +23,7 @@ export async function POST(request: Request) {
     const email = normalizeAuthEmail(body.email || "");
     const password = String(body.password || "");
     const phone = String(body.phone || "").trim() || null;
-    const role = body.role === "driver" ? "driver" : "customer";
-    const nationalId = String(body.nationalId || "").trim();
-    const workingCity = String(body.workingCity || "").trim();
-    const vehicleType =
-      body.vehicleType === "car" || body.vehicleType === "tuk_tuk"
-        ? body.vehicleType
-        : "car";
+    const role = "customer";
 
     if (!fullName) {
       return NextResponse.json(
@@ -47,13 +42,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
-    if (role === "driver" && (!nationalId || !workingCity)) {
-      return NextResponse.json(
-        { error: "اكتب الرقم القومي والمدينة الأساسية للكابتن." },
-        { status: 400 }
-      );
-    }
-
     const { data, error } = await serviceClient.auth.admin.createUser({
       email,
       password,
@@ -62,7 +50,6 @@ export async function POST(request: Request) {
         role,
         full_name: fullName,
         phone,
-        vehicle_type: role === "driver" ? vehicleType : null,
       },
     });
 
@@ -83,24 +70,39 @@ export async function POST(request: Request) {
       })
       .eq("id", data.user.id);
 
-    if (role === "driver") {
-      const { error: driverProfileError } = await serviceClient
-        .from("driver_profiles")
-        .insert({
-          id: data.user.id,
-          national_id: nationalId,
-          working_city: workingCity,
-          metadata: {
-            preferred_vehicle_type: vehicleType,
-          },
-        });
+    const { data: admins } = await serviceClient
+      .from("profiles")
+      .select("id")
+      .eq("role", "admin")
+      .eq("account_status", "active")
+      .limit(50);
 
-      if (driverProfileError) {
-        return NextResponse.json(
-          { error: driverProfileError.message || "تعذر حفظ بيانات الكابتن." },
-          { status: 400 }
-        );
-      }
+    if (admins?.length) {
+      await serviceClient.from("notifications").insert(
+        admins.map((admin) => ({
+          recipient_user_id: admin.id,
+          type: "admin_message",
+          title: "عميل جديد سجل في في السكة",
+          body: `${fullName} أنشأ حساب جديد على المنصة.`,
+          payload: {
+            customer_id: data.user.id,
+            customer_name: fullName,
+            customer_email: email,
+          },
+        }))
+      );
+
+      await Promise.all(
+        admins.map((admin) =>
+          sendPushToUserDevices(serviceClient, admin.id, {
+            title: "عميل جديد سجل في في السكة",
+            message: `${fullName} فتح حساب جديد على المنصة.`,
+            link: "/admin/users",
+            requireInteraction: true,
+            topic: "new-customer",
+          })
+        )
+      );
     }
 
     return NextResponse.json({

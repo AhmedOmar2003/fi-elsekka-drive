@@ -35,6 +35,7 @@ const NAV_ITEMS = [
     { href: "/admin/vehicles", label: "المركبات", icon: CarFront, permission: "view_drivers" as const },
     { href: "/admin/dispatch", label: "التوزيع", icon: Send, permission: "assign_driver" as const },
     { href: "/admin/support", label: "الدعم", icon: Headset, permission: "view_orders" as const },
+    { href: "/admin/users", label: "العملاء", icon: Users, permission: "manage_users" as const },
     { href: "/admin/notifications", label: "الإشعارات", icon: Bell, permission: "manage_settings" as const },
     { href: "/admin/staff", label: "فريق التشغيل", icon: UserCog, permission: "manage_admins" as const },
     { href: "/admin/settings", label: "الإعدادات", icon: Settings, permission: "manage_settings" as const },

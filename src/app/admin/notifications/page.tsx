@@ -1,13 +1,32 @@
 import { NotificationComposer } from "@/components/admin-dashboard/actions";
 import { DataTable, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
-import { fetchAnnouncements } from "@/lib/admin-dashboard-data";
+import { fetchAdminInboxNotifications, fetchAnnouncements } from "@/lib/admin-dashboard-data";
 
 export default async function AdminNotificationsPage() {
+    const inbox = await fetchAdminInboxNotifications();
     const announcements = await fetchAnnouncements();
 
     return (
         <div className="space-y-6">
             <NotificationComposer />
+
+            <SectionCard title="تنبيهات الإدارة" subtitle="أحداث تشغيلية داخلية زي تسجيل عميل جديد">
+                <DataTable
+                    columns={[
+                        { key: "title", label: "العنوان" },
+                        { key: "recipient", label: "وصلت لمين" },
+                        { key: "status", label: "الحالة" },
+                        { key: "created", label: "وقت الإنشاء" },
+                    ]}
+                    rows={inbox.map((item) => ({
+                        title: <div><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-white/45">{item.body}</p></div>,
+                        recipient: item.recipientName || "إدارة",
+                        status: <StatusBadge status={item.isRead ? "completed" : "pending"} />,
+                        created: new Date(item.createdAt).toLocaleString("ar-EG"),
+                    }))}
+                    emptyState="لسه مفيش تنبيهات داخلية."
+                />
+            </SectionCard>
 
             <SectionCard title="سجل الإعلانات" subtitle="الإشعارات المجدولة والمباشرة المرسلة من التشغيل">
                 <DataTable

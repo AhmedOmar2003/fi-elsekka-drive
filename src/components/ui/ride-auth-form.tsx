@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CarFront, LogIn, UserPlus, CarTaxiFront } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -26,21 +26,18 @@ export function AuthForm({
   const isRegister = mode === "register";
   const isCaptain = role === "captain";
 
-  const [vehicleType, setVehicleType] = useState<"car" | "tuk_tuk">("car");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [nationalId, setNationalId] = useState("");
-  const [workingCity, setWorkingCity] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const submitLabel = useMemo(() => {
     if (isRegister) {
-      return isCaptain ? "إنشاء حساب كابتن" : "إنشاء الحساب";
+      return "إنشاء الحساب";
     }
     return "تسجيل الدخول";
-  }, [isRegister, isCaptain]);
+  }, [isRegister]);
 
   const successRedirect = useMemo(() => {
     if (redirectTo) return redirectTo;
@@ -72,9 +69,6 @@ export function AuthForm({
             phone,
             email,
             password,
-            nationalId: isCaptain ? nationalId : null,
-            workingCity: isCaptain ? workingCity : null,
-            vehicleType: isCaptain ? vehicleType : null,
           }),
         });
 
@@ -90,9 +84,7 @@ export function AuthForm({
 
         await setSessionCookie();
         toast.success(
-          isCaptain
-            ? "حساب الكابتن اتفتح، وكملنا أول خطوة من الانضمام."
-            : "الحساب اتفتح بنجاح."
+          "الحساب اتفتح بنجاح."
         );
         router.replace(successRedirect);
         return;
@@ -113,7 +105,7 @@ export function AuthForm({
       }
 
       if (!isCaptain && userRole === "driver") {
-        throw new Error("الحساب ده خاص بالكباتن. ادخل من تبويب الكابتن.");
+        throw new Error("الحساب ده خاص بالكباتن. ادخل من رابط دخول الكباتن.");
       }
 
       await setSessionCookie();
@@ -128,34 +120,34 @@ export function AuthForm({
 
   return (
     <div className="mx-auto max-w-md w-full animate-fade-in pt-4 pb-12">
-      <div className="flex bg-surface-container-low p-1 rounded-full mb-8 shadow-inner border border-white/5">
-        <Link
-          href={`/${isRegister ? "register" : "login"}${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
-          className={`flex-1 text-center py-2.5 rounded-full text-sm font-black transition-all ${
-            !isCaptain ? "bg-primary text-white shadow-[var(--shadow-material-1)]" : "text-gray-400 hover:text-foreground"
-          }`}
-        >
-          أطلب توصيلة
-        </Link>
-        <Link
-          href={`/${isRegister ? "register" : "login"}?role=captain${redirectTo ? `&redirect=${encodeURIComponent(redirectTo)}` : ""}`}
-          className={`flex-1 text-center py-2.5 rounded-full text-sm font-black transition-all ${
-            isCaptain ? "bg-surface-container-high text-primary shadow-[var(--shadow-material-1)] border border-primary/20" : "text-gray-400 hover:text-foreground"
-          }`}
-        >
-          كابتن
-        </Link>
-      </div>
+      {!isRegister ? (
+        <div className="flex bg-surface-container-low p-1 rounded-full mb-8 shadow-inner border border-white/5">
+          <Link
+            href={`/login${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+            className={`flex-1 text-center py-2.5 rounded-full text-sm font-black transition-all ${
+              !isCaptain ? "bg-primary text-white shadow-[var(--shadow-material-1)]" : "text-gray-400 hover:text-foreground"
+            }`}
+          >
+            عميل
+          </Link>
+          <Link
+            href={`/captain/login${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+            className={`flex-1 text-center py-2.5 rounded-full text-sm font-black transition-all ${
+              isCaptain ? "bg-surface-container-high text-primary shadow-[var(--shadow-material-1)] border border-primary/20" : "text-gray-400 hover:text-foreground"
+            }`}
+          >
+            كابتن
+          </Link>
+        </div>
+      ) : null}
 
       <div className="text-center mb-8">
         <h1 className="text-3xl font-black text-foreground mb-2">
-          {isRegister ? (isCaptain ? "إنشاء حساب كابتن" : "إنشاء حساب جديد") : (isCaptain ? "دخول الكباتن" : "تسجيل الدخول")}
+          {isRegister ? "إنشاء حساب جديد" : (isCaptain ? "دخول الكباتن" : "تسجيل الدخول")}
         </h1>
         <p className="text-sm text-gray-500 max-w-[320px] mx-auto leading-7">
           {isRegister
-            ? isCaptain
-              ? "سجّل بالإيميل وكمل بياناتك الأساسية علشان نبدأ مراجعة حسابك."
-              : "سجّل بالإيميل العادي Gmail من غير انتظار رسالة تأكيد."
+            ? "سجّل بالإيميل العادي Gmail من غير انتظار رسالة تأكيد."
             : "ادخل بالإيميل والباسورد وتابع مشاويرك على طول."}
         </p>
       </div>
@@ -166,8 +158,8 @@ export function AuthForm({
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
             className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5"
-            placeholder={isCaptain ? "اسمك بالكامل زي البطاقة" : "اسمك بالكامل"}
-          />
+          placeholder="اسمك بالكامل"
+        />
         ) : null}
 
         {isRegister ? (
@@ -190,53 +182,6 @@ export function AuthForm({
           placeholder="name@gmail.com"
         />
 
-        {isRegister && isCaptain ? (
-          <>
-            <Input
-              value={nationalId}
-              onChange={(event) => setNationalId(event.target.value)}
-              className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5"
-              placeholder="الرقم القومي"
-            />
-            <Input
-              value={workingCity}
-              onChange={(event) => setWorkingCity(event.target.value)}
-              className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5"
-              placeholder="المدينة أو المحافظة الأساسية"
-            />
-            <div className="pt-2 pb-2">
-              <label className="block text-sm font-bold text-foreground mb-3 px-2">نوع مركبتك إيه؟</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setVehicleType("car")}
-                  className={`relative flex flex-col items-center justify-center p-4 rounded-[24px] border-2 transition-all ${
-                    vehicleType === "car"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-surface-container-low bg-surface-container-low text-gray-400 hover:border-white/10"
-                  }`}
-                >
-                  <CarTaxiFront className="w-8 h-8 mb-2" />
-                  <span className="text-sm font-black">عربية</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setVehicleType("tuk_tuk")}
-                  className={`relative flex flex-col items-center justify-center p-4 rounded-[24px] border-2 transition-all ${
-                    vehicleType === "tuk_tuk"
-                      ? "border-secondary bg-secondary/10 text-secondary"
-                      : "border-surface-container-low bg-surface-container-low text-gray-400 hover:border-white/10"
-                  }`}
-                >
-                  <CarFront className="w-8 h-8 mb-2" />
-                  <span className="text-sm font-black">توك توك</span>
-                </button>
-              </div>
-            </div>
-          </>
-        ) : null}
-
         <Input
           type="password"
           value={password}
@@ -255,12 +200,25 @@ export function AuthForm({
         </Button>
 
         <div className="flex flex-col items-center gap-4 mt-8 pt-6 border-t border-white/5">
-          <Link
-            href={`${isRegister ? "/login" : "/register"}${isCaptain ? "?role=captain" : ""}${redirectTo ? `${isCaptain ? "&" : "?"}redirect=${encodeURIComponent(redirectTo)}` : ""}`}
-            className="text-sm text-primary font-bold hover:underline"
-          >
-            {isRegister ? "عندي حساب بالفعل" : "إنشاء حساب جديد"}
-          </Link>
+          {isRegister ? (
+            <Link
+              href={`/login${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+              className="text-sm text-primary font-bold hover:underline"
+            >
+              عندي حساب بالفعل
+            </Link>
+          ) : isCaptain ? (
+            <Link href="/support" className="text-sm text-primary font-bold hover:underline">
+              معنديش حساب كابتن، أكلم الإدارة
+            </Link>
+          ) : (
+            <Link
+              href={`/register${redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+              className="text-sm text-primary font-bold hover:underline"
+            >
+              إنشاء حساب جديد
+            </Link>
+          )}
 
           {!isRegister ? (
             <Link href="/support" className="text-xs text-gray-500 hover:text-foreground transition-colors">

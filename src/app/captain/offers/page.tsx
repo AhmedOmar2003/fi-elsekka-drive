@@ -8,6 +8,7 @@ import {
   Clock3,
   LoaderCircle,
   RefreshCcw,
+  Smartphone,
   TimerReset,
   UserRound,
 } from "lucide-react";
@@ -45,10 +46,12 @@ type DriverOffer = {
 
 export default function CaptainOffersPage() {
   const router = useRouter();
-  const { user, profile, isLoading: isAuthLoading } = useAuth();
+  const { user, profile, session, isLoading: isAuthLoading } = useAuth();
   const [offers, setOffers] = useState<DriverOffer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [busyOfferId, setBusyOfferId] = useState<string | null>(null);
+  const [pushState, setPushState] = useState<"checking" | "enabled" | "prompt" | "blocked" | "unsupported">("checking");
+  const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_KEY || "";
 
   const effectiveRole = useMemo(
     () => profile?.role || user?.user_metadata?.role || user?.app_metadata?.role || null,
@@ -62,7 +65,7 @@ export default function CaptainOffersPage() {
       const data = await response.json().catch(() => ({}));
 
       if (response.status === 401) {
-        router.replace("/login?role=captain&redirect=/captain/offers");
+        router.replace("/captain/login?redirect=/captain/offers");
         return;
       }
 
@@ -83,12 +86,12 @@ export default function CaptainOffersPage() {
   useEffect(() => {
     if (isAuthLoading) return;
     if (!user) {
-      router.replace("/login?role=captain&redirect=/captain/offers");
+      router.replace("/captain/login?redirect=/captain/offers");
       return;
     }
 
     if (effectiveRole !== "driver") {
-      router.replace("/login?role=captain&redirect=/captain/offers");
+      router.replace("/captain/login?redirect=/captain/offers");
       return;
     }
 
@@ -100,6 +103,82 @@ export default function CaptainOffersPage() {
     const interval = window.setInterval(() => void loadOffers(true), 10000);
     return () => window.clearInterval(interval);
   }, [effectiveRole, loadOffers, user]);
+
+  const urlBase64ToUint8Array = useCallback((base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+  }, []);
+
+  const enablePushNotifications = useCallback(async () => {
+    if (!session?.access_token) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.isSecureContext || !publicVapidKey) {
+      setPushState("unsupported");
+      return;
+    }
+
+    try {
+      if (Notification.permission === "denied") {
+        setPushState("blocked");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      const permission =
+        Notification.permission === "granted"
+          ? "granted"
+          : await Notification.requestPermission();
+
+      if (permission !== "granted") {
+        setPushState(permission === "denied" ? "blocked" : "prompt");
+        return;
+      }
+
+      const subscription =
+        existing ||
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
+        }));
+
+      const response = await fetch("/api/notifications/subscribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ subscription }),
+      });
+
+      if (!response.ok) {
+        throw new Error("تعذر تفعيل الإشعارات.");
+      }
+
+      setPushState("enabled");
+      toast.success("إشعارات الطلبات اتفعلت على موبايلك.");
+    } catch (error: any) {
+      toast.error(error?.message || "تعذر تفعيل إشعارات الموبايل.");
+    }
+  }, [publicVapidKey, session?.access_token, urlBase64ToUint8Array]);
+
+  useEffect(() => {
+    if (!user || effectiveRole !== "driver") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.isSecureContext || !publicVapidKey) {
+      setPushState("unsupported");
+      return;
+    }
+
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => {
+        setPushState(subscription ? "enabled" : "prompt");
+      })
+      .catch(() => {
+        setPushState("prompt");
+      });
+  }, [effectiveRole, publicVapidKey, user]);
 
   const respondToOffer = async (offerId: string, action: "accept" | "reject") => {
     setBusyOfferId(offerId);
@@ -172,6 +251,23 @@ export default function CaptainOffersPage() {
               <Button asChild className="mt-4 h-12 rounded-[18px]">
                 <Link href={`/trip/live?id=${acceptedTrip.trip.id}`}>افتح المشوار الحالي</Link>
               </Button>
+            </div>
+          ) : null}
+
+          {pushState !== "enabled" ? (
+            <div className="mb-5 rounded-[24px] border border-primary/15 bg-primary/10 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-white">فعّل إشعارات الموبايل</p>
+                  <p className="mt-1 text-sm leading-7 text-white/65">
+                    أول ما الإدارة تبعتلك عرض جديد، التليفون ينبهك فورًا حتى لو التطبيق في الخلفية.
+                  </p>
+                </div>
+                <Button type="button" className="h-11 rounded-[16px]" onClick={() => void enablePushNotifications()}>
+                  <Smartphone className="h-4 w-4" />
+                  تفعيل
+                </Button>
+              </div>
             </div>
           ) : null}
 

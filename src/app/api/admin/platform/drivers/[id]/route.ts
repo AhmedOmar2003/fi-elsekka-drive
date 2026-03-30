@@ -28,7 +28,7 @@ export async function PATCH(request: NextRequest, context: Context) {
 
     try {
         if (action === "approve") {
-            await supabase.from("profiles").update({ role: "driver", account_status: "active", updated_at: now }).eq("id", id);
+            await supabase.from("profiles").update({ account_status: "active", updated_at: now }).eq("id", id);
             await supabase
                 .from("driver_profiles")
                 .update({
