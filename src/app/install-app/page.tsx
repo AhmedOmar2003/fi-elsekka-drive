@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Download, Share, PlusSquare, Smartphone, ArrowLeft, CheckCircle2 } from "lucide-react"
+import { Download, Share, PlusSquare, Smartphone, ArrowLeft, CheckCircle2, Copy, QrCode } from "lucide-react"
 
 type DeferredInstallPrompt = Event & {
   prompt: () => Promise<void>
@@ -27,7 +27,14 @@ export default function InstallAppPage() {
   const [isInstallReady, setIsInstallReady] = React.useState(false)
   const [isInstalling, setIsInstalling] = React.useState(false)
   const [installSucceeded, setInstallSucceeded] = React.useState(false)
+  const [installUrl, setInstallUrl] = React.useState("https://fi-elsekka.vercel.app/install-app")
+  const [linkCopied, setLinkCopied] = React.useState(false)
   const deferredPrompt = React.useRef<DeferredInstallPrompt | null>(null)
+  const qrImageUrl = React.useMemo(
+    () =>
+      `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(installUrl)}`,
+    [installUrl]
+  )
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
@@ -42,6 +49,7 @@ export default function InstallAppPage() {
     setIsIOS(/iphone|ipad|ipod/.test(userAgent))
     setIsAndroid(/android/.test(userAgent))
     setIsMobile(/iphone|ipad|ipod|android|mobile/.test(userAgent))
+    setInstallUrl(`${window.location.origin}/install-app`)
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
@@ -70,6 +78,16 @@ export default function InstallAppPage() {
     }
   }
 
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(installUrl)
+      setLinkCopied(true)
+      window.setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      setLinkCopied(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background px-4 py-10 md:px-6">
       <div className="mx-auto max-w-xl">
@@ -87,6 +105,54 @@ export default function InstallAppPage() {
           <p className="mt-4 text-sm leading-7 text-gray-500">
             علشان تفتحه بسرعة من وسط التطبيقات اللي عندك، وتستخدمه كتجربة أهدى وأسهل من المتصفح كل مرة.
           </p>
+
+          <div className="mt-6 rounded-3xl border border-white/10 bg-background/40 p-4">
+            <div className="flex items-center gap-2 text-primary">
+              <QrCode className="h-4 w-4" />
+              <p className="text-sm font-black">لينك وQR للتثبيت</p>
+            </div>
+            <p className="mt-2 text-sm leading-7 text-gray-500">
+              افتح اللينك ده من الموبايل أو اعمل Scan للـQR من أي هاتف، وهيوديك مباشرة لصفحة تثبيت التطبيق.
+            </p>
+
+            <div className="mt-4 rounded-[28px] border border-white/10 bg-surface-container/60 p-5">
+              <div className="mx-auto flex max-w-[320px] flex-col items-center rounded-[28px] border border-white/10 bg-white p-4 shadow-[var(--shadow-premium)]">
+                <img
+                  src={qrImageUrl}
+                  alt="QR لتحميل تطبيق في السكة"
+                  className="h-auto w-full rounded-[20px]"
+                />
+                <p className="mt-4 text-center text-lg font-black text-slate-900">في السكة</p>
+                <p className="mt-1 text-center text-xs leading-6 text-slate-500">
+                  اعمل Scan من موبايلك وهتدخل على صفحة تثبيت التطبيق مباشرة
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-bold text-white/45">لينك التثبيت المباشر</p>
+              <p className="mt-1 break-all text-sm font-black text-white">{installUrl}</p>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10"
+              >
+                <Copy className="h-4 w-4" />
+                {linkCopied ? "اتنسخ اللينك" : "انسخ لينك التثبيت"}
+              </button>
+
+              <Link
+                href={installUrl}
+                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-black text-white transition hover:bg-primary/90"
+              >
+                <Download className="h-4 w-4" />
+                افتح صفحة التثبيت
+              </Link>
+            </div>
+          </div>
 
           {isStandalone ? (
             <div className="mt-6 rounded-3xl border border-emerald-500/15 bg-emerald-500/5 p-5 text-center">
@@ -128,7 +194,7 @@ export default function InstallAppPage() {
 
               {!isMobile && (
                 <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 text-xs leading-6 text-amber-300">
-                  افتح هذه الصفحة من موبايل Android أو اعمل Scan للـ QR من هاتفك، لأن التثبيت لا يظهر على الديسكتوب.
+                  افتح هذه الصفحة من موبايل Android أو اعمل Scan للـ QR من هاتفك، لأن التثبيت لا يظهر من الديسكتوب.
                 </div>
               )}
 
