@@ -263,16 +263,8 @@ export function BookingForm() {
   };
 
   const handleUseCurrentLocation = () => {
-    const openGoogleMaps = (query = "Current Location") => {
-      window.open(
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
-        "_blank"
-      );
-    };
-
     if (!navigator.geolocation) {
-      toast.error("الموقع الحالي مش متاح هنا، هنفتحلك خرائط جوجل.");
-      openGoogleMaps();
+      toast.error("الموقع غير متاح من المتصفح هنا. استخدم التحديد من الخريطة داخل التطبيق.");
       return;
     }
 
@@ -287,8 +279,7 @@ export function BookingForm() {
         toast.success("حددنا موقعك الحالي.");
       },
       () => {
-        toast.error("مش قادر أوصل لموقعك الحالي، هنفتحلك خرائط جوجل.");
-        openGoogleMaps();
+        toast.error("فعّل إذن الموقع للمتصفح أو حدده يدويًا من الخريطة.");
       },
       {
         enableHighAccuracy: true,
@@ -561,12 +552,13 @@ export function BookingForm() {
           </button>
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              toast.message("خرائط جوجل للعرض فقط، أما التحديد التلقائي فبيتم من داخل التطبيق.");
               window.open(
-                "https://www.google.com/maps/search/?api=1&query=Current+Location",
+                "https://www.google.com/maps/search/?api=1&query=Egypt",
                 "_blank"
-              )
-            }
+              );
+            }}
             className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
             aria-label="افتح خرائط جوجل"
           >
@@ -580,8 +572,15 @@ export function BookingForm() {
           className="pointer-events-auto w-full max-w-xl rounded-t-[30px] border-t border-white/10 bg-surface-container/95 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-3xl transition-transform duration-300 md:rounded-[30px] md:border"
           style={{ transform: sheetTransform }}
         >
-          <div className="flex justify-end px-4 pt-3">
-            <div className="mb-2 flex items-center justify-end">
+          <div className="px-4 pt-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-foreground">رايح فين؟</h2>
+                <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
+                  <Sparkles className="h-3 w-3" />
+                  اكتب أو اختار من الخريطة
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() =>
@@ -603,14 +602,6 @@ export function BookingForm() {
 
           <div className="flex max-h-[48vh] flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-              <div className="mb-1">
-                <h2 className="text-xl font-black text-foreground">رايح فين؟</h2>
-                <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
-                  <Sparkles className="h-3 w-3" />
-                  اكتب أو اختار من الخريطة
-                </p>
-              </div>
-
               <Select
                 value={tripType}
                 onChange={(event) =>
