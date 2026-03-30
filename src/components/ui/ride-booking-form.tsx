@@ -87,6 +87,13 @@ export function BookingForm() {
   const [isMapSearchOpen, setIsMapSearchOpen] = useState(false);
   const [isSearchingMap, setIsSearchingMap] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("expanded");
+  const [pickupLocation, setPickupLocation] = useState<SearchLocation | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<SearchLocation | null>(null);
+  const [searchSessionToken, setSearchSessionToken] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}`
+  );
 
   const buildFieldValue = (location: SearchLocation) => {
     return [location.label, location.area, location.city]
@@ -140,6 +147,7 @@ export function BookingForm() {
                 });
                 const payload = await response.json().catch(() => ({}));
                 if (response.ok && payload.location) {
+                  setPickupLocation(payload.location);
                   setPickup(buildFieldValue(payload.location));
                 }
               } catch {}
@@ -170,6 +178,8 @@ export function BookingForm() {
         body: JSON.stringify({
           pickupQuery: pickup,
           destinationQuery: destination,
+          pickupLocation,
+          destinationLocation,
           tripType,
           preferredVehicleType:
             tripType === "airport_ride" ? "car" : preferredVehicleType,
@@ -252,8 +262,10 @@ export function BookingForm() {
       const fieldValue = buildFieldValue(payload.location);
 
       if (field === "pickup") {
+        setPickupLocation(payload.location);
         setPickup(fieldValue);
       } else {
+        setDestinationLocation(payload.location);
         setDestination(fieldValue);
       }
 
@@ -300,6 +312,11 @@ export function BookingForm() {
     setMapSearchResults([]);
     setIsMapSearchOpen(true);
     setActiveMapField(null);
+    setSearchSessionToken(
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}`
+    );
   };
 
   const handleSearchMapLocations = async () => {
@@ -311,7 +328,7 @@ export function BookingForm() {
     setIsSearchingMap(true);
     try {
       const response = await fetch(
-        `/api/rides/search-locations?q=${encodeURIComponent(mapSearchQuery.trim())}`
+        `/api/rides/search-locations?q=${encodeURIComponent(mapSearchQuery.trim())}&sessionToken=${encodeURIComponent(searchSessionToken)}`
       );
       const payload = await response.json().catch(() => ({}));
 
@@ -335,8 +352,10 @@ export function BookingForm() {
     field: Exclude<MapField, null>
   ) => {
     if (field === "pickup") {
+      setPickupLocation(location);
       setPickup(buildFieldValue(location));
     } else {
+      setDestinationLocation(location);
       setDestination(buildFieldValue(location));
     }
 
@@ -614,6 +633,7 @@ export function BookingForm() {
                       value={pickup}
                       onChange={(event) => {
                         setPickup(event.target.value);
+                        setPickupLocation(null);
                         setEstimate(null);
                       }}
                       className="h-14 rounded-[20px] border-0 bg-transparent pe-24 ps-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
@@ -654,6 +674,7 @@ export function BookingForm() {
                       value={destination}
                       onChange={(event) => {
                         setDestination(event.target.value);
+                        setDestinationLocation(null);
                         setEstimate(null);
                       }}
                       className="h-14 rounded-[20px] border-0 bg-transparent pe-14 ps-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"

@@ -3,6 +3,8 @@ import { calculateRideFare } from "@/lib/ride-pricing";
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_REVERSE_BASE_URL = "https://nominatim.openstreetmap.org/reverse";
 const OSRM_BASE_URL = "https://router.project-osrm.org/route/v1/driving";
+const GOOGLE_PLACES_AUTOCOMPLETE_BASE_URL =
+  "https://maps.googleapis.com/maps/api/place/autocomplete/json";
 const GOOGLE_GEOCODE_BASE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const GOOGLE_DIRECTIONS_BASE_URL = "https://maps.googleapis.com/maps/api/directions/json";
 const REQUEST_HEADERS = {
@@ -88,18 +90,23 @@ function normalizeGoogleGeocodeResult(result: any, fallbackQuery: string): Geoco
 
 async function searchLocationsWithGoogle(
   query: string,
-  limit = 5
+  limit = 5,
+  sessionToken?: string
 ): Promise<GeocodedLocation[]> {
   if (!GOOGLE_MAPS_API_KEY) {
     throw new Error("Google Maps API key is missing.");
   }
 
-  const url = new URL(GOOGLE_GEOCODE_BASE_URL);
-  url.searchParams.set("address", query);
+  const url = new URL(GOOGLE_PLACES_AUTOCOMPLETE_BASE_URL);
+  url.searchParams.set("input", query);
   url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
   url.searchParams.set("language", "ar");
   url.searchParams.set("region", "eg");
   url.searchParams.set("components", "country:EG");
+  url.searchParams.set("types", "geocode");
+  if (sessionToken) {
+    url.searchParams.set("sessiontoken", sessionToken);
+  }
 
   const response = await fetch(url.toString(), {
     headers: REQUEST_HEADERS,
@@ -111,13 +118,59 @@ async function searchLocationsWithGoogle(
   }
 
   const payload = await response.json();
-  if (payload.status !== "OK" || !Array.isArray(payload.results) || !payload.results.length) {
+  if (
+    !["OK", "ZERO_RESULTS"].includes(payload.status) ||
+    !Array.isArray(payload.predictions)
+  ) {
+    throw new Error("تعذر البحث عن المكان من خرائط جوجل.");
+  }
+
+  if (!payload.predictions.length) {
     throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب عنوان أوضح.");
   }
 
-  return payload.results
-    .slice(0, Math.min(Math.max(limit, 1), 8))
-    .map((result: any) => normalizeGoogleGeocodeResult(result, query));
+  const predictions = payload.predictions.slice(0, Math.min(Math.max(limit, 1), 8));
+  const details = await Promise.all(
+    predictions.map(async (prediction: any) => {
+      const placeId = prediction?.place_id;
+      if (!placeId) {
+        return null;
+      }
+
+      const geocodeUrl = new URL(GOOGLE_GEOCODE_BASE_URL);
+      geocodeUrl.searchParams.set("place_id", placeId);
+      geocodeUrl.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+      geocodeUrl.searchParams.set("language", "ar");
+      geocodeUrl.searchParams.set("region", "eg");
+
+      const geocodeResponse = await fetch(geocodeUrl.toString(), {
+        headers: REQUEST_HEADERS,
+        cache: "no-store",
+      });
+
+      if (!geocodeResponse.ok) {
+        return null;
+      }
+
+      const geocodePayload = await geocodeResponse.json();
+      const result = geocodePayload.results?.[0];
+      if (geocodePayload.status !== "OK" || !result) {
+        return null;
+      }
+
+      return normalizeGoogleGeocodeResult(
+        result,
+        prediction.description || query
+      );
+    })
+  );
+
+  const normalized = details.filter(Boolean) as GeocodedLocation[];
+  if (!normalized.length) {
+    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب عنوان أوضح.");
+  }
+
+  return normalized;
 }
 
 async function reverseGeocodeWithGoogle(
@@ -319,11 +372,12 @@ async function getRouteDistanceAndDurationWithOsm(
 
 export async function searchLocations(
   query: string,
-  limit = 5
+  limit = 5,
+  sessionToken?: string
 ): Promise<GeocodedLocation[]> {
   if (GOOGLE_MAPS_API_KEY) {
     try {
-      return await searchLocationsWithGoogle(query, limit);
+      return await searchLocationsWithGoogle(query, limit, sessionToken);
     } catch {
       return await searchLocationsWithOsm(query, limit);
     }
@@ -361,13 +415,16 @@ async function getRouteDistanceAndDuration(
 export async function estimateRideFromText(input: {
   pickupQuery: string;
   destinationQuery: string;
+  pickupLocation?: GeocodedLocation | null;
+  destinationLocation?: GeocodedLocation | null;
   tripType: "airport_ride" | "normal_ride";
   preferredVehicleType?: "car" | "tuk_tuk" | "any";
   luggageCount?: number;
   passengerCount?: number;
 }) {
-  const pickup = await geocodePlace(input.pickupQuery);
-  const destination = await geocodePlace(input.destinationQuery);
+  const pickup = input.pickupLocation ?? (await geocodePlace(input.pickupQuery));
+  const destination =
+    input.destinationLocation ?? (await geocodePlace(input.destinationQuery));
   const route = await getRouteDistanceAndDuration(pickup, destination);
   const fare = calculateRideFare({
     distanceKm: route.distanceKm,

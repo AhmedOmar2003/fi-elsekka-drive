@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { estimateRideFromText } from "@/lib/ride-maps-server";
+import { estimateRideFromText, type GeocodedLocation } from "@/lib/ride-maps-server";
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +14,8 @@ export async function POST(request: Request) {
       body.preferredVehicleType === "tuk_tuk"
         ? body.preferredVehicleType
         : "any";
+    const pickupLocation = body.pickupLocation as GeocodedLocation | null | undefined;
+    const destinationLocation = body.destinationLocation as GeocodedLocation | null | undefined;
 
     if (!pickupQuery || !destinationQuery) {
       return NextResponse.json(
@@ -25,6 +27,18 @@ export async function POST(request: Request) {
     const estimate = await estimateRideFromText({
       pickupQuery,
       destinationQuery,
+      pickupLocation:
+        pickupLocation &&
+        Number.isFinite(Number(pickupLocation.latitude)) &&
+        Number.isFinite(Number(pickupLocation.longitude))
+          ? pickupLocation
+          : null,
+      destinationLocation:
+        destinationLocation &&
+        Number.isFinite(Number(destinationLocation.latitude)) &&
+        Number.isFinite(Number(destinationLocation.longitude))
+          ? destinationLocation
+          : null,
       tripType,
       preferredVehicleType,
       luggageCount: Number(body.luggageCount || 0),
