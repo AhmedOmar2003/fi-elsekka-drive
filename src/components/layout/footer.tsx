@@ -1,153 +1,88 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { Banknote } from "lucide-react"
-import { useProducts } from "@/contexts/ProductsContext"
-import { useAppSettings } from "@/contexts/AppSettingsContext"
-import { getSupportWhatsAppEntries } from "@/services/appSettingsService"
-import { WhatsAppIcon } from "@/components/ui/whatsapp-icon"
-
-// Same motorcycle icon as the header
-function MotorcycleIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" fill="currentColor" className={className} aria-hidden="true">
-      <circle cx="9"  cy="24" r="6" fill="none" stroke="currentColor" strokeWidth="2.5" />
-      <circle cx="9"  cy="24" r="2" />
-      <circle cx="39" cy="24" r="6" fill="none" stroke="currentColor" strokeWidth="2.5" />
-      <circle cx="39" cy="24" r="2" />
-      <path d="M9 24 L14 14 L22 14 L28 10 L36 14 L39 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-      <path d="M17 14 L24 8 L31 8 L36 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      <path d="M38 10 L42 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="26" cy="9" r="2.5" />
-    </svg>
-  )
-}
+import Link from "next/link";
+import { ArrowLeft, MapPinned, ShieldCheck, Smartphone } from "lucide-react";
+import { BrandLogo } from "@/components/ride/brand-logo";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { getSupportWhatsAppEntries } from "@/services/appSettingsService";
 
 export function Footer() {
-  const { categories } = useProducts()
-  const { settings } = useAppSettings()
-
-  const footerCategoryNames = React.useMemo(
-    () => ["ملابس وأزياء", "سوبر ماركت", "طعام", "صيدلية", "أدوات منزلية"],
-    []
-  )
-
-  const footerCategories = footerCategoryNames
-    .map((name) => categories.find((category) => category.name === name))
-    .filter((category): category is (typeof categories)[number] => !!category)
-  const whatsappEntries = getSupportWhatsAppEntries(settings)
-  const siteTagline = settings.siteTagline || "طلباتك ماشية معاك من غير لف."
+  const { settings } = useAppSettings();
+  const whatsappEntries = getSupportWhatsAppEntries(settings);
 
   return (
-    <footer className="mt-auto w-full px-2 pb-20 pt-16 md:px-4 md:pb-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="relative grid grid-cols-1 gap-12 overflow-hidden rounded-[36px] border border-white/8 bg-[#101816] p-8 text-white shadow-[var(--shadow-material-2)] md:grid-cols-4 lg:gap-16 lg:p-12">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-          <div className="pointer-events-none absolute -top-24 start-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-28 end-8 h-44 w-44 rounded-full bg-white/5 blur-3xl" />
-          
-          <div className="md:col-span-1">
-            <Link href="/" className="mb-4 flex items-center gap-2 group">
-              <Image
-                src="/icon-192x192.svg"
-                alt="في السكة Logo" 
-                width={40}
-                height={40}
-                className="rounded-2xl shadow-[var(--shadow-material-2)] group-hover:shadow-[var(--shadow-material-3)] transition-shadow" 
-              />
-              <div className="flex items-baseline gap-0 leading-none" style={{ fontFamily: 'var(--font-lalezar), serif' }}>
-                <span className="font-black text-2xl text-white">فِي&nbsp;</span>
-                <span className="font-black text-2xl text-primary">السِّكَّةِ</span>
+    <footer className="mt-auto px-4 pb-24 pt-16 md:px-6 md:pb-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="overflow-hidden rounded-[36px] border border-white/10 bg-[#101816] px-6 py-8 text-white shadow-[var(--shadow-material-3)] sm:px-8 lg:px-10">
+          <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+            <div>
+              <BrandLogo className="[&_span]:text-white [&_.text-primary]:!text-primary" tagline={settings.siteTagline || "رايح فين؟ إحنا معاك"} />
+              <p className="mt-4 max-w-md text-sm leading-7 text-white/65">
+                في السكة بقت منصة مشاوير عربية مصممة لمصر. نفس الروح القريبة، لكن بتجربة حجز وتتبّع أذكى وأسهل على الموبايل.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-xs font-black text-white/85">
+                  <MapPinned className="h-4 w-4 text-primary" />
+                  عربي + RTL
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-xs font-black text-white/85">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  تتبع وحالة رحلة
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-xs font-black text-white/85">
+                  <Smartphone className="h-4 w-4 text-primary" />
+                  موبايل أولًا
+                </span>
               </div>
-            </Link>
-            <p className="max-w-xs text-sm leading-relaxed text-white/64">
-              {siteTagline}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">توصيل سريع</span>
-              <span className="inline-flex items-center rounded-full border border-white/8 bg-white/6 px-3 py-1.5 text-xs font-bold text-white/82">ادفع وقت الاستلام</span>
             </div>
-            {(settings.supportEmail || settings.supportPhone || whatsappEntries.length > 0) && (
-              <div className="mt-5 space-y-2 text-sm text-white/70">
-                {settings.supportPhone && (
-                  <a href={`tel:${settings.supportPhone}`} className="flex items-center gap-2 transition-colors hover:text-white">
-                    <span className="font-bold">رقم الدعم:</span>
-                    <span dir="ltr">{settings.supportPhone}</span>
-                  </a>
-                )}
-                {settings.supportEmail && (
-                  <a href={`mailto:${settings.supportEmail}`} className="flex items-center gap-2 transition-colors hover:text-white">
-                    <span className="font-bold">إيميل الدعم:</span>
-                    <span dir="ltr">{settings.supportEmail}</span>
-                  </a>
-                )}
-                {whatsappEntries.map((entry) => (
-                  <a
-                    key={entry.id}
-                    href={entry.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-emerald-200 transition-colors hover:bg-emerald-500/15 hover:text-white"
-                  >
-                    <WhatsAppIcon className="h-4 w-4" />
-                    <span className="font-bold">{entry.label}</span>
-                  </a>
+
+            <div>
+              <h3 className="text-lg font-black text-white">روابط سريعة</h3>
+              <div className="mt-4 grid gap-3 text-sm text-white/70">
+                {[
+                  { href: "/book", label: "ابدأ مشوار" },
+                  { href: "/book/airport", label: "مشوار المطار" },
+                  { href: "/trips", label: "رحلاتي" },
+                  { href: "/register?role=captain", label: "سجل ككابتن" },
+                  { href: "/support", label: "الدعم والمساعدة" },
+                ].map((item) => (
+                  <Link key={item.href} href={item.href} className="inline-flex items-center gap-2 transition-colors hover:text-white">
+                    <ArrowLeft className="h-4 w-4 text-primary" />
+                    {item.label}
+                  </Link>
                 ))}
               </div>
-            )}
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-white">تواصل معانا</h3>
+              <div className="mt-4 space-y-3 text-sm text-white/70">
+                {settings.supportPhone ? <p>اتصل بينا: {settings.supportPhone}</p> : <p>رقم الدعم هيتضاف هنا مع الربط الفعلي.</p>}
+                {settings.supportEmail ? <p>الإيميل: {settings.supportEmail}</p> : <p>بريد الدعم هيتوصل بعد ربط الإعدادات.</p>}
+                {whatsappEntries.length > 0 ? (
+                  whatsappEntries.map((entry) => (
+                    <a
+                      key={entry.id}
+                      href={entry.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/12 px-4 py-2 text-xs font-black text-emerald-200 transition-colors hover:bg-emerald-500/20"
+                    >
+                      {entry.label}
+                    </a>
+                  ))
+                ) : (
+                  <p>واتساب الدعم placeholder لحد ما يتربط من الإعدادات.</p>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div>
-            <h4 className="mb-4 text-base font-black text-white">الأقسام</h4>
-            <ul className="font-heading space-y-2 text-sm text-white/62">
-              {footerCategories.map((category) => (
-                <li key={category.id}>
-                  <Link href={`/category/${category.id}`} className="inline-flex rounded-full px-2 py-1 transition-colors hover:bg-white/6 hover:text-white">
-                    {category.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="mb-4 text-base font-black text-white">خليك مطمن</h4>
-            <ul className="font-heading space-y-2 text-sm text-white/62">
-              <li><Link href="/about" className="inline-flex rounded-full px-2 py-1 hover:bg-white/6 hover:text-white transition-colors">احنا مين</Link></li>
-              <li><Link href="/faq" className="inline-flex rounded-full px-2 py-1 hover:bg-white/6 hover:text-white transition-colors">الأسئلة الشائعة</Link></li>
-              <li><Link href="/account" className="inline-flex rounded-full px-2 py-1 hover:bg-white/6 hover:text-white transition-colors">حسابي</Link></li>
-              <li><Link href="/orders" className="inline-flex rounded-full px-2 py-1 hover:bg-white/6 hover:text-white transition-colors">طلباتي</Link></li>
-              <li><Link href="/contact" className="inline-flex rounded-full px-2 py-1 hover:bg-white/6 hover:text-white transition-colors">تواصل معنا</Link></li>
-            </ul>
-          </div>
-
-          <div className="md:col-span-1">
-             <h4 className="mb-4 text-base font-black text-white">ادفع وقت الاستلام</h4>
-             <div className="rounded-[28px] border border-white/8 bg-white/[0.04] p-4 shadow-[var(--shadow-material-2)] backdrop-blur-sm">
-               <div className="flex items-center gap-3">
-               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                 <Banknote className="h-6 w-6" />
-               </div>
-               <div>
-                  <p className="font-heading text-sm font-bold text-white">ادفع وإنت مطمن</p>
-                  <p className="text-xs text-white/58">كل طلباتنا بتدفعها كاش وقت ما تستلم</p>
-               </div>
-               </div>
-             </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col items-center justify-between border-t border-white/8 pb-4 pt-6 text-center text-xs text-white/52 sm:flex-row">
-          <p>© {new Date().getFullYear()} في السكة. كل الحقوق محفوظة.</p>
-          <div className="mt-4 flex gap-4 sm:mt-0">
-             <Link href="/terms" className="hover:text-white transition-colors">الشروط والأحكام</Link>
-             <Link href="/privacy" className="hover:text-white transition-colors">سياسة الخصوصية</Link>
+          <div className="mt-8 border-t border-white/10 pt-5 text-xs text-white/45">
+            © {new Date().getFullYear()} في السكة. تجربة مشاوير عربية جاهزة للتوسع وربط Supabase والخرائط والتنبيهات.
           </div>
         </div>
       </div>
     </footer>
-  )
+  );
 }
-

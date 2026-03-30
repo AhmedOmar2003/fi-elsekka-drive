@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans_Arabic, Lalezar, Inter, Cairo } from "next/font/google";
+import { Cairo, IBM_Plex_Sans_Arabic, Inter, Lalezar } from "next/font/google";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
@@ -36,62 +36,49 @@ const cairo = Cairo({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = await fetchPublicAppSettingsServer();
-  const siteName = settings.siteName || "في السكة";
-  const siteTagline = settings.siteTagline || "اطلب اللي محتاجه ويوصلك لحد عندك";
-  const description = `${siteName} سوق محلي ذكي في مصر. ${siteTagline}`;
+  let siteName = "في السكة";
+
+  try {
+    const settings = await fetchPublicAppSettingsServer();
+    siteName = settings.siteName || siteName;
+  } catch {
+    siteName = "في السكة";
+  }
+
+  const tagline = "منصة مشاوير عربية للمطار والتنقل اليومي";
+  const description = `${siteName} اتحولت من متجر محلي لمنصة حجز مشاوير عربية بواجهة مصرية سهلة، جاهزة للربط مع الخرائط والتنبيهات ولوحات التشغيل.`;
 
   return {
     metadataBase: new URL(SITE_URL),
     title: {
-      default: `${siteName} | ${siteTagline}`,
+      default: `${siteName} | ${tagline}`,
       template: `%s | ${siteName}`,
     },
     description,
     keywords: [
       siteName,
-      siteTagline,
-      "توصيل في مصر",
-      "سوبر ماركت اونلاين",
-      "صيدلية اونلاين",
-      "ملابس اونلاين",
-      "الدفع عند الاستلام",
+      "حجز مشاوير",
+      "مشوار للمطار",
+      "توك توك",
+      "عربية أجرة",
+      "Ride booking Egypt",
+      "Arabic mobility platform",
     ],
-    manifest: "/manifest.json",
     applicationName: siteName,
-    category: "shopping",
-    icons: {
-      icon: [
-        { url: "/notification-icon-192.png", sizes: "192x192", type: "image/png" },
-        { url: "/notification-icon-512.png", sizes: "512x512", type: "image/png" },
-      ],
-      apple: [
-        { url: "/notification-icon-192.png", sizes: "192x192", type: "image/png" },
-      ],
-      shortcut: ["/notification-icon-192.png"],
-    },
-    alternates: {
-      canonical: "/",
-    },
+    category: "transportation",
+    alternates: { canonical: "/" },
     openGraph: {
       type: "website",
       locale: "ar_EG",
       url: SITE_URL,
       siteName,
-      title: `${siteName} | ${siteTagline}`,
+      title: `${siteName} | ${tagline}`,
       description,
-      images: [
-        {
-          url: "/notification-icon-512.png",
-          width: 512,
-          height: 512,
-          alt: siteName,
-        },
-      ],
+      images: [{ url: "/notification-icon-512.png", width: 512, height: 512, alt: siteName }],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${siteName} | ${siteTagline}`,
+      title: `${siteName} | ${tagline}`,
       description,
       images: ["/notification-icon-512.png"],
     },
@@ -111,14 +98,11 @@ export async function generateMetadata(): Promise<Metadata> {
         "max-video-preview": -1,
       },
     },
-    formatDetection: {
-      telephone: false,
-    },
   };
 }
 
 export const viewport: Viewport = {
-  themeColor: "#10b981",
+  themeColor: "#238267",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -131,12 +115,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${cairo.variable} ${ibmPlex.variable} ${lalezar.variable} font-sans antialiased bg-background text-foreground min-h-screen flex flex-col transition-colors duration-300 selection:bg-primary/20 selection:text-foreground`}
       >
-        <a 
-          href="#main-content" 
+        <a
+          href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:right-4 focus:z-50 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-xl focus:shadow-xl font-bold font-sans"
         >
           القفز إلى المحتوى الرئيسي

@@ -11,7 +11,7 @@ import { SiteVisitTracker } from '@/components/analytics/site-visit-tracker';
 
 export function Providers({ children }: { children: React.ReactNode }) {
     return (
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" forcedTheme="dark" defaultTheme="dark" enableSystem={false}>
             <AppSettingsProvider>
                 <AuthProvider>
                     <ProductsProvider>

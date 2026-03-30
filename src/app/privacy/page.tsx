@@ -1,7 +1,6 @@
 import React from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
-import { Footer } from "@/components/layout/footer"
 import { Lock, ChevronRight } from "lucide-react"
 
 export const metadata = {
@@ -71,7 +70,7 @@ export default function PrivacyPage() {
   return (
     <>
       <Header />
-      <main className="flex-1 pb-24 md:pb-12 bg-background">
+      <main className="flex-1 pb-32 bg-[linear-gradient(180deg,rgba(15,21,19,1),rgba(20,28,25,1))]">
         {/* Hero Banner */}
         <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/8 via-background to-background border-b border-surface-hover">
           <div className="absolute inset-0 pointer-events-none">
@@ -153,7 +152,6 @@ export default function PrivacyPage() {
           </div>
         </div>
       </main>
-      <Footer />
     </>
   )
 }

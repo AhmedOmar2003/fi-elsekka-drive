@@ -51,6 +51,22 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      { source: "/cart", destination: "/book", permanent: false },
+      { source: "/checkout", destination: "/trip/confirm", permanent: false },
+      { source: "/offers", destination: "/register?role=captain", permanent: false },
+      { source: "/orders", destination: "/trips", permanent: false },
+      { source: "/order-success", destination: "/trip/live", permanent: false },
+      { source: "/contact", destination: "/support", permanent: false },
+      { source: "/faq", destination: "/support", permanent: false },
+      { source: "/categories", destination: "/book", permanent: false },
+      { source: "/category/:slug*", destination: "/book/ride", permanent: false },
+      { source: "/product/:slug*", destination: "/book/ride", permanent: false },
+      { source: "/restaurants", destination: "/register?role=captain", permanent: false },
+      { source: "/restaurant/:slug*", destination: "/register?role=captain", permanent: false },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
