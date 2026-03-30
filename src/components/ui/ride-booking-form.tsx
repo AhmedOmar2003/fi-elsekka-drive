@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
-  ExternalLink,
   LocateFixed,
   MapPinned,
   Navigation,
@@ -555,23 +554,6 @@ export function BookingForm() {
             aria-label="حدد نقطة من الخريطة"
           >
             <MapPinned className="h-5 w-5 text-secondary" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const query = encodeURIComponent(
-                destination || pickup || "القاهرة"
-              );
-              window.open(
-                `https://www.google.com/maps/search/?api=1&query=${query}`,
-                "_blank"
-              );
-              toast.message("فتحنا خرائط جوجل للمساعدة فقط. تعبئة المكان تلقائيًا بتتم من داخل التطبيق.");
-            }}
-            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
-            aria-label="افتح خرائط جوجل"
-          >
-            <ExternalLink className="h-5 w-5 text-white/75" />
           </button>
         </div>
       </div>
