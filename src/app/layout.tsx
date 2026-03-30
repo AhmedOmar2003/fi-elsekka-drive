@@ -36,13 +36,13 @@ const cairo = Cairo({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  let siteName = "في السكة";
+  let siteName = "في السكة مشاوير";
 
   try {
     const settings = await fetchPublicAppSettingsServer();
     siteName = settings.siteName || siteName;
   } catch {
-    siteName = "في السكة";
+    siteName = "في السكة مشاوير";
   }
 
   const tagline = "منصة مشاوير عربية للمطار والتنقل اليومي";
@@ -64,7 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Ride booking Egypt",
       "Arabic mobility platform",
     ],
-    applicationName: siteName,
+    applicationName: "في السكة مشاوير",
     category: "transportation",
     alternates: { canonical: "/" },
     openGraph: {
@@ -74,18 +74,26 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName,
       title: `${siteName} | ${tagline}`,
       description,
-      images: [{ url: "/notification-icon-512.png", width: 512, height: 512, alt: siteName }],
+      images: [{ url: "/icon-512x512.svg", width: 512, height: 512, alt: siteName }],
     },
     twitter: {
       card: "summary_large_image",
       title: `${siteName} | ${tagline}`,
       description,
-      images: ["/notification-icon-512.png"],
+      images: ["/icon-512x512.svg"],
     },
     appleWebApp: {
       capable: true,
       statusBarStyle: "default",
-      title: siteName,
+      title: "في السكة مشاوير",
+    },
+    icons: {
+      icon: [
+        { url: "/icon-192x192.svg", type: "image/svg+xml", sizes: "192x192" },
+        { url: "/icon-512x512.svg", type: "image/svg+xml", sizes: "512x512" },
+      ],
+      apple: [{ url: "/icon-192x192.svg", type: "image/svg+xml", sizes: "192x192" }],
+      shortcut: ["/icon-192x192.svg"],
     },
     robots: {
       index: true,
