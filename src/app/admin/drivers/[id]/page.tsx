@@ -1,344 +1,111 @@
-"use client"
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import React, { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { useParams } from "next/navigation"
-import { ArrowRight, Bike, CalendarDays, Loader2, Phone, Star, TrendingUp, Wallet, PackageCheck, Clock3, XCircle } from "lucide-react"
-import { toast } from "sonner"
+import { DriverStateActions } from "@/components/admin-dashboard/actions";
+import { DataTable, MetricPanel, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
+import { fetchDriverDetail } from "@/lib/admin-dashboard-data";
 
-type DriverProfile = {
-  id: string
-  full_name: string
-  email: string
-  phone?: string
-  national_id?: string
-  created_at: string
-  is_available?: boolean
-  last_login_at?: string | null
-}
+type Params = Promise<{ id: string }>;
 
-type DriverStatsPayload = {
-  driver: DriverProfile
-  stats: {
-    totalOrders: number
-    activeOrders: number
-    deliveredOrders: number
-    cancelledOrders: number
-    earnings: {
-      today: number
-      week: number
-      month: number
-      total: number
-    }
-    avgRating: number | null
-    ratingCount: number
-  }
-  recentOrders: Array<{
-    id: string
-    status: string
-    total_amount: number
-    created_at: string
-    delivered_at: string | null
-    customer_name: string
-    phone?: string
-  }>
-}
+export default async function AdminDriverDetailsPage({ params }: { params: Params }) {
+    const { id } = await params;
+    const detail = await fetchDriverDetail(id);
 
-const statusLabelMap: Record<string, string> = {
-  pending: "بانتظار التنفيذ",
-  processing: "قيد التجهيز",
-  shipped: "في الطريق",
-  delivered: "تم التوصيل",
-  cancelled: "ملغي",
-}
+    if (!detail || !detail.profile || !detail.driverProfile) notFound();
 
-const statusToneMap: Record<string, string> = {
-  pending: "bg-amber-400/10 text-amber-300 border-amber-400/15",
-  processing: "bg-sky-400/10 text-sky-300 border-sky-400/15",
-  shipped: "bg-violet-400/10 text-violet-300 border-violet-400/15",
-  delivered: "bg-emerald-500/10 text-emerald-300 border-emerald-500/15",
-  cancelled: "bg-rose-500/10 text-rose-300 border-rose-500/15",
-}
-
-export default function AdminDriverDetailsPage() {
-  const params = useParams<{ id: string }>()
-  const driverId = Array.isArray(params?.id) ? params.id[0] : params?.id
-  const [data, setData] = useState<DriverStatsPayload | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    if (!driverId) return
-
-    const load = async () => {
-      setIsLoading(true)
-      try {
-        const res = await fetch(`/api/admin/drivers/${driverId}`, {
-          credentials: "include",
-          cache: "no-store",
-        })
-
-        const payload = await res.json().catch(() => null)
-        if (!res.ok || !payload) {
-          const message = payload?.error === 'Driver not found'
-            ? 'المندوب ده مش ظاهر كامل في البيانات دلوقتي. جرّب تحدث الصفحة أو راجع بياناته من إدارة المندوبين.'
-            : (payload?.error || "تعذر تحميل صفحة المندوب")
-          throw new Error(message)
-        }
-
-        setData(payload)
-      } catch (error: any) {
-        toast.error(error?.message || "فشل تحميل بيانات المندوب")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    void load()
-  }, [driverId])
-
-  const cards = useMemo(() => {
-    if (!data) return []
-    return [
-      {
-        label: "إجمالي الطلبات",
-        value: data.stats.totalOrders,
-        helper: `${data.stats.activeOrders} شغال الآن`,
-        icon: Bike,
-        tone: "text-primary bg-primary/10",
-      },
-      {
-        label: "تم توصيله",
-        value: data.stats.deliveredOrders,
-        helper: `${data.stats.cancelledOrders} طلب ملغي`,
-        icon: PackageCheck,
-        tone: "text-emerald-400 bg-emerald-400/10",
-      },
-      {
-        label: "دخل اليوم",
-        value: `${data.stats.earnings.today.toLocaleString()} ج.م`,
-        helper: `الأسبوع ${data.stats.earnings.week.toLocaleString()} ج.م`,
-        icon: Wallet,
-        tone: "text-amber-300 bg-amber-400/10",
-      },
-      {
-        label: "دخل الشهر",
-        value: `${data.stats.earnings.month.toLocaleString()} ج.م`,
-        helper: `الإجمالي ${data.stats.earnings.total.toLocaleString()} ج.م`,
-        icon: TrendingUp,
-        tone: "text-sky-300 bg-sky-400/10",
-      },
-    ]
-  }, [data])
-
-  if (isLoading) {
     return (
-      <div className="rounded-3xl border border-surface-hover bg-surface p-8 text-center shadow-sm">
-        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-sm font-bold text-gray-400">بنجهز ملخص المندوب حالًا...</p>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="rounded-3xl border border-rose-500/20 bg-rose-500/5 p-8 text-center">
-        <p className="text-sm font-bold text-rose-300">مش قادرين نعرض بيانات المندوب دلوقتي.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <Link
-            href="/admin/drivers"
-            className="inline-flex items-center gap-2 rounded-xl border border-surface-hover bg-surface px-3 py-2 text-xs font-bold text-gray-400 transition-colors hover:border-primary/30 hover:text-foreground"
-          >
-            <ArrowRight className="h-4 w-4" />
-            رجوع للمندوبين
-          </Link>
-          <div>
-            <h1 className="text-2xl font-heading font-black text-foreground">متابعة المندوب</h1>
-            <p className="mt-1 text-sm text-gray-500">هنا هتشوف نشاطه، عدد الطلبات، والدخل بشكل مرتب وواضح.</p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-primary/15 bg-primary/5 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-lg font-black text-primary">
-              {data.driver.full_name?.charAt(0) || "م"}
-            </div>
+        <div className="space-y-6">
             <div>
-              <p className="text-lg font-black text-foreground">{data.driver.full_name}</p>
-              <p className="text-xs text-gray-500">{data.driver.email}</p>
+                <Link href="/admin/drivers" className="text-sm text-primary">
+                    Back to drivers
+                </Link>
+                <h1 className="mt-2 text-3xl font-black">{detail.profile.fullName}</h1>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => {
-          const Icon = card.icon
-          return (
-            <div key={card.label} className="rounded-3xl border border-surface-hover bg-surface p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold text-gray-500">{card.label}</p>
-                  <p className="mt-3 text-2xl font-black text-foreground">{card.value}</p>
-                  <p className="mt-2 text-xs text-gray-500">{card.helper}</p>
-                </div>
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${card.tone}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            <section className="grid gap-4 lg:grid-cols-4">
+                <MetricPanel label="Application" value={detail.driverProfile.applicationStatus} />
+                <MetricPanel label="Verification" value={detail.driverProfile.verificationStatus} />
+                <MetricPanel label="Availability" value={detail.driverProfile.availabilityStatus} />
+                <MetricPanel label="Account" value={detail.profile.accountStatus} sublabel={detail.driverProfile.workingCity} />
+            </section>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-3xl border border-surface-hover bg-surface p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-surface-hover pb-4">
-            <div>
-              <h2 className="text-lg font-black text-foreground">آخر الطلبات المسندة له</h2>
-              <p className="mt-1 text-sm text-gray-500">آخر الطلبات التي اشتغل عليها المندوب، سواء ما زالت شغالة أو تم إغلاقها.</p>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {data.recentOrders.length === 0 ? (
-              <div className="rounded-2xl border border-surface-hover bg-background px-4 py-8 text-center text-sm text-gray-500">
-                لسه المندوب ده ما استلمش أي طلبات.
-              </div>
-            ) : (
-              data.recentOrders.map((order) => (
-                <div key={order.id} className="rounded-2xl border border-surface-hover bg-background px-4 py-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-black text-foreground">طلب #{order.id.slice(-6).toUpperCase()}</p>
-                      <p className="text-xs text-gray-500">{order.customer_name}</p>
-                      {order.phone ? <p className="text-[11px] text-gray-500" dir="ltr">{order.phone}</p> : null}
+            <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+                <SectionCard title="Driver profile" subtitle="Personal and operational data">
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Contact</p>
+                            <p className="mt-3 text-sm text-white/75">{detail.profile.phone || "No phone"}</p>
+                            <p className="mt-1 text-sm text-white/45">{detail.profile.email || "No email"}</p>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Area</p>
+                            <p className="mt-3 text-sm text-white/75">{detail.driverProfile.workingCity}</p>
+                            <p className="mt-1 text-sm text-white/45">{detail.driverProfile.workingArea || "No secondary area"}</p>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4 md:col-span-2">
+                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Operational notes</p>
+                            <p className="mt-3 text-sm leading-7 text-white/75">{detail.driverProfile.operationalNotes || "No notes yet."}</p>
+                            {detail.driverProfile.suspensionReason ? <p className="mt-3 text-sm text-rose-300">Suspension reason: {detail.driverProfile.suspensionReason}</p> : null}
+                        </div>
                     </div>
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${statusToneMap[order.status] || "border-surface-hover bg-surface-hover text-gray-300"}`}>
-                      {statusLabelMap[order.status] || order.status}
-                    </span>
-                  </div>
+                </SectionCard>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-surface-hover bg-surface px-3 py-3">
-                      <p className="text-[11px] text-gray-500">قيمة الطلب</p>
-                      <p className="mt-1 text-sm font-black text-foreground">{Number(order.total_amount || 0).toLocaleString()} ج.م</p>
-                    </div>
-                    <div className="rounded-xl border border-surface-hover bg-surface px-3 py-3">
-                      <p className="text-[11px] text-gray-500">تاريخ الإسناد</p>
-                      <p className="mt-1 text-sm font-black text-foreground">{new Date(order.created_at).toLocaleDateString('ar-EG')}</p>
-                    </div>
-                    <div className="rounded-xl border border-surface-hover bg-surface px-3 py-3">
-                      <p className="text-[11px] text-gray-500">تم التوصيل</p>
-                      <p className="mt-1 text-sm font-black text-foreground">
-                        {order.delivered_at ? new Date(order.delivered_at).toLocaleDateString('ar-EG') : '—'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                <DriverStateActions driverId={detail.profile.id} />
+            </section>
+
+            <SectionCard title="Vehicle records" subtitle="Cars and tuk-tuks linked to this captain">
+                <DataTable
+                    columns={[
+                        { key: "vehicle", label: "Vehicle" },
+                        { key: "type", label: "Type" },
+                        { key: "plate", label: "Plate" },
+                        { key: "approval", label: "Approval" },
+                    ]}
+                    rows={detail.vehicles.map((vehicle) => ({
+                        vehicle: <div><p className="font-semibold">{vehicle.label}</p><p className="mt-1 text-xs text-white/45">{vehicle.isPrimary ? "Primary vehicle" : "Secondary vehicle"}</p></div>,
+                        type: vehicle.vehicleType,
+                        plate: vehicle.plateNumber || "—",
+                        approval: <StatusBadge status={vehicle.approvalStatus} />,
+                    }))}
+                    emptyState="No vehicles linked to this driver yet."
+                />
+            </SectionCard>
+
+            <SectionCard title="Documents" subtitle="Uploaded files and review state">
+                <DataTable
+                    columns={[
+                        { key: "type", label: "Document type" },
+                        { key: "file", label: "File name" },
+                        { key: "approval", label: "Approval" },
+                        { key: "created", label: "Uploaded" },
+                    ]}
+                    rows={detail.documents.map((doc) => ({
+                        type: doc.documentType,
+                        file: <span className="font-mono text-xs text-white/70">{doc.fileName || `${doc.storageBucket}/${doc.storagePath}`}</span>,
+                        approval: <StatusBadge status={doc.approvalStatus} />,
+                        created: new Date(doc.createdAt).toLocaleString("en-GB"),
+                    }))}
+                    emptyState="No documents uploaded yet."
+                />
+            </SectionCard>
+
+            <SectionCard title="Recent trip history" subtitle="Latest rides completed or handled by this driver">
+                <DataTable
+                    columns={[
+                        { key: "trip", label: "Trip" },
+                        { key: "customer", label: "Customer" },
+                        { key: "route", label: "Route" },
+                        { key: "status", label: "Status" },
+                    ]}
+                    rows={detail.recentTrips.map((trip) => ({
+                        trip: <Link href={`/admin/trips/${trip.id}`} className="font-mono text-xs text-primary">{trip.id.slice(0, 8)}</Link>,
+                        customer: trip.customerName,
+                        route: <div><p>{trip.pickup}</p><p className="mt-1 text-xs text-white/45">{trip.destination}</p></div>,
+                        status: <StatusBadge status={trip.status} />,
+                    }))}
+                    emptyState="No trip history for this driver yet."
+                />
+            </SectionCard>
         </div>
-
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-surface-hover bg-surface p-5 shadow-sm">
-            <h2 className="text-lg font-black text-foreground">ملف المندوب</h2>
-            <div className="mt-4 space-y-3">
-              <InfoRow icon={Phone} label="رقم الهاتف" value={data.driver.phone || 'غير محدد'} dir="ltr" />
-              <InfoRow icon={CalendarDays} label="تاريخ الانضمام" value={new Date(data.driver.created_at).toLocaleDateString('ar-EG')} />
-              <InfoRow icon={Clock3} label="آخر دخول" value={data.driver.last_login_at ? new Date(data.driver.last_login_at).toLocaleString('ar-EG') : 'لسه ما سجلش دخول'} />
-              <InfoRow icon={Bike} label="الحالة الحالية" value={data.driver.is_available === false ? 'غير متاح الآن' : 'متاح للطلبات'} />
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-surface-hover bg-surface p-5 shadow-sm">
-            <h2 className="text-lg font-black text-foreground">جودة الأداء</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <MiniMetric
-                icon={Star}
-                label="متوسط التقييم"
-                value={data.stats.avgRating ? `${data.stats.avgRating} / 5` : 'لا يوجد'}
-                helper={data.stats.ratingCount ? `بناءً على ${data.stats.ratingCount} تقييم` : 'لسه ما فيش تقييمات'}
-                tone="text-amber-300 bg-amber-400/10"
-              />
-              <MiniMetric
-                icon={PackageCheck}
-                label="طلبات تم توصيلها"
-                value={data.stats.deliveredOrders}
-                helper={`${data.stats.activeOrders} طلب ما زال شغال`}
-                tone="text-emerald-300 bg-emerald-500/10"
-              />
-              <MiniMetric
-                icon={XCircle}
-                label="طلبات ملغية"
-                value={data.stats.cancelledOrders}
-                helper="للمراجعة وتحسين التشغيل"
-                tone="text-rose-300 bg-rose-500/10"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-  dir,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  dir?: "ltr" | "rtl"
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-2xl border border-surface-hover bg-background px-4 py-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-bold text-gray-500">{label}</p>
-        <p className="mt-1 text-sm font-black text-foreground break-words" dir={dir}>{value}</p>
-      </div>
-    </div>
-  )
-}
-
-function MiniMetric({
-  icon: Icon,
-  label,
-  value,
-  helper,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string | number
-  helper: string
-  tone: string
-}) {
-  return (
-    <div className="rounded-2xl border border-surface-hover bg-background px-4 py-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold text-gray-500">{label}</p>
-          <p className="mt-2 text-xl font-black text-foreground">{value}</p>
-          <p className="mt-1 text-[11px] text-gray-500">{helper}</p>
-        </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-    </div>
-  )
+    );
 }

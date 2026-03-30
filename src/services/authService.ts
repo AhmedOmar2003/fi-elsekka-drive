@@ -89,16 +89,35 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         .eq('id', userId)
         .single();
 
-    if (error) {
-        // AbortError is a transient lock conflict — ignore it silently
-        if (error.message?.includes('AbortError') || error.message?.includes('Lock broken')) {
+    if (!error && data) {
+        return data as UserProfile;
+    }
+
+    const { data: operationalProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, role, account_status, created_at, last_login_at, avatar_path')
+        .eq('id', userId)
+        .single();
+
+    if (profileError) {
+        if (profileError.message?.includes('AbortError') || profileError.message?.includes('Lock broken')) {
             return null;
         }
-        console.error('Error fetching user profile:', error?.message || error);
+        console.error('Error fetching user profile:', profileError?.message || profileError);
         return null;
     }
 
-    return data as UserProfile;
+    return {
+        id: operationalProfile.id,
+        full_name: operationalProfile.full_name || '',
+        email: operationalProfile.email || '',
+        profile_picture: operationalProfile.avatar_path || undefined,
+        role: operationalProfile.role || undefined,
+        permissions: [],
+        disabled: operationalProfile.account_status && operationalProfile.account_status !== 'active',
+        created_at: operationalProfile.created_at,
+        last_login_at: operationalProfile.last_login_at,
+    } as UserProfile;
 };
 
 export const updateAuthEmail = async (newEmail: string) => {

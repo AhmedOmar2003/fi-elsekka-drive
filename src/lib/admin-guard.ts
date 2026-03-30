@@ -58,19 +58,28 @@ async function fetchUser(token: string) {
     user.user_metadata?.role ||
     (user.app_metadata as Record<string, unknown> | undefined)?.role;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: legacyProfile } = await supabaseAdmin
     .from('users')
     .select('role, permissions, disabled')
     .eq('id', user.id)
     .single();
 
-  const role = profile?.role || metaRole || null;
-  const permissions: string[] = Array.isArray(profile?.permissions)
-    ? profile?.permissions
+  const { data: operationalProfile } = await supabaseAdmin
+    .from('profiles')
+    .select('role, account_status')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const role = legacyProfile?.role || operationalProfile?.role || metaRole || null;
+  const permissions: string[] = Array.isArray(legacyProfile?.permissions)
+    ? legacyProfile.permissions
     : Array.isArray(user.user_metadata?.permissions)
       ? user.user_metadata?.permissions
       : [];
-  const disabled = isProtectedSuperAdmin(role, profile?.disabled === true);
+  const disabled = isProtectedSuperAdmin(
+    role,
+    legacyProfile?.disabled === true || (operationalProfile?.account_status && operationalProfile.account_status !== 'active')
+  );
 
   return { user, role, permissions, disabled };
 }

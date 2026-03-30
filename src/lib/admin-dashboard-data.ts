@@ -1,0 +1,852 @@
+import "server-only";
+
+import { createClient } from "@supabase/supabase-js";
+
+type Json = Record<string, unknown>;
+
+export type DashboardStat = {
+    label: string;
+    value: number;
+    tone: "primary" | "success" | "warning" | "danger" | "info";
+    hint: string;
+};
+
+export type DashboardBarPoint = {
+    label: string;
+    value: number;
+};
+
+export type DashboardStatusPoint = {
+    label: string;
+    value: number;
+    status: string;
+};
+
+export type AdminTripListItem = {
+    id: string;
+    customerName: string;
+    driverName: string | null;
+    tripType: string;
+    pickup: string;
+    destination: string;
+    status: string;
+    createdAt: string;
+    city: string | null;
+    passengerCount: number;
+    luggageCount: number;
+};
+
+export type AdminTripOffer = {
+    id: string;
+    driverId: string;
+    driverName: string;
+    vehicleLabel: string | null;
+    offerStatus: string;
+    offeredAt: string;
+    respondedAt: string | null;
+    rejectionReason: string | null;
+};
+
+export type AdminTripDetail = {
+    trip: {
+        id: string;
+        status: string;
+        tripType: string;
+        pickupLabel: string;
+        pickupAddress: string;
+        destinationLabel: string;
+        destinationAddress: string;
+        passengerCount: number;
+        luggageCount: number;
+        riderNotes: string | null;
+        airportName: string | null;
+        airportTerminal: string | null;
+        airportRideMode: string | null;
+        flightNumber: string | null;
+        flightTime: string | null;
+        estimatedPrice: number | null;
+        actualPrice: number | null;
+        createdAt: string;
+        requestedAt: string;
+        acceptedAt: string | null;
+        completedAt: string | null;
+        cancelledAt: string | null;
+        cancellationReason: string | null;
+        adminNotes: string | null;
+    };
+    customer: {
+        id: string;
+        fullName: string;
+        phone: string | null;
+        email: string | null;
+    } | null;
+    driver: {
+        id: string;
+        fullName: string;
+        phone: string | null;
+        workingCity: string | null;
+        availabilityStatus: string | null;
+    } | null;
+    vehicle: {
+        id: string;
+        label: string;
+        plateNumber: string | null;
+        vehicleType: string;
+    } | null;
+    offers: AdminTripOffer[];
+    timeline: Array<{
+        id: number;
+        status: string;
+        note: string | null;
+        createdAt: string;
+        changedByName: string | null;
+    }>;
+};
+
+export type AdminDriverListItem = {
+    id: string;
+    fullName: string;
+    phone: string | null;
+    city: string | null;
+    area: string | null;
+    availabilityStatus: string;
+    applicationStatus: string;
+    verificationStatus: string;
+    vehicleType: string | null;
+    tripsCompleted: number;
+    accountStatus: string;
+};
+
+export type AdminDriverDetail = {
+    profile: {
+        id: string;
+        fullName: string;
+        phone: string | null;
+        email: string | null;
+        accountStatus: string;
+    } | null;
+    driverProfile: {
+        applicationStatus: string;
+        verificationStatus: string;
+        availabilityStatus: string;
+        workingCity: string;
+        workingArea: string | null;
+        operationalNotes: string | null;
+        suspensionReason: string | null;
+        approvedAt: string | null;
+    } | null;
+    vehicles: Array<{
+        id: string;
+        label: string;
+        vehicleType: string;
+        approvalStatus: string;
+        plateNumber: string | null;
+        isPrimary: boolean;
+    }>;
+    documents: Array<{
+        id: string;
+        documentType: string;
+        approvalStatus: string;
+        fileName: string | null;
+        storageBucket: string;
+        storagePath: string;
+        createdAt: string;
+    }>;
+    recentTrips: AdminTripListItem[];
+};
+
+export type AdminVehicleListItem = {
+    id: string;
+    driverName: string;
+    driverId: string;
+    vehicleType: string;
+    brand: string;
+    model: string;
+    plateNumber: string | null;
+    approvalStatus: string;
+    isPrimary: boolean;
+};
+
+export type DispatchTripItem = {
+    id: string;
+    customerName: string;
+    pickup: string;
+    destination: string;
+    tripType: string;
+    status: string;
+    createdAt: string;
+};
+
+export type DispatchDriverItem = {
+    id: string;
+    fullName: string;
+    availabilityStatus: string;
+    city: string;
+    vehicleId: string | null;
+    vehicleLabel: string | null;
+};
+
+export type SupportTicketListItem = {
+    id: string;
+    userName: string;
+    tripId: string | null;
+    category: string;
+    status: string;
+    createdAt: string;
+    subject: string;
+};
+
+export type SupportTicketDetail = {
+    ticket: {
+        id: string;
+        subject: string;
+        description: string;
+        category: string;
+        status: string;
+        createdAt: string;
+        tripId: string | null;
+        userName: string;
+        userId: string;
+    } | null;
+    messages: Array<{
+        id: string;
+        senderUserId: string;
+        senderName: string;
+        messageBody: string;
+        createdAt: string;
+        isInternal: boolean;
+    }>;
+};
+
+export type AnnouncementItem = {
+    id: string;
+    title: string;
+    body: string;
+    audience: string;
+    isActive: boolean;
+    startsAt: string | null;
+    endsAt: string | null;
+    createdAt: string;
+    createdByName: string | null;
+};
+
+export type StaffListItem = {
+    id: string;
+    fullName: string;
+    email: string;
+    role: string;
+    status: string;
+    lastLogin: string | null;
+};
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY || "";
+
+function createAdminClient() {
+    if (!supabaseUrl || !serviceRoleKey) return null;
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+    });
+}
+
+function startOfTodayIso() {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+    return start.toISOString();
+}
+
+function daysAgoIso(days: number) {
+    const value = new Date();
+    value.setUTCDate(value.getUTCDate() - days);
+    return value.toISOString();
+}
+
+function cityFromAddress(value: string | null | undefined) {
+    if (!value) return null;
+    return value.split(",")[0]?.trim() || null;
+}
+
+async function safeCount(builder: PromiseLike<{ count: number | null; error: { message?: string } | null }>) {
+    const { count } = await builder;
+    return count || 0;
+}
+
+async function loadProfilesMap(ids: string[]) {
+    const supabase = createAdminClient();
+    if (!supabase || ids.length === 0) return new Map<string, Json>();
+
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, phone, email, account_status")
+        .in("id", uniqueIds);
+
+    return new Map((data || []).map((row) => [row.id as string, row as Json]));
+}
+
+export async function fetchDashboardOverview() {
+    const supabase = createAdminClient();
+    if (!supabase) {
+        return {
+            stats: [] as DashboardStat[],
+            tripsPerDay: [] as DashboardBarPoint[],
+            tripsPerCity: [] as DashboardBarPoint[],
+            driverActivity: [] as DashboardStatusPoint[],
+            tripStatusDistribution: [] as DashboardStatusPoint[],
+            activeTrips: [] as DispatchTripItem[],
+        };
+    }
+
+    const todayIso = startOfTodayIso();
+    const last14DaysIso = daysAgoIso(13);
+
+    const [
+        tripsToday,
+        tripsInProgress,
+        completedToday,
+        cancelledTrips,
+        activeDrivers,
+        onlineDrivers,
+        pendingApprovals,
+        openTickets,
+        recentTripsResult,
+    ] = await Promise.all([
+        safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).gte("created_at", todayIso)),
+        safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started"])),
+        safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).eq("status", "completed").gte("completed_at", todayIso)),
+        safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).eq("status", "cancelled")),
+        safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("application_status", "approved")),
+        safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("availability_status", "online")),
+        safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).in("application_status", ["pending", "requires_review"])),
+        safeCount(supabase.from("support_tickets").select("*", { count: "exact", head: true }).in("status", ["open", "in_progress", "waiting_user"])),
+        supabase
+            .from("trips")
+            .select("id, status, created_at, pickup_address, customer_id, trip_type, pickup_label, destination_label")
+            .gte("created_at", last14DaysIso)
+            .order("created_at", { ascending: true }),
+    ]);
+
+    const recentTrips = recentTripsResult.data || [];
+    const dayMap = new Map<string, number>();
+    const cityMap = new Map<string, number>();
+    const statusMap = new Map<string, number>();
+
+    for (const trip of recentTrips) {
+        const dateKey = new Date(trip.created_at).toLocaleDateString("en-CA");
+        dayMap.set(dateKey, (dayMap.get(dateKey) || 0) + 1);
+
+        const city = cityFromAddress(trip.pickup_address as string | null);
+        if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+
+        const status = trip.status as string;
+        statusMap.set(status, (statusMap.get(status) || 0) + 1);
+    }
+
+    const { data: driverRows } = await supabase
+        .from("driver_profiles")
+        .select("availability_status")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+    const driverStatusMap = new Map<string, number>();
+    for (const driver of driverRows || []) {
+        const key = String(driver.availability_status || "offline");
+        driverStatusMap.set(key, (driverStatusMap.get(key) || 0) + 1);
+    }
+
+    const profilesMap = await loadProfilesMap(recentTrips.map((trip) => String(trip.customer_id)));
+    const activeTrips = recentTrips
+        .filter((trip) => ["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started"].includes(String(trip.status)))
+        .slice(-6)
+        .reverse()
+        .map((trip) => ({
+            id: String(trip.id),
+            customerName: String((profilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
+            pickup: String(trip.pickup_label || trip.pickup_address || "نقطة الانطلاق"),
+            destination: String(trip.destination_label || "الوجهة"),
+            tripType: String(trip.trip_type),
+            status: String(trip.status),
+            createdAt: String(trip.created_at),
+        }));
+
+    const stats: DashboardStat[] = [
+            { label: "Total trips today", value: tripsToday, tone: "primary", hint: "طلبات اليوم من أول اليوم لحد دلوقتي" },
+            { label: "Trips in progress", value: tripsInProgress, tone: "info", hint: "المشاوير اللي شغالة حاليًا" },
+            { label: "Completed today", value: completedToday, tone: "success", hint: "مشاوير خلصت النهارده" },
+            { label: "Cancelled trips", value: cancelledTrips, tone: "danger", hint: "إجمالي المشاوير الملغية" },
+            { label: "Active drivers", value: activeDrivers, tone: "primary", hint: "الكباتن الموافق عليهم" },
+            { label: "Online drivers", value: onlineDrivers, tone: "success", hint: "الكباتن الجاهزين حاليًا" },
+            { label: "Pending approvals", value: pendingApprovals, tone: "warning", hint: "طلبات كباتن مستنية مراجعة" },
+            { label: "Open tickets", value: openTickets, tone: "warning", hint: "تذاكر الدعم المفتوحة" },
+        ];
+
+    return {
+        stats,
+        tripsPerDay: [...dayMap.entries()].map(([label, value]) => ({ label, value })),
+        tripsPerCity: [...cityMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value]) => ({ label, value })),
+        driverActivity: [...driverStatusMap.entries()].map(([status, value]) => ({ label: status.replaceAll("_", " "), value, status })),
+        tripStatusDistribution: [...statusMap.entries()].map(([status, value]) => ({ label: status.replaceAll("_", " "), value, status })),
+        activeTrips,
+    };
+}
+
+export async function fetchTripsList(filters: {
+    status?: string;
+    tripType?: string;
+    city?: string;
+    driverId?: string;
+    from?: string;
+    to?: string;
+}) {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as AdminTripListItem[];
+
+    let query = supabase
+        .from("trips")
+        .select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+    if (filters.status && filters.status !== "all") query = query.eq("status", filters.status);
+    if (filters.tripType && filters.tripType !== "all") query = query.eq("trip_type", filters.tripType);
+    if (filters.driverId && filters.driverId !== "all") query = query.eq("assigned_driver_id", filters.driverId);
+    if (filters.from) query = query.gte("created_at", filters.from);
+    if (filters.to) query = query.lte("created_at", filters.to);
+    if (filters.city) query = query.ilike("pickup_address", `%${filters.city}%`);
+
+    const { data } = await query;
+    const rows = data || [];
+    const profilesMap = await loadProfilesMap(rows.flatMap((row) => [String(row.customer_id), String(row.assigned_driver_id || "")]));
+
+    return rows.map((row) => ({
+        id: String(row.id),
+        customerName: String((profilesMap.get(String(row.customer_id))?.full_name as string) || "عميل"),
+        driverName: row.assigned_driver_id ? String((profilesMap.get(String(row.assigned_driver_id))?.full_name as string) || "كابتن") : null,
+        tripType: String(row.trip_type),
+        pickup: String(row.pickup_label || row.pickup_address || "من"),
+        destination: String(row.destination_label || "إلى"),
+        status: String(row.status),
+        createdAt: String(row.created_at),
+        city: cityFromAddress(row.pickup_address as string | null),
+        passengerCount: Number(row.passenger_count || 1),
+        luggageCount: Number(row.luggage_count || 0),
+    }));
+}
+
+export async function fetchTripDetail(id: string) {
+    const supabase = createAdminClient();
+    if (!supabase) return null as AdminTripDetail | null;
+
+    const { data: trip } = await supabase
+        .from("trips")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+    if (!trip) return null;
+
+    const [{ data: customer }, { data: driverProfile }, { data: vehicle }, { data: offers }, { data: history }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, phone, email").eq("id", trip.customer_id).maybeSingle(),
+        trip.assigned_driver_id
+            ? supabase.from("driver_profiles").select("id, working_city, availability_status").eq("id", trip.assigned_driver_id).maybeSingle()
+            : Promise.resolve({ data: null }),
+        trip.assigned_vehicle_id
+            ? supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number").eq("id", trip.assigned_vehicle_id).maybeSingle()
+            : Promise.resolve({ data: null }),
+        supabase.from("trip_offers").select("id, driver_id, vehicle_id, offer_status, offered_at, responded_at, rejection_reason").eq("trip_id", id).order("offered_at", { ascending: false }),
+        supabase.from("trip_status_history").select("id, status, note, changed_by, created_at").eq("trip_id", id).order("created_at", { ascending: true }),
+    ]);
+
+    const offerDriverIds = (offers || []).map((offer) => String(offer.driver_id));
+    const historyActorIds = (history || []).map((entry) => String(entry.changed_by || ""));
+    const extraIds = [String(trip.assigned_driver_id || ""), ...offerDriverIds, ...historyActorIds].filter(Boolean);
+    const profilesMap = await loadProfilesMap(extraIds);
+
+    return {
+        trip: {
+            id: String(trip.id),
+            status: String(trip.status),
+            tripType: String(trip.trip_type),
+            pickupLabel: String(trip.pickup_label || "من"),
+            pickupAddress: String(trip.pickup_address || ""),
+            destinationLabel: String(trip.destination_label || "إلى"),
+            destinationAddress: String(trip.destination_address || ""),
+            passengerCount: Number(trip.passenger_count || 1),
+            luggageCount: Number(trip.luggage_count || 0),
+            riderNotes: (trip.rider_notes as string | null) || null,
+            airportName: (trip.airport_name as string | null) || null,
+            airportTerminal: (trip.airport_terminal as string | null) || null,
+            airportRideMode: (trip.airport_ride_mode as string | null) || null,
+            flightNumber: (trip.flight_number as string | null) || null,
+            flightTime: (trip.flight_time as string | null) || null,
+            estimatedPrice: trip.estimated_price === null ? null : Number(trip.estimated_price),
+            actualPrice: trip.actual_price === null ? null : Number(trip.actual_price),
+            createdAt: String(trip.created_at),
+            requestedAt: String(trip.requested_at),
+            acceptedAt: (trip.accepted_at as string | null) || null,
+            completedAt: (trip.completed_at as string | null) || null,
+            cancelledAt: (trip.cancelled_at as string | null) || null,
+            cancellationReason: (trip.cancellation_reason as string | null) || null,
+            adminNotes: (trip.admin_notes as string | null) || null,
+        },
+        customer: customer
+            ? {
+                  id: String(customer.id),
+                  fullName: String(customer.full_name || "عميل"),
+                  phone: (customer.phone as string | null) || null,
+                  email: (customer.email as string | null) || null,
+              }
+            : null,
+        driver: driverProfile
+            ? {
+                  id: String(driverProfile.id),
+                  fullName: String((profilesMap.get(String(driverProfile.id))?.full_name as string) || "كابتن"),
+                  phone: (profilesMap.get(String(driverProfile.id))?.phone as string | null) || null,
+                  workingCity: (driverProfile.working_city as string | null) || null,
+                  availabilityStatus: (driverProfile.availability_status as string | null) || null,
+              }
+            : null,
+        vehicle: vehicle
+            ? {
+                  id: String(vehicle.id),
+                  label: `${String(vehicle.brand)} ${String(vehicle.model)}`,
+                  plateNumber: (vehicle.plate_number as string | null) || null,
+                  vehicleType: String(vehicle.vehicle_type),
+              }
+            : null,
+        offers: (offers || []).map((offer) => ({
+            id: String(offer.id),
+            driverId: String(offer.driver_id),
+            driverName: String((profilesMap.get(String(offer.driver_id))?.full_name as string) || "كابتن"),
+            vehicleLabel: null,
+            offerStatus: String(offer.offer_status),
+            offeredAt: String(offer.offered_at),
+            respondedAt: (offer.responded_at as string | null) || null,
+            rejectionReason: (offer.rejection_reason as string | null) || null,
+        })),
+        timeline: (history || []).map((entry) => ({
+            id: Number(entry.id),
+            status: String(entry.status),
+            note: (entry.note as string | null) || null,
+            createdAt: String(entry.created_at),
+            changedByName: entry.changed_by ? String((profilesMap.get(String(entry.changed_by))?.full_name as string) || "System") : "System",
+        })),
+    };
+}
+
+export async function fetchDriversList(filters: {
+    approvalStatus?: string;
+    vehicleType?: string;
+    city?: string;
+    availabilityStatus?: string;
+}) {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as AdminDriverListItem[];
+
+    let query = supabase
+        .from("driver_profiles")
+        .select("id, application_status, verification_status, availability_status, working_city, working_area")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+    if (filters.approvalStatus && filters.approvalStatus !== "all") query = query.eq("application_status", filters.approvalStatus);
+    if (filters.city) query = query.ilike("working_city", `%${filters.city}%`);
+    if (filters.availabilityStatus && filters.availabilityStatus !== "all") query = query.eq("availability_status", filters.availabilityStatus);
+
+    const { data } = await query;
+    const rows = data || [];
+    const driverIds = rows.map((row) => String(row.id));
+    const [profilesMap, vehiclesResult, tripsResult] = await Promise.all([
+        loadProfilesMap(driverIds),
+        supabase.from("vehicles").select("id, driver_id, vehicle_type, is_primary").in("driver_id", driverIds),
+        supabase.from("trips").select("assigned_driver_id, status").in("assigned_driver_id", driverIds),
+    ]);
+
+    const vehicleMap = new Map<string, string>();
+    for (const vehicle of vehiclesResult.data || []) {
+        if (vehicle.is_primary || !vehicleMap.has(String(vehicle.driver_id))) {
+            vehicleMap.set(String(vehicle.driver_id), String(vehicle.vehicle_type));
+        }
+    }
+
+    const completedTripsMap = new Map<string, number>();
+    for (const trip of tripsResult.data || []) {
+        if (trip.status === "completed" && trip.assigned_driver_id) {
+            const key = String(trip.assigned_driver_id);
+            completedTripsMap.set(key, (completedTripsMap.get(key) || 0) + 1);
+        }
+    }
+
+    return rows
+        .filter((row) => !filters.vehicleType || filters.vehicleType === "all" || vehicleMap.get(String(row.id)) === filters.vehicleType)
+        .map((row) => ({
+            id: String(row.id),
+            fullName: String((profilesMap.get(String(row.id))?.full_name as string) || "كابتن"),
+            phone: (profilesMap.get(String(row.id))?.phone as string | null) || null,
+            city: (row.working_city as string | null) || null,
+            area: (row.working_area as string | null) || null,
+            availabilityStatus: String(row.availability_status),
+            applicationStatus: String(row.application_status),
+            verificationStatus: String(row.verification_status),
+            vehicleType: vehicleMap.get(String(row.id)) || null,
+            tripsCompleted: completedTripsMap.get(String(row.id)) || 0,
+            accountStatus: String((profilesMap.get(String(row.id))?.account_status as string) || "active"),
+        }));
+}
+
+export async function fetchDriverDetail(id: string) {
+    const supabase = createAdminClient();
+    if (!supabase) return null as AdminDriverDetail | null;
+
+    const [{ data: driverProfile }, { data: profile }, { data: vehicles }, { data: documents }, { data: trips }] = await Promise.all([
+        supabase.from("driver_profiles").select("*").eq("id", id).maybeSingle(),
+        supabase.from("profiles").select("id, full_name, phone, email, account_status").eq("id", id).maybeSingle(),
+        supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number, approval_status, is_primary").eq("driver_id", id).order("is_primary", { ascending: false }),
+        supabase.from("driver_documents").select("id, document_type, approval_status, file_name, storage_bucket, storage_path, created_at").eq("driver_id", id).order("created_at", { ascending: false }),
+        supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
+    ]);
+
+    const tripProfilesMap = await loadProfilesMap((trips || []).map((trip) => String(trip.customer_id)));
+
+    return {
+        profile: profile
+            ? {
+                  id: String(profile.id),
+                  fullName: String(profile.full_name || "كابتن"),
+                  phone: (profile.phone as string | null) || null,
+                  email: (profile.email as string | null) || null,
+                  accountStatus: String(profile.account_status || "active"),
+              }
+            : null,
+        driverProfile: driverProfile
+            ? {
+                  applicationStatus: String(driverProfile.application_status),
+                  verificationStatus: String(driverProfile.verification_status),
+                  availabilityStatus: String(driverProfile.availability_status),
+                  workingCity: String(driverProfile.working_city || ""),
+                  workingArea: (driverProfile.working_area as string | null) || null,
+                  operationalNotes: (driverProfile.operational_notes as string | null) || null,
+                  suspensionReason: (driverProfile.suspension_reason as string | null) || null,
+                  approvedAt: (driverProfile.approved_at as string | null) || null,
+              }
+            : null,
+        vehicles: (vehicles || []).map((vehicle) => ({
+            id: String(vehicle.id),
+            label: `${String(vehicle.brand)} ${String(vehicle.model)}`,
+            vehicleType: String(vehicle.vehicle_type),
+            approvalStatus: String(vehicle.approval_status),
+            plateNumber: (vehicle.plate_number as string | null) || null,
+            isPrimary: Boolean(vehicle.is_primary),
+        })),
+        documents: (documents || []).map((doc) => ({
+            id: String(doc.id),
+            documentType: String(doc.document_type),
+            approvalStatus: String(doc.approval_status),
+            fileName: (doc.file_name as string | null) || null,
+            storageBucket: String(doc.storage_bucket),
+            storagePath: String(doc.storage_path),
+            createdAt: String(doc.created_at),
+        })),
+        recentTrips: (trips || []).map((trip) => ({
+            id: String(trip.id),
+            customerName: String((tripProfilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
+            driverName: profile ? String(profile.full_name || "كابتن") : null,
+            tripType: String(trip.trip_type),
+            pickup: String(trip.pickup_label || trip.pickup_address || "من"),
+            destination: String(trip.destination_label || "إلى"),
+            status: String(trip.status),
+            createdAt: String(trip.created_at),
+            city: cityFromAddress(trip.pickup_address as string | null),
+            passengerCount: Number(trip.passenger_count || 1),
+            luggageCount: Number(trip.luggage_count || 0),
+        })),
+    };
+}
+
+export async function fetchVehiclesList() {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as AdminVehicleListItem[];
+
+    const { data: vehicles } = await supabase
+        .from("vehicles")
+        .select("id, driver_id, vehicle_type, brand, model, plate_number, approval_status, is_primary")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+    const profilesMap = await loadProfilesMap((vehicles || []).map((vehicle) => String(vehicle.driver_id)));
+
+    return (vehicles || []).map((vehicle) => ({
+        id: String(vehicle.id),
+        driverName: String((profilesMap.get(String(vehicle.driver_id))?.full_name as string) || "كابتن"),
+        driverId: String(vehicle.driver_id),
+        vehicleType: String(vehicle.vehicle_type),
+        brand: String(vehicle.brand),
+        model: String(vehicle.model),
+        plateNumber: (vehicle.plate_number as string | null) || null,
+        approvalStatus: String(vehicle.approval_status),
+        isPrimary: Boolean(vehicle.is_primary),
+    }));
+}
+
+export async function fetchDispatchBoard() {
+    const supabase = createAdminClient();
+    if (!supabase) return { activeTrips: [] as DispatchTripItem[], availableDrivers: [] as DispatchDriverItem[] };
+
+    const [{ data: trips }, { data: drivers }, { data: vehicles }] = await Promise.all([
+        supabase.from("trips").select("id, customer_id, pickup_label, destination_label, trip_type, status, created_at").in("status", ["pending", "searching_driver", "offered"]).order("created_at", { ascending: false }).limit(20),
+        supabase.from("driver_profiles").select("id, availability_status, working_city").in("availability_status", ["online", "offline"]).eq("application_status", "approved").order("updated_at", { ascending: false }).limit(30),
+        supabase.from("vehicles").select("id, driver_id, vehicle_type, brand, model, is_primary").eq("is_active", true),
+    ]);
+
+    const profilesMap = await loadProfilesMap([...(trips || []).map((trip) => String(trip.customer_id)), ...(drivers || []).map((driver) => String(driver.id))]);
+    const primaryVehicleMap = new Map<string, { id: string; label: string }>();
+
+    for (const vehicle of vehicles || []) {
+        if (vehicle.is_primary || !primaryVehicleMap.has(String(vehicle.driver_id))) {
+            primaryVehicleMap.set(String(vehicle.driver_id), {
+                id: String(vehicle.id),
+                label: `${String(vehicle.brand)} ${String(vehicle.model)} · ${String(vehicle.vehicle_type)}`,
+            });
+        }
+    }
+
+    return {
+        activeTrips: (trips || []).map((trip) => ({
+            id: String(trip.id),
+            customerName: String((profilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
+            pickup: String(trip.pickup_label || "من"),
+            destination: String(trip.destination_label || "إلى"),
+            tripType: String(trip.trip_type),
+            status: String(trip.status),
+            createdAt: String(trip.created_at),
+        })),
+        availableDrivers: (drivers || []).map((driver) => ({
+            id: String(driver.id),
+            fullName: String((profilesMap.get(String(driver.id))?.full_name as string) || "كابتن"),
+            availabilityStatus: String(driver.availability_status),
+            city: String(driver.working_city || "غير محدد"),
+            vehicleId: primaryVehicleMap.get(String(driver.id))?.id || null,
+            vehicleLabel: primaryVehicleMap.get(String(driver.id))?.label || null,
+        })),
+    };
+}
+
+export async function fetchSupportTickets() {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as SupportTicketListItem[];
+
+    const { data } = await supabase
+        .from("support_tickets")
+        .select("id, created_by, trip_id, category, status, created_at, subject")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+    const profilesMap = await loadProfilesMap((data || []).map((ticket) => String(ticket.created_by)));
+
+    return (data || []).map((ticket) => ({
+        id: String(ticket.id),
+        userName: String((profilesMap.get(String(ticket.created_by))?.full_name as string) || "مستخدم"),
+        tripId: (ticket.trip_id as string | null) || null,
+        category: String(ticket.category),
+        status: String(ticket.status),
+        createdAt: String(ticket.created_at),
+        subject: String(ticket.subject),
+    }));
+}
+
+export async function fetchSupportTicketDetail(id: string) {
+    const supabase = createAdminClient();
+    if (!supabase) return null as SupportTicketDetail | null;
+
+    const [{ data: ticket }, { data: messages }] = await Promise.all([
+        supabase.from("support_tickets").select("*").eq("id", id).maybeSingle(),
+        supabase.from("support_ticket_messages").select("id, sender_user_id, message_body, created_at, is_internal").eq("ticket_id", id).order("created_at", { ascending: true }),
+    ]);
+
+    if (!ticket) return null;
+    const profilesMap = await loadProfilesMap([String(ticket.created_by), ...(messages || []).map((message) => String(message.sender_user_id))]);
+
+    return {
+        ticket: {
+            id: String(ticket.id),
+            subject: String(ticket.subject),
+            description: String(ticket.description),
+            category: String(ticket.category),
+            status: String(ticket.status),
+            createdAt: String(ticket.created_at),
+            tripId: (ticket.trip_id as string | null) || null,
+            userName: String((profilesMap.get(String(ticket.created_by))?.full_name as string) || "مستخدم"),
+            userId: String(ticket.created_by),
+        },
+        messages: (messages || []).map((message) => ({
+            id: String(message.id),
+            senderUserId: String(message.sender_user_id),
+            senderName: String((profilesMap.get(String(message.sender_user_id))?.full_name as string) || "عضو"),
+            messageBody: String(message.message_body),
+            createdAt: String(message.created_at),
+            isInternal: Boolean(message.is_internal),
+        })),
+    };
+}
+
+export async function fetchAnnouncements() {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as AnnouncementItem[];
+
+    const { data } = await supabase
+        .from("admin_announcements")
+        .select("id, title, body, audience, is_active, starts_at, ends_at, created_at, created_by")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+    const profilesMap = await loadProfilesMap((data || []).map((item) => String(item.created_by)));
+
+    return (data || []).map((item) => ({
+        id: String(item.id),
+        title: String(item.title),
+        body: String(item.body),
+        audience: String(item.audience),
+        isActive: Boolean(item.is_active),
+        startsAt: (item.starts_at as string | null) || null,
+        endsAt: (item.ends_at as string | null) || null,
+        createdAt: String(item.created_at),
+        createdByName: String((profilesMap.get(String(item.created_by))?.full_name as string) || "Admin"),
+    }));
+}
+
+export async function fetchStaffSnapshot() {
+    const supabase = createAdminClient();
+    if (!supabase) return [] as StaffListItem[];
+
+    const { data: legacyStaff, error } = await supabase
+        .from("users")
+        .select("id, full_name, email, role, disabled, last_login_at")
+        .in("role", ["super_admin", "admin", "operations_manager", "catalog_manager", "support_agent"])
+        .order("created_at", { ascending: false });
+
+    if (!error && legacyStaff) {
+        return legacyStaff.map((item) => ({
+            id: String(item.id),
+            fullName: String(item.full_name || "Staff"),
+            email: String(item.email || ""),
+            role: String(item.role),
+            status: item.disabled ? "disabled" : "active",
+            lastLogin: (item.last_login_at as string | null) || null,
+        }));
+    }
+
+    const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, role, account_status, last_login_at")
+        .eq("role", "admin")
+        .order("created_at", { ascending: false });
+
+    return (profiles || []).map((item) => ({
+        id: String(item.id),
+        fullName: String(item.full_name || "Admin"),
+        email: String(item.email || ""),
+        role: String(item.role),
+        status: String(item.account_status || "active"),
+        lastLogin: (item.last_login_at as string | null) || null,
+    }));
+}

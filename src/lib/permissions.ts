@@ -18,16 +18,14 @@ type RolePermShape = { role?: string | null; permissions?: string[] | null };
 
 const ADMIN_DESTINATIONS: Array<{ path: string; perm?: Permission; fullAdmin?: boolean }> = [
   { path: '/admin', fullAdmin: true },
-  { path: '/admin/orders', perm: 'view_orders' },
+  { path: '/admin/trips', perm: 'view_orders' },
+  { path: '/admin/dispatch', perm: 'assign_driver' },
   { path: '/admin/drivers', perm: 'view_drivers' },
-  { path: '/admin/products', perm: 'manage_products' },
-  { path: '/admin/categories', perm: 'manage_categories' },
-  { path: '/admin/promotions', perm: 'manage_offers' },
-  { path: '/admin/discounts', perm: 'manage_discounts' },
-  { path: '/admin/users', perm: 'manage_users' },
+  { path: '/admin/vehicles', perm: 'view_drivers' },
+  { path: '/admin/support', perm: 'view_orders' },
+  { path: '/admin/notifications', perm: 'manage_settings' },
   { path: '/admin/staff', perm: 'manage_admins' },
   { path: '/admin/settings', perm: 'manage_settings' },
-  { path: '/admin/analytics', perm: 'view_reports' },
 ];
 
 export const PERMISSION_META: Record<Permission, { label: string; description: string }> = {
@@ -147,7 +145,11 @@ export function getFirstAccessibleAdminPath(profile: RolePermShape | null | unde
 }
 
 export function requiredPermissionForPath(pathname: string): Permission | null {
-  if (pathname.startsWith('/admin/analytics')) return 'view_reports';
+  if (pathname.startsWith('/admin/trips')) return 'view_orders';
+  if (pathname.startsWith('/admin/support')) return 'view_orders';
+  if (pathname.startsWith('/admin/dispatch')) return 'assign_driver';
+  if (pathname.startsWith('/admin/vehicles')) return 'view_drivers';
+  if (pathname.startsWith('/admin/notifications')) return 'manage_settings';
   if (pathname.startsWith('/admin/backup')) return 'manage_settings';
   if (pathname.startsWith('/admin/staff')) return 'manage_admins';
   if (pathname.startsWith('/admin/users')) return 'manage_users';
