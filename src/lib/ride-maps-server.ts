@@ -3,10 +3,16 @@ import { calculateRideFare } from "@/lib/ride-pricing";
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_REVERSE_BASE_URL = "https://nominatim.openstreetmap.org/reverse";
 const OSRM_BASE_URL = "https://router.project-osrm.org/route/v1/driving";
+const GOOGLE_GEOCODE_BASE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+const GOOGLE_DIRECTIONS_BASE_URL = "https://maps.googleapis.com/maps/api/directions/json";
 const REQUEST_HEADERS = {
   "User-Agent": "FiElSekka/1.0 (ride-booking-platform)",
   "Accept-Language": "ar,en",
 };
+
+const GOOGLE_MAPS_API_KEY =
+  process.env.GOOGLE_MAPS_API_KEY?.trim() ||
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
 
 export type GeocodedLocation = {
   label: string;
@@ -39,18 +45,152 @@ function buildReadableAddress(payload: any) {
     .join("، ");
 }
 
-async function geocodePlace(query: string): Promise<GeocodedLocation> {
-  const matches = await searchLocations(query, 1);
-  const firstMatch = matches[0];
+function parseGoogleAddressComponents(components: any[] | undefined) {
+  const list = Array.isArray(components) ? components : [];
+  const getLongName = (...types: string[]) => {
+    const match = list.find((component) =>
+      Array.isArray(component.types) &&
+      types.some((type) => component.types.includes(type))
+    );
+    return match?.long_name || null;
+  };
 
-  if (!firstMatch) {
-    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب تكتب العنوان بشكل أوضح.");
-  }
-
-  return firstMatch;
+  return {
+    city:
+      getLongName("locality", "administrative_area_level_2", "administrative_area_level_1") ||
+      null,
+    area:
+      getLongName("sublocality", "sublocality_level_1", "neighborhood", "route") || null,
+  };
 }
 
-export async function searchLocations(
+function normalizeGoogleGeocodeResult(result: any, fallbackQuery: string): GeocodedLocation {
+  const location = result?.geometry?.location;
+  if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+    throw new Error("تعذر قراءة المكان من جوجل.");
+  }
+
+  const { city, area } = parseGoogleAddressComponents(result.address_components);
+  const primaryLabel =
+    result.address_components?.[0]?.long_name ||
+    result.formatted_address?.split(",")[0] ||
+    fallbackQuery;
+
+  return {
+    label: primaryLabel,
+    address: result.formatted_address || fallbackQuery,
+    latitude: Number(location.lat),
+    longitude: Number(location.lng),
+    city,
+    area,
+  };
+}
+
+async function searchLocationsWithGoogle(
+  query: string,
+  limit = 5
+): Promise<GeocodedLocation[]> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is missing.");
+  }
+
+  const url = new URL(GOOGLE_GEOCODE_BASE_URL);
+  url.searchParams.set("address", query);
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+  url.searchParams.set("language", "ar");
+  url.searchParams.set("region", "eg");
+  url.searchParams.set("components", "country:EG");
+
+  const response = await fetch(url.toString(), {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر البحث عن المكان من خرائط جوجل.");
+  }
+
+  const payload = await response.json();
+  if (payload.status !== "OK" || !Array.isArray(payload.results) || !payload.results.length) {
+    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب عنوان أوضح.");
+  }
+
+  return payload.results
+    .slice(0, Math.min(Math.max(limit, 1), 8))
+    .map((result: any) => normalizeGoogleGeocodeResult(result, query));
+}
+
+async function reverseGeocodeWithGoogle(
+  latitude: number,
+  longitude: number
+): Promise<GeocodedLocation> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is missing.");
+  }
+
+  const url = new URL(GOOGLE_GEOCODE_BASE_URL);
+  url.searchParams.set("latlng", `${latitude},${longitude}`);
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+  url.searchParams.set("language", "ar");
+  url.searchParams.set("region", "eg");
+
+  const response = await fetch(url.toString(), {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر تحديد المكان من خرائط جوجل.");
+  }
+
+  const payload = await response.json();
+  if (payload.status !== "OK" || !Array.isArray(payload.results) || !payload.results.length) {
+    throw new Error("مش قادر أحدد المكان المختار من الخريطة.");
+  }
+
+  return normalizeGoogleGeocodeResult(payload.results[0], "موقعي الحالي");
+}
+
+async function getRouteDistanceAndDurationWithGoogle(
+  pickup: GeocodedLocation,
+  destination: GeocodedLocation
+) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is missing.");
+  }
+
+  const url = new URL(GOOGLE_DIRECTIONS_BASE_URL);
+  url.searchParams.set("origin", `${pickup.latitude},${pickup.longitude}`);
+  url.searchParams.set("destination", `${destination.latitude},${destination.longitude}`);
+  url.searchParams.set("mode", "driving");
+  url.searchParams.set("departure_time", "now");
+  url.searchParams.set("language", "ar");
+  url.searchParams.set("region", "eg");
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+
+  const response = await fetch(url.toString(), {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر حساب الطريق من خرائط جوجل.");
+  }
+
+  const payload = await response.json();
+  const leg = payload.routes?.[0]?.legs?.[0];
+
+  if (payload.status !== "OK" || !leg?.distance?.value || !leg?.duration?.value) {
+    throw new Error("مش قادر أحسب المدة والمسافة من خرائط جوجل.");
+  }
+
+  return {
+    distanceKm: Number(leg.distance.value) / 1000,
+    durationMinutes: Number(leg.duration.value) / 60,
+  };
+}
+
+async function searchLocationsWithOsm(
   query: string,
   limit = 5
 ): Promise<GeocodedLocation[]> {
@@ -103,63 +243,7 @@ export async function searchLocations(
     });
 }
 
-async function getRouteDistanceAndDuration(
-  pickup: GeocodedLocation,
-  destination: GeocodedLocation
-) {
-  const url = `${OSRM_BASE_URL}/${pickup.longitude},${pickup.latitude};${destination.longitude},${destination.latitude}?overview=false`;
-  const response = await fetch(url, {
-    headers: REQUEST_HEADERS,
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error("تعذر حساب خط السير دلوقتي.");
-  }
-
-  const payload = await response.json();
-  const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
-
-  if (!route?.distance || !route?.duration) {
-    throw new Error("مش قادر أحسب المسافة والوقت حاليًا.");
-  }
-
-  return {
-    distanceKm: Number(route.distance) / 1000,
-    durationMinutes: Number(route.duration) / 60,
-  };
-}
-
-export async function estimateRideFromText(input: {
-  pickupQuery: string;
-  destinationQuery: string;
-  tripType: "airport_ride" | "normal_ride";
-  preferredVehicleType?: "car" | "tuk_tuk" | "any";
-  luggageCount?: number;
-  passengerCount?: number;
-}) {
-  const pickup = await geocodePlace(input.pickupQuery);
-  const destination = await geocodePlace(input.destinationQuery);
-  const route = await getRouteDistanceAndDuration(pickup, destination);
-  const fare = calculateRideFare({
-    distanceKm: route.distanceKm,
-    durationMinutes: route.durationMinutes,
-    tripType: input.tripType,
-    preferredVehicleType: input.preferredVehicleType,
-    luggageCount: input.luggageCount,
-    passengerCount: input.passengerCount,
-  });
-
-  return {
-    pickup,
-    destination,
-    distanceKm: Number(route.distanceKm.toFixed(1)),
-    durationMinutes: Math.max(1, Math.round(route.durationMinutes)),
-    ...fare,
-  } satisfies RideEstimateResult;
-}
-
-export async function reverseGeocodeCoordinates(
+async function reverseGeocodeWithOsm(
   latitude: number,
   longitude: number
 ): Promise<GeocodedLocation> {
@@ -204,4 +288,116 @@ export async function reverseGeocodeCoordinates(
     city,
     area,
   };
+}
+
+async function getRouteDistanceAndDurationWithOsm(
+  pickup: GeocodedLocation,
+  destination: GeocodedLocation
+) {
+  const url = `${OSRM_BASE_URL}/${pickup.longitude},${pickup.latitude};${destination.longitude},${destination.latitude}?overview=false`;
+  const response = await fetch(url, {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر حساب خط السير دلوقتي.");
+  }
+
+  const payload = await response.json();
+  const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
+
+  if (!route?.distance || !route?.duration) {
+    throw new Error("مش قادر أحسب المسافة والوقت حاليًا.");
+  }
+
+  return {
+    distanceKm: Number(route.distance) / 1000,
+    durationMinutes: Number(route.duration) / 60,
+  };
+}
+
+export async function searchLocations(
+  query: string,
+  limit = 5
+): Promise<GeocodedLocation[]> {
+  if (GOOGLE_MAPS_API_KEY) {
+    try {
+      return await searchLocationsWithGoogle(query, limit);
+    } catch {
+      return await searchLocationsWithOsm(query, limit);
+    }
+  }
+
+  return await searchLocationsWithOsm(query, limit);
+}
+
+async function geocodePlace(query: string): Promise<GeocodedLocation> {
+  const matches = await searchLocations(query, 1);
+  const firstMatch = matches[0];
+
+  if (!firstMatch) {
+    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب تكتب العنوان بشكل أوضح.");
+  }
+
+  return firstMatch;
+}
+
+async function getRouteDistanceAndDuration(
+  pickup: GeocodedLocation,
+  destination: GeocodedLocation
+) {
+  if (GOOGLE_MAPS_API_KEY) {
+    try {
+      return await getRouteDistanceAndDurationWithGoogle(pickup, destination);
+    } catch {
+      return await getRouteDistanceAndDurationWithOsm(pickup, destination);
+    }
+  }
+
+  return await getRouteDistanceAndDurationWithOsm(pickup, destination);
+}
+
+export async function estimateRideFromText(input: {
+  pickupQuery: string;
+  destinationQuery: string;
+  tripType: "airport_ride" | "normal_ride";
+  preferredVehicleType?: "car" | "tuk_tuk" | "any";
+  luggageCount?: number;
+  passengerCount?: number;
+}) {
+  const pickup = await geocodePlace(input.pickupQuery);
+  const destination = await geocodePlace(input.destinationQuery);
+  const route = await getRouteDistanceAndDuration(pickup, destination);
+  const fare = calculateRideFare({
+    distanceKm: route.distanceKm,
+    durationMinutes: route.durationMinutes,
+    tripType: input.tripType,
+    preferredVehicleType: input.preferredVehicleType,
+    luggageCount: input.luggageCount,
+    passengerCount: input.passengerCount,
+  });
+
+  return {
+    pickup,
+    destination,
+    distanceKm: Number(route.distanceKm.toFixed(1)),
+    durationMinutes: Math.max(1, Math.round(route.durationMinutes)),
+    ...fare,
+  } satisfies RideEstimateResult;
+}
+
+export async function reverseGeocodeCoordinates(
+  latitude: number,
+  longitude: number
+): Promise<GeocodedLocation> {
+  if (GOOGLE_MAPS_API_KEY) {
+    try {
+      return await reverseGeocodeWithGoogle(latitude, longitude);
+    } catch {
+      return await reverseGeocodeWithOsm(latitude, longitude);
+    }
+  }
+
+  return await reverseGeocodeWithOsm(latitude, longitude);
 }

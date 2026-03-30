@@ -89,6 +89,12 @@ export function BookingForm() {
   const [isSearchingMap, setIsSearchingMap] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("expanded");
 
+  const buildFieldValue = (location: SearchLocation) => {
+    return [location.label, location.area, location.city]
+      .filter(Boolean)
+      .join("، ");
+  };
+
   useEffect(() => {
     if (tripType === "airport_ride") {
       setPreferredVehicleType("car");
@@ -134,9 +140,8 @@ export function BookingForm() {
                   }),
                 });
                 const payload = await response.json().catch(() => ({}));
-                const address = payload.location?.address || payload.location?.label;
-                if (response.ok && address) {
-                  setPickup(address);
+                if (response.ok && payload.location) {
+                  setPickup(buildFieldValue(payload.location));
                 }
               } catch {}
             }
@@ -241,15 +246,16 @@ export function BookingForm() {
         throw new Error(payload.error || "تعذر تحديد المكان من الخريطة.");
       }
 
-      const address = payload.location?.address || payload.location?.label;
-      if (!address) {
+      if (!payload.location) {
         throw new Error("المكان المختار مش واضح، جرّب تزوم أكتر.");
       }
 
+      const fieldValue = buildFieldValue(payload.location);
+
       if (field === "pickup") {
-        setPickup(address);
+        setPickup(fieldValue);
       } else {
-        setDestination(address);
+        setDestination(fieldValue);
       }
 
       setEstimate(null);
@@ -330,9 +336,9 @@ export function BookingForm() {
     field: Exclude<MapField, null>
   ) => {
     if (field === "pickup") {
-      setPickup(location.address);
+      setPickup(buildFieldValue(location));
     } else {
-      setDestination(location.address);
+      setDestination(buildFieldValue(location));
     }
 
     setMapLocation([location.latitude, location.longitude]);
@@ -388,7 +394,7 @@ export function BookingForm() {
             </div>
 
             <div className="absolute inset-x-4 top-24 z-30 rounded-[22px] border border-primary/20 bg-surface-container/90 px-4 py-3 text-sm text-white shadow-[var(--shadow-premium)] backdrop-blur-xl">
-              حرّك الخريطة لحد المكان الصح، وبعدها اضغط تثبيت النقطة.
+              حرّك الخريطة لحد المكان الصح، وبعدها اضغط تثبيت النقطة عشان الاسم ينزل في الحقل تلقائي.
             </div>
 
             <div className="absolute inset-x-4 bottom-28 z-30 flex gap-3">
@@ -553,11 +559,14 @@ export function BookingForm() {
           <button
             type="button"
             onClick={() => {
-              toast.message("خرائط جوجل للعرض فقط، أما التحديد التلقائي فبيتم من داخل التطبيق.");
+              const query = encodeURIComponent(
+                destination || pickup || "القاهرة"
+              );
               window.open(
-                "https://www.google.com/maps/search/?api=1&query=Egypt",
+                `https://www.google.com/maps/search/?api=1&query=${query}`,
                 "_blank"
               );
+              toast.message("فتحنا خرائط جوجل للمساعدة فقط. تعبئة المكان تلقائيًا بتتم من داخل التطبيق.");
             }}
             className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
             aria-label="افتح خرائط جوجل"
@@ -639,6 +648,14 @@ export function BookingForm() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => handleOpenMapSearch("pickup")}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
+                        aria-label="ابحث عن نقطة التحرك"
+                      >
+                        <Search className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => beginMapPick("pickup")}
                         className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
                         aria-label="حدد نقطة التحرك من الخريطة"
@@ -660,7 +677,15 @@ export function BookingForm() {
                       className="h-14 rounded-[20px] border-0 bg-transparent pe-14 ps-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
                       placeholder="رايح فين؟"
                     />
-                    <div className="absolute inset-y-0 end-3 flex items-center">
+                    <div className="absolute inset-y-0 end-3 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenMapSearch("destination")}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
+                        aria-label="ابحث عن الوجهة"
+                      >
+                        <Search className="h-4 w-4" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => beginMapPick("destination")}
