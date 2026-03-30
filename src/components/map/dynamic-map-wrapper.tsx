@@ -9,7 +9,7 @@ export interface InteractiveMapProps {
 }
 
 export const InteractiveMap = dynamic<InteractiveMapProps>(
-  () => import("./interactive-map").then((mod) => mod.InteractiveMap),
+  () => import("@/components/map/interactive-map").then((mod) => mod.InteractiveMap),
   { 
     ssr: false,
     loading: () => (
