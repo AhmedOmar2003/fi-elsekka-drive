@@ -116,8 +116,30 @@ export function BookingForm() {
         }
 
         navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setMapLocation([position.coords.latitude, position.coords.longitude]);
+          async (position) => {
+            const nextLocation: [number, number] = [
+              position.coords.latitude,
+              position.coords.longitude,
+            ];
+            setMapLocation(nextLocation);
+
+            if (!pickup) {
+              try {
+                const response = await fetch("/api/rides/reverse-geocode", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    latitude: nextLocation[0],
+                    longitude: nextLocation[1],
+                  }),
+                });
+                const payload = await response.json().catch(() => ({}));
+                const address = payload.location?.address || payload.location?.label;
+                if (response.ok && address) {
+                  setPickup(address);
+                }
+              } catch {}
+            }
           },
           () => {},
           {
@@ -128,12 +150,12 @@ export function BookingForm() {
         );
       })
       .catch(() => {});
-  }, []);
+  }, [pickup]);
 
   const handleEstimate = async () => {
     if (!pickup.trim() || !destination.trim()) {
       toast.error("اكتب نقطة التحرك والوجهة الأول.");
-      return;
+      return null;
     }
 
     setIsEstimating(true);
@@ -162,23 +184,23 @@ export function BookingForm() {
         payload.estimate.pickup.latitude,
         payload.estimate.pickup.longitude,
       ]);
-      toast.success("حسبنا لك الوقت والسعر المقترح.");
+      return payload.estimate as EstimatePayload;
     } catch (error: any) {
       toast.error(error?.message || "تعذر حساب المشوار.");
+      return null;
     } finally {
       setIsEstimating(false);
     }
   };
 
   const handleContinue = async () => {
-    const nextEstimate = estimate;
-    if (!nextEstimate) {
-      await handleEstimate();
+    if (tripType === "airport_ride" && !flightTime) {
+      toast.error("اكتب ميعاد الرحلة علشان نكمل الطلب.");
       return;
     }
 
-    if (tripType === "airport_ride" && !flightTime) {
-      toast.error("اكتب ميعاد الرحلة علشان نكمل الطلب.");
+    const nextEstimate = estimate ?? (await handleEstimate());
+    if (!nextEstimate) {
       return;
     }
 
@@ -523,7 +545,7 @@ export function BookingForm() {
         <div className="absolute left-4 top-24 z-20 flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => handleOpenMapSearch("pickup")}
+            onClick={() => handleOpenMapSearch(pickup ? "destination" : "pickup")}
             className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
             aria-label="ابحث عن مكان على الخريطة"
           >
@@ -558,16 +580,8 @@ export function BookingForm() {
           className="pointer-events-auto w-full max-w-xl rounded-t-[30px] border-t border-white/10 bg-surface-container/95 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-3xl transition-transform duration-300 md:rounded-[30px] md:border"
           style={{ transform: sheetTransform }}
         >
-          <div className="px-4 pt-3">
-            <div className="mb-2 flex items-center justify-between rounded-[18px] border border-white/5 bg-black/10 px-4 py-2.5">
-              <div>
-                <p className="text-sm font-black text-white">
-                  {pickup && destination ? "المشوار جاهز للمراجعة" : "حدد المشوار"}
-                </p>
-                <p className="mt-0.5 text-[11px] text-white/45">
-                  من وإلى أو اختارهم من الخريطة
-                </p>
-              </div>
+          <div className="flex justify-end px-4 pt-3">
+            <div className="mb-2 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() =>
@@ -589,14 +603,12 @@ export function BookingForm() {
 
           <div className="flex max-h-[48vh] flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-              <div className="mb-1 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-black text-foreground">رايح فين؟</h2>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
-                    <Sparkles className="h-3 w-3" />
-                    اكتب أو اختار من الخريطة
-                  </p>
-                </div>
+              <div className="mb-1">
+                <h2 className="text-xl font-black text-foreground">رايح فين؟</h2>
+                <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
+                  <Sparkles className="h-3 w-3" />
+                  اكتب أو اختار من الخريطة
+                </p>
               </div>
 
               <Select
@@ -811,16 +823,8 @@ export function BookingForm() {
             <div className="relative shrink-0 space-y-3 border-t border-white/5 bg-surface-container-high/50 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
               <Button
                 type="button"
-                onClick={handleEstimate}
-                isLoading={isEstimating}
-                variant="secondary"
-                className="h-12 w-full rounded-[20px]"
-              >
-                احسب المدة والسعر
-              </Button>
-              <Button
-                type="button"
                 onClick={handleContinue}
+                isLoading={isEstimating}
                 className="h-[58px] w-full rounded-[24px] bg-primary text-[17px] font-black text-white hover:bg-primary-hover"
               >
                 راجع الطلب وكمله
