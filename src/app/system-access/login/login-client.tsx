@@ -10,19 +10,17 @@ import { supabase } from "@/lib/supabase";
 import { getUserProfile, signIn, signOut } from "@/services/authService";
 
 type LoginClientProps = {
-  initialEmail: string;
-  initialPassword: string;
+  emailPlaceholder: string;
   redirect: string;
 };
 
 export function LoginClient({
-  initialEmail,
-  initialPassword,
+  emailPlaceholder,
   redirect,
 }: LoginClientProps) {
   const router = useRouter();
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState(initialPassword);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -101,16 +99,6 @@ export function LoginClient({
         </div>
 
         <div className="bg-[#0a0e14] border border-white/5 shadow-2xl rounded-3xl p-6 sm:p-8">
-          <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/8 p-4 text-sm text-primary-foreground/90">
-            <p className="font-bold text-primary mb-1">بيانات الدخول الافتراضية</p>
-            <p className="font-mono text-xs text-white/85" dir="ltr">
-              {initialEmail}
-            </p>
-            <p className="font-mono text-xs text-white/70" dir="ltr">
-              {initialPassword}
-            </p>
-          </div>
-
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-400 ms-1 uppercase tracking-widest">
@@ -125,7 +113,7 @@ export function LoginClient({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl ps-12 pe-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-bold"
-                  placeholder={initialEmail}
+                  placeholder={emailPlaceholder}
                   dir="ltr"
                   autoComplete="username"
                 />

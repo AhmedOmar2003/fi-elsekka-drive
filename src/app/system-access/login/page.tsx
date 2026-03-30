@@ -18,8 +18,7 @@ export default async function SecureAdminLogin({ searchParams }: LoginPageProps)
 
   return (
     <LoginClient
-      initialEmail={SUPER_ADMIN_BOOTSTRAP_DEFAULTS.email}
-      initialPassword={SUPER_ADMIN_BOOTSTRAP_DEFAULTS.password}
+      emailPlaceholder={SUPER_ADMIN_BOOTSTRAP_DEFAULTS.email}
       redirect={redirect}
     />
   );
