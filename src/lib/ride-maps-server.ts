@@ -5,6 +5,8 @@ const NOMINATIM_REVERSE_BASE_URL = "https://nominatim.openstreetmap.org/reverse"
 const OSRM_BASE_URL = "https://router.project-osrm.org/route/v1/driving";
 const GOOGLE_PLACES_AUTOCOMPLETE_BASE_URL =
   "https://maps.googleapis.com/maps/api/place/autocomplete/json";
+const GOOGLE_PLACES_TEXT_SEARCH_BASE_URL =
+  "https://maps.googleapis.com/maps/api/place/textsearch/json";
 const GOOGLE_GEOCODE_BASE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const GOOGLE_DIRECTIONS_BASE_URL = "https://maps.googleapis.com/maps/api/directions/json";
 const REQUEST_HEADERS = {
@@ -218,6 +220,64 @@ async function searchLocationsWithGoogleGeocode(
   return results;
 }
 
+async function searchLocationsWithGoogleTextSearch(
+  query: string,
+  limit = 5
+): Promise<GeocodedLocation[]> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is missing.");
+  }
+
+  const url = new URL(GOOGLE_PLACES_TEXT_SEARCH_BASE_URL);
+  url.searchParams.set("query", query);
+  url.searchParams.set("language", "ar");
+  url.searchParams.set("region", "eg");
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+
+  const response = await fetch(url.toString(), {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر البحث عن المكان من خرائط جوجل.");
+  }
+
+  const payload = await response.json();
+  if (!["OK", "ZERO_RESULTS"].includes(payload.status) || !Array.isArray(payload.results)) {
+    const apiMessage =
+      typeof payload?.error_message === "string" && payload.error_message.trim()
+        ? payload.error_message.trim()
+        : null;
+    throw new Error(apiMessage || "تعذر البحث عن المكان من خرائط جوجل.");
+  }
+
+  const results = payload.results
+    .slice(0, Math.min(Math.max(limit, 1), 8))
+    .filter(
+      (result: any) =>
+        Number.isFinite(result?.geometry?.location?.lat) &&
+        Number.isFinite(result?.geometry?.location?.lng)
+    )
+    .map((result: any) => {
+      const { city, area } = parseGoogleAddressComponents(result.address_components);
+      return {
+        label: result.name || result.formatted_address?.split(",")[0] || query,
+        address: result.formatted_address || result.name || query,
+        latitude: Number(result.geometry.location.lat),
+        longitude: Number(result.geometry.location.lng),
+        city,
+        area,
+      } satisfies GeocodedLocation;
+    });
+
+  if (!results.length) {
+    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب اسم القرية مع المركز أو المحافظة.");
+  }
+
+  return results;
+}
+
 async function reverseGeocodeWithGoogle(
   latitude: number,
   longitude: number
@@ -424,7 +484,15 @@ export async function searchLocations(
     try {
       return await searchLocationsWithGoogle(query, limit, sessionToken);
     } catch {
-      return await searchLocationsWithOsm(query, limit);
+      try {
+        return await searchLocationsWithGoogleGeocode(query, limit);
+      } catch {
+        try {
+          return await searchLocationsWithGoogleTextSearch(query, limit);
+        } catch {
+          return await searchLocationsWithOsm(query, limit);
+        }
+      }
     }
   }
 
