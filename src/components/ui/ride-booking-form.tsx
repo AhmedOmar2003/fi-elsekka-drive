@@ -593,7 +593,7 @@ export function BookingForm() {
           </div>
         ) : null}
 
-        <div className="absolute left-4 top-24 z-20">
+        <div className="absolute left-4 top-40 z-20">
           <button
             type="button"
             onClick={() => handleOpenMapSearch(pickup ? "destination" : "pickup")}
