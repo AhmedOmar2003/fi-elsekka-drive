@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Clock3, MapPin, MapPinned, MessageSquarePlus, PlaneTakeoff, Navigation } from "lucide-react";
+import { Clock3, MapPin, MapPinned, MessageSquarePlus, PlaneTakeoff, Navigation, CarTaxiFront, Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -20,8 +20,8 @@ export function BookingForm() {
         <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(to_right,rgba(61,161,132,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(61,161,132,0.1)_1px,transparent_1px)] [background-size:32px_32px]" />
         
         {/* Fake Map Route UI for demo */}
-        <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none">
-          <div className="w-12 h-12 rounded-full border-[6px] border-primary/20 bg-primary flex items-center justify-center shadow-[0_0_30px_rgba(61,161,132,0.4)] relative">
+        <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none border border-primary/20 bg-primary/10 rounded-full p-6 animate-pulse-slow">
+          <div className="w-12 h-12 rounded-full border-[6px] border-primary/30 bg-primary flex items-center justify-center shadow-[0_0_30px_rgba(61,161,132,0.6)] relative z-10">
             <span className="w-4 h-4 rounded-full bg-white shadow-sm" />
             <div className="absolute -bottom-10 bg-surface-container-high px-3 py-1.5 rounded-xl text-xs font-black shadow-lg whitespace-nowrap border border-white/5">
               موقعك الحالي
@@ -30,18 +30,32 @@ export function BookingForm() {
         </div>
 
         {/* Current Location FAB (Native app feel) */}
-        <button className="absolute right-4 bottom-[calc(40vh+20px)] sm:bottom-[340px] z-10 w-12 h-12 bg-surface-container rounded-full shadow-[var(--shadow-material-3)] flex items-center justify-center text-foreground border border-white/5 active:scale-95 transition-transform">
+        <button className="absolute right-4 bottom-[calc(48vh+20px)] sm:bottom-[400px] z-10 w-12 h-12 bg-surface-container/90 backdrop-blur-md rounded-full shadow-[var(--shadow-material-3)] flex items-center justify-center text-foreground border border-white/5 active:scale-95 transition-transform">
           <Navigation className="w-5 h-5 text-primary" />
         </button>
       </div>
 
-      {/* Bottom Sheet UI */}
-      <div className="absolute bottom-0 inset-x-0 z-10 pb-[80px] md:pb-6 pointer-events-none flex justify-center">
-        <div className="w-full max-w-xl pointer-events-auto bg-surface-container/95 backdrop-blur-xl rounded-t-[36px] md:rounded-[36px] border-t md:border border-white/10 shadow-[var(--shadow-premium)] p-5 pb-6 transition-all duration-300">
+      {/* Bottom Sheet UI - Flush to bottom */}
+      <div className="absolute bottom-0 inset-x-0 z-10 pb-0 pointer-events-none flex justify-center">
+        <div className="w-full max-w-xl pointer-events-auto bg-surface-container/95 backdrop-blur-3xl rounded-t-[36px] md:rounded-[36px] border-t md:border border-white/10 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] pt-5 flex flex-col transition-all duration-300">
           
-          <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
+          <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-5 shrink-0" />
 
-          <div className="space-y-4">
+          <div className="px-5 space-y-4 flex-1">
+            
+            {/* Illustrative Header for Vitality */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-2xl font-black text-foreground drop-shadow-sm">مشوارك أسهل</h2>
+                <p className="text-[13px] text-primary mt-0.5 font-bold flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> حدد وجهتك واختار عربية أو توكتوك 
+                </p>
+              </div>
+              <div className="w-14 h-14 rounded-[20px] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-inner relative overflow-hidden shrink-0">
+                <CarTaxiFront className="w-7 h-7 text-primary relative z-10 animate-float" />
+              </div>
+            </div>
+
             {/* Trip Type */}
             <Select value={tripType} onChange={(event) => setTripType(event.target.value)}>
               <option value="normal">مشوار عادي</option>
@@ -51,22 +65,22 @@ export function BookingForm() {
             {/* Inputs Container */}
             <div className="relative rounded-[28px] overflow-hidden bg-surface-container-low border border-white/5 p-2 shadow-inner">
               <div className="absolute right-7 top-7 bottom-7 w-px bg-surface-border flex flex-col justify-between items-center z-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-primary absolute -top-1" />
-                <span className="w-2.5 h-2.5 rounded-full bg-secondary absolute -bottom-1" />
+                <span className="w-2.5 h-2.5 rounded-full bg-primary absolute -top-1 ring-4 ring-primary/20" />
+                <span className="w-2.5 h-2.5 rounded-full bg-secondary absolute -bottom-1 ring-4 ring-secondary/20" />
               </div>
               
               <div className="relative z-10 bg-transparent flex flex-col gap-2">
                 <Input
                   value={pickup}
                   onChange={(event) => setPickup(event.target.value)}
-                  className="ps-12 pe-4 h-14 bg-transparent border-0 ring-0 shadow-none text-base placeholder:text-gray-500 rounded-[20px] focus-visible:bg-white/5"
+                  className="ps-12 pe-4 h-14 bg-transparent border-0 ring-0 shadow-none text-base placeholder:text-gray-500 rounded-[20px] focus-visible:bg-white/5 transition-colors"
                   placeholder="نقطة التحرك (موقعك الحالي)"
                 />
                 <div className="h-px bg-surface-border/50 mx-4" />
                 <Input
                   value={destination}
                   onChange={(event) => setDestination(event.target.value)}
-                  className="ps-12 pe-4 h-14 bg-transparent border-0 ring-0 shadow-none text-base font-bold placeholder:text-gray-400 rounded-[20px] focus-visible:bg-white/5"
+                  className="ps-12 pe-4 h-14 bg-transparent border-0 ring-0 shadow-none text-base font-bold placeholder:text-gray-400 rounded-[20px] focus-visible:bg-white/5 transition-colors"
                   placeholder="رايح فين؟"
                 />
               </div>
@@ -77,7 +91,7 @@ export function BookingForm() {
               <div className="grid gap-3 rounded-[24px] bg-secondary/10 p-4 border border-secondary/20 animate-fade-in">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative">
-                    <Clock3 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+                     <Clock3 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
                     <Input type="datetime-local" className="pe-3 ps-9 h-12 bg-transparent border-white/10 text-xs" />
                   </div>
                   <div className="relative">
@@ -101,17 +115,22 @@ export function BookingForm() {
               <textarea
                 rows={2}
                 placeholder="مثال: مستني عند البوابة الرئيسية."
-                className="w-full rounded-[20px] border border-white/10 bg-surface-container-low px-4 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary/40 animate-fade-in"
+                className="w-full rounded-[20px] border border-white/10 bg-surface-container-low px-4 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary/40 animate-fade-in resize-none"
               />
             )}
-
-            {/* Main Action Call */}
-            <Button asChild className="h-14 w-full rounded-full text-lg font-black bg-primary hover:bg-primary-hover shadow-[0_4px_20px_-4px_rgba(61,161,132,0.4)] text-white mt-2">
-              <Link href="/trip/confirm">
-                تأكيد المشوار
-              </Link>
-            </Button>
           </div>
+
+          {/* Main Action Call - Fixed at bottom like Navbar */}
+          <div className="mt-4 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] px-5 bg-surface-container-high/50 border-t border-white/5 relative shrink-0">
+             <Button asChild className="h-[64px] w-full rounded-[24px] text-[17px] font-black bg-primary hover:bg-primary-hover shadow-[0_4px_20px_-4px_rgba(61,161,132,0.4)] text-white relative z-10 transition-transform active:scale-95 group overflow-hidden">
+               <Link href="/trip/confirm" className="flex items-center justify-center gap-2">
+                 <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%,100%_100%] bg-[position:200%_0,0_0] bg-no-repeat transition-[background-position_0s_ease] hover:bg-[position:-200%_0,0_0] hover:transition-[background-position_1.5s_ease]" />
+                 تأكيد المشوار 
+                 <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+               </Link>
+             </Button>
+          </div>
+
         </div>
       </div>
     </div>
