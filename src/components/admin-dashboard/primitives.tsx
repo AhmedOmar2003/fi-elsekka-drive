@@ -42,9 +42,39 @@ export function statusTone(status: string): Tone {
 }
 
 export function formatLabel(value: string) {
-    return value
-        .replaceAll("_", " ")
-        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const labels: Record<string, string> = {
+        completed: "مكتمل",
+        approved: "مقبول",
+        active: "نشط",
+        online: "أونلاين",
+        cancelled: "ملغي",
+        rejected: "مرفوض",
+        suspended: "موقوف",
+        pending: "معلّق",
+        searching_driver: "بندور على كابتن",
+        requires_review: "محتاج مراجعة",
+        waiting_user: "مستني العميل",
+        accepted: "اتقبل",
+        driver_on_the_way: "الكابتن في الطريق",
+        driver_arrived: "الكابتن وصل",
+        trip_started: "المشوار بدأ",
+        offered: "اتعرض على كابتن",
+        busy: "مشغول",
+        airport_ride: "مشوار مطار",
+        normal_ride: "مشوار عادي",
+        car: "عربية",
+        tuk_tuk: "توك توك",
+        in_progress: "شغال عليها",
+        resolved: "اتحلّت",
+        closed: "اتقفلت",
+        internal: "داخلي",
+        all: "الكل",
+        customers: "العملاء",
+        drivers: "الكباتن",
+        admins: "الإدارة",
+    };
+
+    return labels[value] || value.replaceAll("_", " ");
 }
 
 export function SectionCard({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
@@ -114,7 +144,7 @@ export function DataTable({
                         {rows.length === 0 ? (
                             <tr>
                                 <td className="px-4 py-8 text-center text-white/45" colSpan={columns.length}>
-                                    {emptyState || "No data yet."}
+                                    {emptyState || "لسه مفيش بيانات."}
                                 </td>
                             </tr>
                         ) : (
@@ -171,10 +201,10 @@ export function TripTimeline({
                     <div className="flex-1 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <StatusBadge status={item.status} />
-                            <span className="text-xs text-white/45">{new Date(item.createdAt).toLocaleString("en-GB")}</span>
+                            <span className="text-xs text-white/45">{new Date(item.createdAt).toLocaleString("ar-EG")}</span>
                         </div>
-                        <p className="mt-2 text-sm text-white/80">{item.note || "Status updated without extra note."}</p>
-                        <p className="mt-2 text-xs text-white/45">By: {item.changedByName || "System"}</p>
+                        <p className="mt-2 text-sm text-white/80">{item.note || "تم تحديث الحالة من غير ملاحظة إضافية."}</p>
+                        <p className="mt-2 text-xs text-white/45">بواسطة: {item.changedByName || "النظام"}</p>
                     </div>
                 </div>
             ))}

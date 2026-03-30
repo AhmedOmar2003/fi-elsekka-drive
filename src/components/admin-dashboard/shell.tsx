@@ -29,31 +29,31 @@ type AdminShellProps = {
 };
 
 const NAV_ITEMS = [
-    { href: "/admin", label: "Overview", icon: LayoutDashboard, fullAdmin: true },
-    { href: "/admin/trips", label: "Trips", icon: ClipboardList, permission: "view_orders" as const },
-    { href: "/admin/drivers", label: "Drivers", icon: Users, permission: "view_drivers" as const },
-    { href: "/admin/vehicles", label: "Vehicles", icon: CarFront, permission: "view_drivers" as const },
-    { href: "/admin/dispatch", label: "Dispatch", icon: Send, permission: "assign_driver" as const },
-    { href: "/admin/support", label: "Support", icon: Headset, permission: "view_orders" as const },
-    { href: "/admin/notifications", label: "Notifications", icon: Bell, permission: "manage_settings" as const },
-    { href: "/admin/staff", label: "Staff", icon: UserCog, permission: "manage_admins" as const },
-    { href: "/admin/settings", label: "Settings", icon: Settings, permission: "manage_settings" as const },
+    { href: "/admin", label: "النظرة العامة", icon: LayoutDashboard, fullAdmin: true },
+    { href: "/admin/trips", label: "المشاوير", icon: ClipboardList, permission: "view_orders" as const },
+    { href: "/admin/drivers", label: "الكباتن", icon: Users, permission: "view_drivers" as const },
+    { href: "/admin/vehicles", label: "المركبات", icon: CarFront, permission: "view_drivers" as const },
+    { href: "/admin/dispatch", label: "التوزيع", icon: Send, permission: "assign_driver" as const },
+    { href: "/admin/support", label: "الدعم", icon: Headset, permission: "view_orders" as const },
+    { href: "/admin/notifications", label: "الإشعارات", icon: Bell, permission: "manage_settings" as const },
+    { href: "/admin/staff", label: "فريق التشغيل", icon: UserCog, permission: "manage_admins" as const },
+    { href: "/admin/settings", label: "الإعدادات", icon: Settings, permission: "manage_settings" as const },
 ];
 
 function roleLabel(role?: string | null) {
     switch (role) {
         case "super_admin":
-            return "Super Admin";
+            return "سوبر أدمن";
         case "admin":
-            return "Admin";
+            return "أدمن";
         case "operations_manager":
-            return "Dispatcher";
+            return "مسؤول توزيع";
         case "support_agent":
-            return "Support Agent";
+            return "مسؤول دعم";
         case "catalog_manager":
-            return "Ops Manager";
+            return "مشرف تشغيل";
         default:
-            return "Team";
+            return "فريق التشغيل";
     }
 }
 
@@ -74,7 +74,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
 
     const pageTitle = useMemo(() => {
         const current = NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
-        return current?.label || "Dashboard";
+        return current?.label || "لوحة التحكم";
     }, [pathname]);
 
     const handleLogout = async () => {
@@ -93,7 +93,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                             </div>
                             <div>
                                 <p className="text-lg font-black">في السكة</p>
-                                <p className="text-xs text-white/60">Operations Console</p>
+                                <p className="text-xs text-white/60">لوحة تشغيل في السكة</p>
                             </div>
                         </div>
                     </div>
@@ -121,12 +121,12 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
 
                     <div className="border-t border-white/10 px-4 py-5">
                         <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <p className="text-sm font-semibold">{profile?.full_name || user?.email || "Admin"}</p>
+                            <p className="text-sm font-semibold">{profile?.full_name || user?.email || "أدمن"}</p>
                             <p className="mt-1 text-xs text-white/55">{roleLabel(profile?.role)}</p>
                         </div>
                         <Button variant="outline" className="w-full border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={handleLogout}>
                             <LogOut className="h-4 w-4" />
-                            Log out
+                            تسجيل الخروج
                         </Button>
                     </div>
                 </aside>
@@ -142,17 +142,17 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                                     <Menu className="h-5 w-5" />
                                 </button>
                                 <div>
-                                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">Fi El Sekka</p>
+                                    <p className="text-xs tracking-[0.3em] text-white/40">في السكة</p>
                                     <h1 className="text-xl font-black">{pageTitle}</h1>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="hidden rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm text-primary md:block">
-                                    Ready for live dispatch
+                                    جاهزين للتوزيع اللحظي
                                 </div>
                                 <div className="flex h-11 min-w-[11rem] items-center justify-end rounded-2xl border border-white/10 bg-white/5 px-4 text-right">
                                     <div>
-                                        <p className="text-sm font-semibold">{profile?.full_name || "Admin"}</p>
+                                        <p className="text-sm font-semibold">{profile?.full_name || "أدمن"}</p>
                                         <p className="text-xs text-white/50">{roleLabel(profile?.role)}</p>
                                     </div>
                                 </div>
@@ -173,7 +173,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                         <div className="mb-6 flex items-center justify-between">
                             <div>
                                 <p className="text-lg font-black">في السكة</p>
-                                <p className="text-xs text-white/60">Operations Console</p>
+                                <p className="text-xs text-white/60">لوحة تشغيل في السكة</p>
                             </div>
                             <button className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5" onClick={() => setIsOpen(false)}>
                                 <X className="h-4 w-4" />

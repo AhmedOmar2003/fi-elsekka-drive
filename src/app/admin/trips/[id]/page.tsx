@@ -18,63 +18,63 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <Link href="/admin/trips" className="text-sm text-primary">
-                        Back to trips
+                        الرجوع للمشاوير
                     </Link>
-                    <h1 className="mt-2 text-3xl font-black">Trip #{detail.trip.id.slice(0, 8)}</h1>
+                    <h1 className="mt-2 text-3xl font-black">مشوار #{detail.trip.id.slice(0, 8)}</h1>
                 </div>
                 <StatusBadge status={detail.trip.status} />
             </div>
 
             <section className="grid gap-4 lg:grid-cols-4">
-                <MetricPanel label="Trip type" value={detail.trip.tripType} />
-                <MetricPanel label="Passengers" value={String(detail.trip.passengerCount)} />
-                <MetricPanel label="Luggage" value={String(detail.trip.luggageCount)} sublabel="Airport rides only" />
-                <MetricPanel label="Estimated price" value={detail.trip.estimatedPrice ? `${detail.trip.estimatedPrice} EGP` : "Pending"} />
+                <MetricPanel label="نوع المشوار" value={detail.trip.tripType} />
+                <MetricPanel label="عدد الركاب" value={String(detail.trip.passengerCount)} />
+                <MetricPanel label="عدد الشنط" value={String(detail.trip.luggageCount)} sublabel="في مشاوير المطار فقط" />
+                <MetricPanel label="السعر التقديري" value={detail.trip.estimatedPrice ? `${detail.trip.estimatedPrice} ج.م` : "لسه"} />
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                <SectionCard title="Trip summary" subtitle="Core route and rider information">
+                <SectionCard title="ملخص المشوار" subtitle="الخط الأساسي وبيانات الراكب">
                     <div className="grid gap-4 md:grid-cols-2">
                         <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Pickup</p>
+                            <p className="text-xs tracking-[0.2em] text-white/40">التحرك من</p>
                             <p className="mt-3 text-lg font-bold">{detail.trip.pickupLabel}</p>
                             <p className="mt-2 text-sm text-white/55">{detail.trip.pickupAddress}</p>
                         </div>
                         <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Destination</p>
+                            <p className="text-xs tracking-[0.2em] text-white/40">الوجهة</p>
                             <p className="mt-3 text-lg font-bold">{detail.trip.destinationLabel}</p>
                             <p className="mt-2 text-sm text-white/55">{detail.trip.destinationAddress}</p>
                         </div>
                         <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Customer</p>
-                            <p className="mt-3 text-lg font-bold">{detail.customer?.fullName || "Unknown customer"}</p>
-                            <p className="mt-2 text-sm text-white/55">{detail.customer?.phone || "No phone"}</p>
-                            <p className="mt-1 text-sm text-white/45">{detail.customer?.email || "No email"}</p>
+                            <p className="text-xs tracking-[0.2em] text-white/40">العميل</p>
+                            <p className="mt-3 text-lg font-bold">{detail.customer?.fullName || "عميل غير معروف"}</p>
+                            <p className="mt-2 text-sm text-white/55">{detail.customer?.phone || "مفيش رقم"}</p>
+                            <p className="mt-1 text-sm text-white/45">{detail.customer?.email || "مفيش إيميل"}</p>
                         </div>
                         <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Assigned driver</p>
-                            <p className="mt-3 text-lg font-bold">{detail.driver?.fullName || "Not assigned yet"}</p>
-                            <p className="mt-2 text-sm text-white/55">{detail.driver?.phone || "No phone"}</p>
-                            <p className="mt-1 text-sm text-white/45">{detail.vehicle?.label || "No vehicle selected"}</p>
+                            <p className="text-xs tracking-[0.2em] text-white/40">الكابتن المتسند</p>
+                            <p className="mt-3 text-lg font-bold">{detail.driver?.fullName || "لسه ما اتسندش"}</p>
+                            <p className="mt-2 text-sm text-white/55">{detail.driver?.phone || "مفيش رقم"}</p>
+                            <p className="mt-1 text-sm text-white/45">{detail.vehicle?.label || "مفيش مركبة متسجلة"}</p>
                         </div>
                     </div>
 
                     {detail.trip.tripType === "airport_ride" ? (
                         <div className="mt-4 rounded-3xl border border-primary/15 bg-primary/10 p-4">
-                            <p className="text-sm font-semibold text-primary">Airport ride details</p>
+                            <p className="text-sm font-semibold text-primary">تفاصيل مشوار المطار</p>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                <p className="text-sm text-white/75">Airport: {detail.trip.airportName || "—"}</p>
-                                <p className="text-sm text-white/75">Mode: {detail.trip.airportRideMode || "—"}</p>
-                                <p className="text-sm text-white/75">Terminal: {detail.trip.airportTerminal || "—"}</p>
-                                <p className="text-sm text-white/75">Flight: {detail.trip.flightNumber || "—"}</p>
-                                <p className="text-sm text-white/75 md:col-span-2">Flight time: {detail.trip.flightTime ? new Date(detail.trip.flightTime).toLocaleString("en-GB") : "—"}</p>
+                                <p className="text-sm text-white/75">المطار: {detail.trip.airportName || "—"}</p>
+                                <p className="text-sm text-white/75">النوع: {detail.trip.airportRideMode || "—"}</p>
+                                <p className="text-sm text-white/75">الترمينال: {detail.trip.airportTerminal || "—"}</p>
+                                <p className="text-sm text-white/75">رقم الرحلة: {detail.trip.flightNumber || "—"}</p>
+                                <p className="text-sm text-white/75 md:col-span-2">ميعاد الرحلة: {detail.trip.flightTime ? new Date(detail.trip.flightTime).toLocaleString("ar-EG") : "—"}</p>
                             </div>
                         </div>
                     ) : null}
 
                     {detail.trip.riderNotes ? (
                         <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Notes</p>
+                            <p className="text-xs tracking-[0.2em] text-white/40">ملاحظات</p>
                             <p className="mt-3 text-sm leading-7 text-white/75">{detail.trip.riderNotes}</p>
                         </div>
                     ) : null}
@@ -92,25 +92,25 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-                <SectionCard title="Trip timeline" subtitle="Every change recorded on the trip">
+                <SectionCard title="تسلسل المشوار" subtitle="كل تغيير حصل على المشوار">
                     <TripTimeline items={detail.timeline} />
                 </SectionCard>
 
-                <SectionCard title="Dispatch offers" subtitle="Driver decision flow for this trip">
+                <SectionCard title="عروض التوزيع" subtitle="سجل العروض اللي اتبعتت للكباتن">
                     <div className="space-y-3">
                         {detail.offers.map((offer) => (
                             <div key={offer.id} className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
                                         <p className="font-semibold">{offer.driverName}</p>
-                                        <p className="mt-1 text-xs text-white/45">{new Date(offer.offeredAt).toLocaleString("en-GB")}</p>
+                                        <p className="mt-1 text-xs text-white/45">{new Date(offer.offeredAt).toLocaleString("ar-EG")}</p>
                                     </div>
                                     <StatusBadge status={offer.offerStatus} />
                                 </div>
-                                {offer.rejectionReason ? <p className="mt-3 text-sm text-white/55">Reason: {offer.rejectionReason}</p> : null}
+                                {offer.rejectionReason ? <p className="mt-3 text-sm text-white/55">سبب الرفض: {offer.rejectionReason}</p> : null}
                             </div>
                         ))}
-                        {detail.offers.length === 0 ? <p className="text-sm text-white/45">No offers have been sent yet.</p> : null}
+                        {detail.offers.length === 0 ? <p className="text-sm text-white/45">لسه مفيش عروض اتبعتت.</p> : null}
                     </div>
                 </SectionCard>
             </section>

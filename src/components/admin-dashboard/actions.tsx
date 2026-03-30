@@ -17,7 +17,7 @@ async function sendJson(url: string, method: string, body: Record<string, unknow
 
     if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Action failed");
+        throw new Error(payload.error || "فشل تنفيذ الإجراء");
     }
 }
 
@@ -28,7 +28,7 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
 
     return (
         <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-            <Label className="text-white/75">Change trip status</Label>
+            <Label className="text-white/75">غيّر حالة المشوار</Label>
             <div className="flex flex-col gap-3 md:flex-row">
                 <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
                     {["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed", "cancelled"].map((item) => (
@@ -46,7 +46,7 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
                         })
                     }
                 >
-                    Save status
+                    حفظ الحالة
                 </Button>
             </div>
         </div>
@@ -69,7 +69,7 @@ export function TripDispatchForm({
 
     return (
         <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-            <Label className="text-white/75">Dispatch action</Label>
+            <Label className="text-white/75">إجراء التوزيع</Label>
             <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
                 <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="bg-white/5 text-white">
                     {drivers.map((driver) => (
@@ -79,8 +79,8 @@ export function TripDispatchForm({
                     ))}
                 </Select>
                 <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="bg-white/5 text-white">
-                    <option value="dispatch_offer">Send offer</option>
-                    <option value="assign_driver">Assign directly</option>
+                    <option value="dispatch_offer">ابعت عرض</option>
+                    <option value="assign_driver">اسند مباشر</option>
                 </Select>
                 <Button
                     isLoading={isPending}
@@ -96,7 +96,7 @@ export function TripDispatchForm({
                         })
                     }
                 >
-                    Apply
+                    تنفيذ
                 </Button>
             </div>
         </div>
@@ -116,20 +116,20 @@ export function DriverStateActions({ driverId }: { driverId: string }) {
 
     return (
         <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-            <Label className="text-white/75">Driver actions</Label>
-            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional admin note or suspension reason" className="bg-white/5 text-white" />
+            <Label className="text-white/75">إجراءات الكابتن</Label>
+            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="ملاحظة إدارية أو سبب الإيقاف" className="bg-white/5 text-white" />
             <div className="flex flex-wrap gap-2">
                 <Button isLoading={isPending} onClick={() => runAction("approve")} variant="secondary">
-                    Approve
+                    قبول
                 </Button>
                 <Button isLoading={isPending} onClick={() => runAction("reject")} variant="outline">
-                    Reject
+                    رفض
                 </Button>
                 <Button isLoading={isPending} onClick={() => runAction("suspend")} variant="danger">
-                    Suspend
+                    إيقاف
                 </Button>
                 <Button isLoading={isPending} onClick={() => runAction("reactivate")} variant="ghost" className="border border-white/10 bg-white/5 text-white hover:bg-white/10">
-                    Reactivate
+                    إعادة تفعيل
                 </Button>
             </div>
         </div>
@@ -149,13 +149,13 @@ export function VehicleApprovalActions({ vehicleId }: { vehicleId: string }) {
 
     return (
         <div className="space-y-3">
-            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Review note" className="bg-white/5 text-white" />
+            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="ملاحظة المراجعة" className="bg-white/5 text-white" />
             <div className="flex gap-2">
                 <Button isLoading={isPending} onClick={() => runAction("approve")} variant="secondary">
-                    Approve
+                    قبول
                 </Button>
                 <Button isLoading={isPending} onClick={() => runAction("reject")} variant="outline">
-                    Reject
+                    رفض
                 </Button>
             </div>
         </div>
@@ -179,22 +179,22 @@ export function SupportReplyForm({ ticketId }: { ticketId: string }) {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-            <Label className="text-white/75">Reply to ticket</Label>
+            <Label className="text-white/75">الرد على التذكرة</Label>
             <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 className="min-h-28 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-white/35"
-                placeholder="Write a support reply or internal operational note"
+                placeholder="اكتب رد الدعم أو ملاحظة تشغيل داخلية"
             />
             <div className="flex flex-col gap-3 md:flex-row">
                 <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
-                    <option value="in_progress">in_progress</option>
-                    <option value="waiting_user">waiting_user</option>
-                    <option value="resolved">resolved</option>
-                    <option value="closed">closed</option>
+                    <option value="in_progress">شغال عليها</option>
+                    <option value="waiting_user">مستني العميل</option>
+                    <option value="resolved">اتحلّت</option>
+                    <option value="closed">اتقفلت</option>
                 </Select>
                 <Button type="submit" isLoading={isPending}>
-                    Send reply
+                    إرسال الرد
                 </Button>
             </div>
         </form>
@@ -229,35 +229,35 @@ export function NotificationComposer() {
         <form onSubmit={handleSubmit} className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
             <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                    <Label className="text-white/75">Title</Label>
-                    <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Maintenance update, airport flow update..." className="bg-white/5 text-white" />
+                    <Label className="text-white/75">العنوان</Label>
+                    <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="تحديث صيانة، تحديث مشاوير المطار..." className="bg-white/5 text-white" />
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-white/75">Target group</Label>
+                    <Label className="text-white/75">الفئة المستهدفة</Label>
                     <Select value={audience} onChange={(event) => setAudience(event.target.value)} className="bg-white/5 text-white">
-                        <option value="all">all</option>
-                        <option value="customers">customers</option>
-                        <option value="drivers">drivers</option>
-                        <option value="admins">admins</option>
+                        <option value="all">الكل</option>
+                        <option value="customers">العملاء</option>
+                        <option value="drivers">الكباتن</option>
+                        <option value="admins">الإدارة</option>
                     </Select>
                 </div>
             </div>
             <div className="space-y-2">
-                <Label className="text-white/75">Message</Label>
+                <Label className="text-white/75">الرسالة</Label>
                 <textarea
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
                     className="min-h-32 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-white/35"
-                    placeholder="Write the announcement body"
+                    placeholder="اكتب محتوى الإعلان أو الإشعار"
                 />
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-end">
                 <div className="space-y-2 md:w-72">
-                    <Label className="text-white/75">Schedule time</Label>
+                    <Label className="text-white/75">وقت الإرسال</Label>
                     <Input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="bg-white/5 text-white" />
                 </div>
                 <Button type="submit" isLoading={isPending}>
-                    Send announcement
+                    إرسال الإعلان
                 </Button>
             </div>
         </form>

@@ -9,16 +9,16 @@ export default async function AdminVehiclesPage() {
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Vehicles management" subtitle="Approve, reject, and review fleet records for cars and tuk-tuks">
+            <SectionCard title="إدارة المركبات" subtitle="قبول ورفض ومراجعة بيانات العربيات والتكاتك">
                 <DataTable
                     columns={[
-                        { key: "vehicleId", label: "Vehicle ID" },
-                        { key: "driver", label: "Driver" },
-                        { key: "type", label: "Vehicle type" },
-                        { key: "brand", label: "Brand / Model" },
-                        { key: "plate", label: "Plate number" },
-                        { key: "approval", label: "Approval" },
-                        { key: "actions", label: "Actions" },
+                        { key: "vehicleId", label: "رقم المركبة" },
+                        { key: "driver", label: "الكابتن" },
+                        { key: "type", label: "نوع المركبة" },
+                        { key: "brand", label: "الماركة / الموديل" },
+                        { key: "plate", label: "رقم اللوحة" },
+                        { key: "approval", label: "المراجعة" },
+                        { key: "actions", label: "الإجراءات" },
                     ]}
                     rows={vehicles.map((vehicle) => ({
                         vehicleId: <span className="font-mono text-xs text-white/70">{vehicle.id.slice(0, 8)}</span>,
@@ -33,7 +33,7 @@ export default async function AdminVehiclesPage() {
                         approval: <StatusBadge status={vehicle.approvalStatus} />,
                         actions: <VehicleApprovalActions vehicleId={vehicle.id} />,
                     }))}
-                    emptyState="No vehicles found."
+                    emptyState="مفيش مركبات موجودة."
                 />
             </SectionCard>
         </div>

@@ -11,18 +11,18 @@ export default async function AdminOverviewPage() {
             <section className="rounded-[32px] border border-primary/15 bg-[radial-gradient(circle_at_top_right,rgba(20,148,111,0.22),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-3xl">
-                        <p className="text-xs uppercase tracking-[0.35em] text-primary/75">Operations Hub</p>
+                        <p className="text-xs tracking-[0.35em] text-primary/75">مركز التشغيل</p>
                         <h1 className="mt-3 text-3xl font-black md:text-4xl">لوحة تشغيل في السكة</h1>
                         <p className="mt-3 text-sm leading-7 text-white/60 md:text-base">
-                            Internal console for trips, captains, dispatch, support, and service health. Built for high-volume operations with a mobile-native Egyptian ride flow.
+                            لوحة داخلية لمتابعة المشاوير والكباتن والتوزيع والدعم وحالة الخدمة، متصممة لشغل يومي سريع يناسب طبيعة التشغيل في مصر.
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-3">
                         <Link href="/admin/dispatch" className="rounded-2xl border border-primary/20 bg-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20">
-                            Open dispatch board
+                            افتح لوحة التوزيع
                         </Link>
                         <Link href="/admin/trips" className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white">
-                            Review all trips
+                            راجع كل المشاوير
                         </Link>
                     </div>
                 </div>
@@ -35,11 +35,11 @@ export default async function AdminOverviewPage() {
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <SectionCard title="Trips per day" subtitle="Last 14 days ride volume">
+                <SectionCard title="المشاوير حسب اليوم" subtitle="حجم الطلب خلال آخر 14 يوم">
                     <BarList data={overview.tripsPerDay} max={Math.max(...overview.tripsPerDay.map((item) => item.value), 1)} />
                 </SectionCard>
 
-                <SectionCard title="Trip status distribution" subtitle="Current operational mix">
+                <SectionCard title="توزيع حالات المشاوير" subtitle="الوضع التشغيلي الحالي">
                     <div className="space-y-3">
                         {overview.tripStatusDistribution.map((item) => (
                             <div key={item.status} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
@@ -55,11 +55,11 @@ export default async function AdminOverviewPage() {
             </section>
 
             <section className="grid gap-6 lg:grid-cols-3">
-                <SectionCard title="Trips per city" subtitle="Pickup demand concentration">
+                <SectionCard title="المشاوير حسب المدينة" subtitle="أماكن الطلب الأعلى">
                     <BarList data={overview.tripsPerCity} max={Math.max(...overview.tripsPerCity.map((item) => item.value), 1)} />
                 </SectionCard>
 
-                <SectionCard title="Driver activity" subtitle="Live fleet availability">
+                <SectionCard title="نشاط الكباتن" subtitle="حالة الأسطول الآن">
                     <div className="space-y-3">
                         {overview.driverActivity.map((item) => (
                             <div key={item.status} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
@@ -73,16 +73,16 @@ export default async function AdminOverviewPage() {
                     </div>
                 </SectionCard>
 
-                <SectionCard title="Quick modules" subtitle="Jump into the busiest operational queues">
+                <SectionCard title="اختصارات سريعة" subtitle="ادخل مباشرة على أهم القوايم">
                     <div className="space-y-3">
-                        <EntityLink href="/admin/trips?status=pending" title="Pending trip requests" subtitle="Review all unassigned customer requests" />
-                        <EntityLink href="/admin/drivers?approvalStatus=pending" title="Pending driver approvals" subtitle="Check docs, vehicle data, and onboarding state" />
-                        <EntityLink href="/admin/support" title="Open support inbox" subtitle="Reply to trip issues and escalations" />
+                        <EntityLink href="/admin/trips?status=pending" title="طلبات مشاوير معلقة" subtitle="راجع كل الطلبات اللي لسه ما اتسندتش" />
+                        <EntityLink href="/admin/drivers?approvalStatus=pending" title="طلبات كباتن تحت المراجعة" subtitle="راجع الأوراق وبيانات المركبة وحالة الانضمام" />
+                        <EntityLink href="/admin/support" title="صندوق الدعم المفتوح" subtitle="رد على مشاكل المشاوير والشكاوى" />
                     </div>
                 </SectionCard>
             </section>
 
-            <SectionCard title="Active ride requests" subtitle="Trips currently moving through dispatch">
+            <SectionCard title="طلبات شغالة الآن" subtitle="المشاوير الموجودة حاليًا في دورة التوزيع">
                 <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
                     {overview.activeTrips.map((trip) => (
                         <Link key={trip.id} href={`/admin/trips/${trip.id}`} className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4 transition hover:border-primary/25 hover:bg-white/[0.045]">
@@ -94,7 +94,7 @@ export default async function AdminOverviewPage() {
                             <p className="mt-1 text-sm text-white">{trip.destination}</p>
                             <div className="mt-4 flex items-center justify-between text-xs text-white/45">
                                 <span>{trip.tripType}</span>
-                                <span>{new Date(trip.createdAt).toLocaleString("en-GB")}</span>
+                                <span>{new Date(trip.createdAt).toLocaleString("ar-EG")}</span>
                             </div>
                         </Link>
                     ))}

@@ -9,23 +9,23 @@ export default async function AdminNotificationsPage() {
         <div className="space-y-6">
             <NotificationComposer />
 
-            <SectionCard title="Announcements history" subtitle="Scheduled and live notifications sent from operations">
+            <SectionCard title="سجل الإعلانات" subtitle="الإشعارات المجدولة والمباشرة المرسلة من التشغيل">
                 <DataTable
                     columns={[
-                        { key: "title", label: "Title" },
-                        { key: "audience", label: "Audience" },
-                        { key: "status", label: "Status" },
-                        { key: "window", label: "Schedule" },
-                        { key: "created", label: "Created" },
+                        { key: "title", label: "العنوان" },
+                        { key: "audience", label: "الفئة" },
+                        { key: "status", label: "الحالة" },
+                        { key: "window", label: "الجدولة" },
+                        { key: "created", label: "تاريخ الإنشاء" },
                     ]}
                     rows={announcements.map((item) => ({
                         title: <div><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-white/45">{item.body}</p></div>,
                         audience: item.audience,
                         status: <StatusBadge status={item.isActive ? "active" : "cancelled"} />,
-                        window: <div><p>{item.startsAt ? new Date(item.startsAt).toLocaleString("en-GB") : "Immediate"}</p><p className="mt-1 text-xs text-white/45">{item.endsAt ? new Date(item.endsAt).toLocaleString("en-GB") : "No expiry"}</p></div>,
-                        created: <div><p>{new Date(item.createdAt).toLocaleString("en-GB")}</p><p className="mt-1 text-xs text-white/45">{item.createdByName || "Admin"}</p></div>,
+                        window: <div><p>{item.startsAt ? new Date(item.startsAt).toLocaleString("ar-EG") : "فوري"}</p><p className="mt-1 text-xs text-white/45">{item.endsAt ? new Date(item.endsAt).toLocaleString("ar-EG") : "من غير انتهاء"}</p></div>,
+                        created: <div><p>{new Date(item.createdAt).toLocaleString("ar-EG")}</p><p className="mt-1 text-xs text-white/45">{item.createdByName || "أدمن"}</p></div>,
                     }))}
-                    emptyState="No announcements have been created yet."
+                    emptyState="لسه مفيش إعلانات متسجلة."
                 />
             </SectionCard>
         </div>

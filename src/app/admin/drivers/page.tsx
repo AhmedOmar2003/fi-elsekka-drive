@@ -23,62 +23,62 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Drivers management" subtitle="Approval queue, live availability, and fleet performance">
+            <SectionCard title="إدارة الكباتن" subtitle="طلبات المراجعة، التواجد الحالي، وأداء الأسطول">
                 <form className="space-y-4">
                     <FilterBar>
                         <Select name="approvalStatus" defaultValue={approvalStatus} className="bg-white/5 text-white">
-                            <option value="all">All approvals</option>
-                            <option value="pending">pending</option>
-                            <option value="approved">approved</option>
-                            <option value="rejected">rejected</option>
-                            <option value="suspended">suspended</option>
+                            <option value="all">كل حالات المراجعة</option>
+                            <option value="pending">معلّق</option>
+                            <option value="approved">مقبول</option>
+                            <option value="rejected">مرفوض</option>
+                            <option value="suspended">موقوف</option>
                         </Select>
                         <Select name="vehicleType" defaultValue={vehicleType} className="bg-white/5 text-white">
-                            <option value="all">All vehicle types</option>
-                            <option value="car">car</option>
-                            <option value="tuk_tuk">tuk_tuk</option>
+                            <option value="all">كل أنواع المركبات</option>
+                            <option value="car">عربية</option>
+                            <option value="tuk_tuk">توك توك</option>
                         </Select>
                         <Select name="availabilityStatus" defaultValue={availabilityStatus} className="bg-white/5 text-white">
-                            <option value="all">All live states</option>
-                            <option value="online">online</option>
-                            <option value="offline">offline</option>
-                            <option value="busy">busy</option>
+                            <option value="all">كل حالات التواجد</option>
+                            <option value="online">أونلاين</option>
+                            <option value="offline">أوفلاين</option>
+                            <option value="busy">مشغول</option>
                         </Select>
-                        <Input name="city" defaultValue={city} placeholder="Filter by city" className="bg-white/5 text-white" />
-                        <button className="rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white">Apply filters</button>
+                        <Input name="city" defaultValue={city} placeholder="فلتر حسب المدينة" className="bg-white/5 text-white" />
+                        <button className="rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white">تطبيق الفلاتر</button>
                     </FilterBar>
                 </form>
 
                 <div className="mt-5">
                     <DataTable
                         columns={[
-                            { key: "driver", label: "Driver" },
-                            { key: "vehicle", label: "Vehicle" },
-                            { key: "live", label: "Live status" },
-                            { key: "approval", label: "Approval" },
-                            { key: "city", label: "City" },
-                            { key: "trips", label: "Completed trips" },
-                            { key: "actions", label: "Actions", className: "text-left" },
+                            { key: "driver", label: "الكابتن" },
+                            { key: "vehicle", label: "المركبة" },
+                            { key: "live", label: "الحالة الآن" },
+                            { key: "approval", label: "المراجعة" },
+                            { key: "city", label: "المدينة" },
+                            { key: "trips", label: "مشاوير مكتملة" },
+                            { key: "actions", label: "الإجراءات", className: "text-left" },
                         ]}
                         rows={drivers.map((driver) => ({
                             driver: (
                                 <div>
                                     <p className="font-semibold">{driver.fullName}</p>
-                                    <p className="mt-1 text-xs text-white/45">{driver.phone || "No phone"}</p>
+                                    <p className="mt-1 text-xs text-white/45">{driver.phone || "مفيش رقم"}</p>
                                 </div>
                             ),
-                            vehicle: <span className="text-white/70">{driver.vehicleType || "No primary vehicle"}</span>,
+                            vehicle: <span className="text-white/70">{driver.vehicleType || "مفيش مركبة أساسية"}</span>,
                             live: <StatusBadge status={driver.availabilityStatus} />,
                             approval: <StatusBadge status={driver.applicationStatus} />,
                             city: <div><p>{driver.city || "—"}</p><p className="mt-1 text-xs text-white/45">{driver.area || "—"}</p></div>,
                             trips: <span className="font-semibold">{driver.tripsCompleted}</span>,
                             actions: (
                                 <Link href={`/admin/drivers/${driver.id}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
-                                    View driver
+                                    عرض الكابتن
                                 </Link>
                             ),
                         }))}
-                        emptyState="No drivers match the current filters."
+                        emptyState="مفيش كباتن مطابقين للفلاتر الحالية."
                     />
                 </div>
             </SectionCard>
