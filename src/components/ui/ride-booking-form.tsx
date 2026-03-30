@@ -8,9 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
-  LocateFixed,
   MapPinned,
-  Navigation,
   PlaneTakeoff,
   Search,
   Sparkles,
@@ -51,6 +49,7 @@ type EstimatePayload = {
 type SearchLocation = EstimatePayload["pickup"];
 type MapField = "pickup" | "destination" | null;
 type SheetMode = "expanded" | "collapsed";
+type AutocompleteField = Exclude<MapField, null> | null;
 
 const DEFAULT_CENTER: [number, number] = [30.0444, 31.2357];
 
@@ -86,9 +85,14 @@ export function BookingForm() {
   const [mapSearchResults, setMapSearchResults] = useState<SearchLocation[]>([]);
   const [isMapSearchOpen, setIsMapSearchOpen] = useState(false);
   const [isSearchingMap, setIsSearchingMap] = useState(false);
+  const [activeAutocompleteField, setActiveAutocompleteField] =
+    useState<AutocompleteField>(null);
+  const [autocompleteResults, setAutocompleteResults] = useState<SearchLocation[]>([]);
+  const [isSearchingAutocomplete, setIsSearchingAutocomplete] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("expanded");
   const [pickupLocation, setPickupLocation] = useState<SearchLocation | null>(null);
-  const [destinationLocation, setDestinationLocation] = useState<SearchLocation | null>(null);
+  const [destinationLocation, setDestinationLocation] =
+    useState<SearchLocation | null>(null);
   const [searchSessionToken, setSearchSessionToken] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -106,6 +110,50 @@ export function BookingForm() {
       setPreferredVehicleType("car");
     }
   }, [tripType]);
+
+  useEffect(() => {
+    const query =
+      activeAutocompleteField === "pickup"
+        ? pickup.trim()
+        : activeAutocompleteField === "destination"
+          ? destination.trim()
+          : "";
+
+    if (!activeAutocompleteField || query.length < 2) {
+      setAutocompleteResults([]);
+      setIsSearchingAutocomplete(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsSearchingAutocomplete(true);
+      try {
+        const response = await fetch(
+          `/api/rides/search-locations?q=${encodeURIComponent(query)}&sessionToken=${encodeURIComponent(searchSessionToken)}`,
+          { signal: controller.signal }
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error || "تعذر جلب الاقتراحات.");
+        }
+
+        setAutocompleteResults(Array.isArray(payload.results) ? payload.results : []);
+      } catch (error: any) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        setAutocompleteResults([]);
+      } finally {
+        setIsSearchingAutocomplete(false);
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [activeAutocompleteField, destination, pickup, searchSessionToken]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) {
@@ -312,6 +360,8 @@ export function BookingForm() {
     setMapSearchResults([]);
     setIsMapSearchOpen(true);
     setActiveMapField(null);
+    setActiveAutocompleteField(null);
+    setAutocompleteResults([]);
     setSearchSessionToken(
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -363,6 +413,8 @@ export function BookingForm() {
     setEstimate(null);
     setIsMapSearchOpen(false);
     setMapSearchResults([]);
+    setActiveAutocompleteField(null);
+    setAutocompleteResults([]);
     toast.success(field === "pickup" ? "اخترنا نقطة التحرك." : "اخترنا الوجهة.");
   };
 
@@ -370,6 +422,8 @@ export function BookingForm() {
     setActiveMapField(field);
     setSheetMode("collapsed");
     setIsMapSearchOpen(false);
+    setActiveAutocompleteField(null);
+    setAutocompleteResults([]);
     setEstimate(null);
     toast.message(
       field === "pickup"
@@ -515,16 +569,6 @@ export function BookingForm() {
               >
                 حدده يدوي من الخريطة
               </Button>
-              {mapSearchField === "pickup" ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-10 rounded-[16px] px-4 text-xs"
-                  onClick={handleUseCurrentLocation}
-                >
-                  استخدم موقعي الحالي
-                </Button>
-              ) : null}
             </div>
 
             <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
@@ -549,15 +593,7 @@ export function BookingForm() {
           </div>
         ) : null}
 
-        <button
-          onClick={handleUseCurrentLocation}
-          className="absolute right-4 top-24 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
-          aria-label="استخدم موقعي الحالي"
-        >
-          <Navigation className="h-5 w-5 text-primary" />
-        </button>
-
-        <div className="absolute left-4 top-24 z-20 flex flex-col gap-2">
+        <div className="absolute left-4 top-24 z-20">
           <button
             type="button"
             onClick={() => handleOpenMapSearch(pickup ? "destination" : "pickup")}
@@ -565,14 +601,6 @@ export function BookingForm() {
             aria-label="ابحث عن مكان على الخريطة"
           >
             <Search className="h-5 w-5 text-primary" />
-          </button>
-          <button
-            type="button"
-            onClick={() => beginMapPick(pickup ? "destination" : "pickup")}
-            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-surface-container/95 text-foreground shadow-[var(--shadow-premium)] backdrop-blur-md"
-            aria-label="حدد نقطة من الخريطة"
-          >
-            <MapPinned className="h-5 w-5 text-secondary" />
           </button>
         </div>
       </div>
@@ -631,40 +659,16 @@ export function BookingForm() {
                   <div className="relative">
                     <Input
                       value={pickup}
+                      onFocus={() => setActiveAutocompleteField("pickup")}
                       onChange={(event) => {
                         setPickup(event.target.value);
                         setPickupLocation(null);
                         setEstimate(null);
+                        setActiveAutocompleteField("pickup");
                       }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent pe-24 ps-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
+                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
                       placeholder="منين هتتحرك؟"
                     />
-                    <div className="absolute inset-y-0 end-3 flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={handleUseCurrentLocation}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary/20"
-                        aria-label="حدد موقعي الحالي"
-                      >
-                        <LocateFixed className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenMapSearch("pickup")}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
-                        aria-label="ابحث عن نقطة التحرك"
-                      >
-                        <Search className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => beginMapPick("pickup")}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
-                        aria-label="حدد نقطة التحرك من الخريطة"
-                      >
-                        <MapPinned className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
 
                   <div className="mx-4 h-px bg-surface-border/50" />
@@ -672,35 +676,56 @@ export function BookingForm() {
                   <div className="relative">
                     <Input
                       value={destination}
+                      onFocus={() => setActiveAutocompleteField("destination")}
                       onChange={(event) => {
                         setDestination(event.target.value);
                         setDestinationLocation(null);
                         setEstimate(null);
+                        setActiveAutocompleteField("destination");
                       }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent pe-14 ps-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
+                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
                       placeholder="رايح فين؟"
                     />
-                    <div className="absolute inset-y-0 end-3 flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenMapSearch("destination")}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
-                        aria-label="ابحث عن الوجهة"
-                      >
-                        <Search className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => beginMapPick("destination")}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/10"
-                        aria-label="حدد الوجهة من الخريطة"
-                      >
-                        <MapPinned className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
+
+              {activeAutocompleteField ? (
+                <div className="rounded-[24px] border border-white/5 bg-surface-container-low px-3 py-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold text-white/60">
+                      {activeAutocompleteField === "pickup"
+                        ? "اقتراحات نقطة التحرك"
+                        : "اقتراحات الوجهة"}
+                    </p>
+                    {isSearchingAutocomplete ? (
+                      <p className="text-[11px] font-bold text-primary">بندور...</p>
+                    ) : null}
+                  </div>
+
+                  <div className="max-h-52 space-y-2 overflow-y-auto">
+                    {autocompleteResults.length ? (
+                      autocompleteResults.map((result, index) => (
+                        <button
+                          key={`${activeAutocompleteField}-${result.latitude}-${result.longitude}-${index}`}
+                          type="button"
+                          onClick={() =>
+                            applyLocationFromSearch(result, activeAutocompleteField)
+                          }
+                          className="w-full rounded-[18px] border border-white/5 bg-black/10 px-4 py-3 text-right transition hover:border-primary/25 hover:bg-primary/10"
+                        >
+                          <p className="text-sm font-black text-white">{result.label}</p>
+                          <p className="mt-1 text-xs text-white/55">{result.address}</p>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-4 text-sm text-white/45">
+                        اكتب اسم شارع أو منطقة أو معلم واضح، وهتظهر لك اقتراحات تختار منها.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="relative">
