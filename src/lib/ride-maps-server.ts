@@ -118,15 +118,16 @@ async function searchLocationsWithGoogle(
   }
 
   const payload = await response.json();
-  if (
-    !["OK", "ZERO_RESULTS"].includes(payload.status) ||
-    !Array.isArray(payload.predictions)
-  ) {
-    throw new Error("تعذر البحث عن المكان من خرائط جوجل.");
+  if (!["OK", "ZERO_RESULTS"].includes(payload.status) || !Array.isArray(payload.predictions)) {
+    const apiMessage =
+      typeof payload?.error_message === "string" && payload.error_message.trim()
+        ? payload.error_message.trim()
+        : null;
+    throw new Error(apiMessage || "تعذر البحث عن المكان من خرائط جوجل.");
   }
 
   if (!payload.predictions.length) {
-    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب عنوان أوضح.");
+    return await searchLocationsWithGoogleGeocode(query, limit);
   }
 
   const predictions = payload.predictions.slice(0, Math.min(Math.max(limit, 1), 8));
@@ -167,10 +168,54 @@ async function searchLocationsWithGoogle(
 
   const normalized = details.filter(Boolean) as GeocodedLocation[];
   if (!normalized.length) {
-    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب عنوان أوضح.");
+    return await searchLocationsWithGoogleGeocode(query, limit);
   }
 
   return normalized;
+}
+
+async function searchLocationsWithGoogleGeocode(
+  query: string,
+  limit = 5
+): Promise<GeocodedLocation[]> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is missing.");
+  }
+
+  const url = new URL(GOOGLE_GEOCODE_BASE_URL);
+  url.searchParams.set("address", query);
+  url.searchParams.set("components", "country:EG");
+  url.searchParams.set("language", "ar");
+  url.searchParams.set("region", "eg");
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+
+  const response = await fetch(url.toString(), {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر البحث عن المكان من خرائط جوجل.");
+  }
+
+  const payload = await response.json();
+  if (!["OK", "ZERO_RESULTS"].includes(payload.status) || !Array.isArray(payload.results)) {
+    const apiMessage =
+      typeof payload?.error_message === "string" && payload.error_message.trim()
+        ? payload.error_message.trim()
+        : null;
+    throw new Error(apiMessage || "تعذر البحث عن المكان من خرائط جوجل.");
+  }
+
+  const results = payload.results
+    .slice(0, Math.min(Math.max(limit, 1), 8))
+    .map((result: any) => normalizeGoogleGeocodeResult(result, query));
+
+  if (!results.length) {
+    throw new Error("مش قادر أوصل للمكان اللي كتبته. جرّب اسم منطقة أو شارع أوضح.");
+  }
+
+  return results;
 }
 
 async function reverseGeocodeWithGoogle(
