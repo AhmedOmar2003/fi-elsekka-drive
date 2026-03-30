@@ -27,11 +27,11 @@ const DEFAULT_PERMISSIONS = [
 
 let bootstrapPromise: Promise<void> | null = null;
 
-async function findAuthUserIdByEmail(supabaseAdmin: ReturnType<typeof createClient>, email: string) {
+async function findAuthUserIdByEmail(supabaseAdmin: any, email: string) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     if (error) throw error;
 
-    const match = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+    const match = data.users.find((user: any) => user.email?.toLowerCase() === email.toLowerCase());
     return match?.id || null;
 }
 

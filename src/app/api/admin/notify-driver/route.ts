@@ -6,9 +6,15 @@ import { sendPushToDriverDevices } from '@/lib/driver-push-server';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY || '';
 
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
-});
+function getSupabaseAdmin() {
+    if (!supabaseUrl || !serviceRoleKey) {
+        return null;
+    }
+
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+    });
+}
 
 export async function POST(request: Request) {
     // Assigning a driver or notifying them requires assign_driver permission
@@ -16,6 +22,11 @@ export async function POST(request: Request) {
     if (!auth.ok) return auth.response;
 
     try {
+        const supabaseAdmin = getSupabaseAdmin();
+        if (!supabaseAdmin) {
+            return NextResponse.json({ error: 'Server misconfiguration: missing Supabase service credentials.' }, { status: 500 });
+        }
+
         const { driverId, title, body, orderId } = await request.json();
 
         if (!driverId || !title || !body) {
