@@ -34,6 +34,7 @@ export type AdminTripListItem = {
     city: string | null;
     passengerCount: number;
     luggageCount: number;
+    manualRequest: boolean;
 };
 
 export type AdminTripOffer = {
@@ -413,6 +414,7 @@ export async function fetchTripsList(filters: {
     tripType?: string;
     city?: string;
     driverId?: string;
+    manualMode?: string;
     from?: string;
     to?: string;
 }) {
@@ -421,7 +423,7 @@ export async function fetchTripsList(filters: {
 
     let query = supabase
         .from("trips")
-        .select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count")
+        .select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count, metadata")
         .order("created_at", { ascending: false })
         .limit(100);
 
@@ -433,7 +435,13 @@ export async function fetchTripsList(filters: {
     if (filters.city) query = query.ilike("pickup_address", `%${filters.city}%`);
 
     const { data } = await query;
-    const rows = data || [];
+    let rows = (data || []) as Array<Record<string, unknown>>;
+
+    if (filters.manualMode === "manual") {
+        rows = rows.filter((row) => Boolean((row.metadata as Record<string, unknown> | null)?.manual_location_request));
+    } else if (filters.manualMode === "mapped") {
+        rows = rows.filter((row) => !Boolean((row.metadata as Record<string, unknown> | null)?.manual_location_request));
+    }
     const profilesMap = await loadProfilesMap(rows.flatMap((row) => [String(row.customer_id), String(row.assigned_driver_id || "")]));
 
     return rows.map((row) => ({
@@ -448,6 +456,7 @@ export async function fetchTripsList(filters: {
         city: cityFromAddress(row.pickup_address as string | null),
         passengerCount: Number(row.passenger_count || 1),
         luggageCount: Number(row.luggage_count || 0),
+        manualRequest: Boolean((row.metadata as Record<string, unknown> | null)?.manual_location_request),
     }));
 }
 
@@ -572,7 +581,8 @@ export async function fetchDriversList(filters: {
     if (filters.availabilityStatus && filters.availabilityStatus !== "all") query = query.eq("availability_status", filters.availabilityStatus);
 
     const { data } = await query;
-    const rows = data || [];
+    let rows = (data || []) as Array<Record<string, unknown>>;
+
     const driverIds = rows.map((row) => String(row.id));
     const [profilesMap, vehiclesResult, tripsResult] = await Promise.all([
         loadProfilesMap(driverIds),
@@ -621,7 +631,7 @@ export async function fetchDriverDetail(id: string) {
         supabase.from("profiles").select("id, full_name, phone, email, account_status").eq("id", id).maybeSingle(),
         supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number, approval_status, is_primary").eq("driver_id", id).order("is_primary", { ascending: false }),
         supabase.from("driver_documents").select("id, document_type, approval_status, file_name, storage_bucket, storage_path, created_at").eq("driver_id", id).order("created_at", { ascending: false }),
-        supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
+        supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count, metadata").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
     ]);
 
     const tripProfilesMap = await loadProfilesMap((trips || []).map((trip) => String(trip.customer_id)));
@@ -930,3 +940,7 @@ export async function fetchStaffSnapshot() {
         lastLogin: (item.last_login_at as string | null) || null,
     }));
 }
+
+
+
+
