@@ -6,37 +6,57 @@ import { Clock3, MapPin, MapPinned, MessageSquarePlus, PlaneTakeoff, Navigation,
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { InteractiveMap } from "@/components/map/dynamic-map-wrapper";
 
 export function BookingForm() {
   const [pickup, setPickup] = useState("");
   const [destination, setDestination] = useState("");
   const [tripType, setTripType] = useState("normal");
   const [showNotes, setShowNotes] = useState(false);
+  const [mapLocation, setMapLocation] = useState<[number, number]>([31.0366, 31.3637]); // Default Mansoura/Mit El Amel region approx
+
+  // Focus current location button
+  const handleCurrentLocation = () => {
+    // In a real app we would call navigator.geolocation.getCurrentPosition
+    setMapLocation([31.0366, 31.3637]);
+  };
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,rgba(15,21,19,1),rgba(20,28,25,1))]">
-      {/* Map Background Placeholder */}
+      {/* Real Interactive Map Background */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(to_right,rgba(61,161,132,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(61,161,132,0.1)_1px,transparent_1px)] [background-size:32px_32px]" />
+        <InteractiveMap 
+          initialCenter={mapLocation}
+          onLocationChange={(lat, lng) => setMapLocation([lat, lng])}
+          zoom={15}
+        />
         
-        {/* Fake Map Route UI for demo */}
-        <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none border border-primary/20 bg-primary/10 rounded-full p-6 animate-pulse-slow">
-          <div className="w-12 h-12 rounded-full border-[6px] border-primary/30 bg-primary flex items-center justify-center shadow-[0_0_30px_rgba(61,161,132,0.6)] relative z-10">
-            <span className="w-4 h-4 rounded-full bg-white shadow-sm" />
-            <div className="absolute -bottom-10 bg-surface-container-high px-3 py-1.5 rounded-xl text-xs font-black shadow-lg whitespace-nowrap border border-white/5">
-              موقعك الحالي
+        {/* Fixed Center Map Pin UI */}
+        <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none drop-shadow-2xl z-20">
+          <div className="w-12 h-12 rounded-full border-[6px] border-primary/30 bg-primary flex items-center justify-center shadow-[0_0_40px_rgba(61,161,132,0.8)] relative animate-pulse-slow">
+            <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
+            <div className="absolute -bottom-10 bg-surface-container-high px-3 py-1.5 rounded-xl text-xs font-black shadow-lg shadow-black/50 whitespace-nowrap border border-white/10 text-primary">
+              موقع التحرك
             </div>
           </div>
+          <div className="w-1.5 h-6 bg-primary/80 mt-1 rounded-full shadow-lg"></div>
+          <div className="w-4 h-1 bg-black/40 rounded-full blur-[2px] mt-1"></div>
         </div>
 
+        {/* Top Fade overlay to make Top App Bar readable */}
+        <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-background/90 to-transparent z-10 pointer-events-none" />
+
         {/* Current Location FAB (Native app feel) */}
-        <button className="absolute right-4 bottom-[calc(48vh+20px)] sm:bottom-[400px] z-10 w-12 h-12 bg-surface-container/90 backdrop-blur-md rounded-full shadow-[var(--shadow-material-3)] flex items-center justify-center text-foreground border border-white/5 active:scale-95 transition-transform">
+        <button 
+          onClick={handleCurrentLocation}
+          className="absolute right-4 bottom-[calc(48vh+20px)] sm:bottom-[400px] z-20 w-12 h-12 bg-surface-container/95 backdrop-blur-md rounded-full shadow-[var(--shadow-premium)] flex items-center justify-center text-foreground border border-white/5 active:scale-95 transition-transform hover:bg-surface-container-high cursor-pointer"
+        >
           <Navigation className="w-5 h-5 text-primary" />
         </button>
       </div>
 
       {/* Bottom Sheet UI - Flush to bottom */}
-      <div className="absolute bottom-0 inset-x-0 z-10 pb-0 pointer-events-none flex justify-center">
+      <div className="absolute bottom-0 inset-x-0 z-30 pb-0 pointer-events-none flex justify-center">
         <div className="w-full max-w-xl pointer-events-auto bg-surface-container/95 backdrop-blur-3xl rounded-t-[36px] md:rounded-[36px] border-t md:border border-white/10 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] pt-5 flex flex-col transition-all duration-300">
           
           <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-5 shrink-0" />
@@ -123,7 +143,8 @@ export function BookingForm() {
           {/* Main Action Call - Fixed at bottom like Navbar */}
           <div className="mt-4 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] px-5 bg-surface-container-high/50 border-t border-white/5 relative shrink-0">
              <Button asChild className="h-[64px] w-full rounded-[24px] text-[17px] font-black bg-primary hover:bg-primary-hover shadow-[0_4px_20px_-4px_rgba(61,161,132,0.4)] text-white relative z-10 transition-transform active:scale-95 group overflow-hidden">
-               <Link href="/trip/confirm" className="flex items-center justify-center gap-2">
+               {/* We pass the lat/lng coordinates directly to the confirmation so we can display them or store them! */}
+               <Link href={`/trip/confirm?lat=${mapLocation[0]}&lng=${mapLocation[1]}&destination=${encodeURIComponent(destination)}`} className="flex items-center justify-center gap-2">
                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%,100%_100%] bg-[position:200%_0,0_0] bg-no-repeat transition-[background-position_0s_ease] hover:bg-[position:-200%_0,0_0] hover:transition-[background-position_1.5s_ease]" />
                  تأكيد المشوار 
                  <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
