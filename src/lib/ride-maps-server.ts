@@ -1,6 +1,7 @@
 import { calculateRideFare } from "@/lib/ride-pricing";
 
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
+const NOMINATIM_REVERSE_BASE_URL = "https://nominatim.openstreetmap.org/reverse";
 const OSRM_BASE_URL = "https://router.project-osrm.org/route/v1/driving";
 const REQUEST_HEADERS = {
   "User-Agent": "FiElSekka/1.0 (ride-booking-platform)",
@@ -138,4 +139,51 @@ export async function estimateRideFromText(input: {
     durationMinutes: Math.max(1, Math.round(route.durationMinutes)),
     ...fare,
   } satisfies RideEstimateResult;
+}
+
+export async function reverseGeocodeCoordinates(
+  latitude: number,
+  longitude: number
+): Promise<GeocodedLocation> {
+  const url = new URL(NOMINATIM_REVERSE_BASE_URL);
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("lon", String(longitude));
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("zoom", "18");
+
+  const response = await fetch(url.toString(), {
+    headers: REQUEST_HEADERS,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("تعذر تحديد المكان من الخريطة دلوقتي.");
+  }
+
+  const match = await response.json();
+  if (!match?.lat || !match?.lon) {
+    throw new Error("مش قادر أحدد المكان المختار من الخريطة.");
+  }
+
+  const city =
+    match.address?.city ||
+    match.address?.town ||
+    match.address?.state_district ||
+    match.address?.state ||
+    null;
+  const area =
+    match.address?.suburb ||
+    match.address?.neighbourhood ||
+    match.address?.quarter ||
+    null;
+
+  return {
+    label: match.name || match.display_name?.split(",")[0] || "نقطة من الخريطة",
+    address: buildReadableAddress(match) || match.display_name || "نقطة من الخريطة",
+    latitude: Number(match.lat),
+    longitude: Number(match.lon),
+    city,
+    area,
+  };
 }
