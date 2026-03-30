@@ -65,6 +65,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Arabic mobility platform",
     ],
     applicationName: "في السكة مشاوير",
+    manifest: "/manifest.json",
     category: "transportation",
     alternates: { canonical: "/" },
     openGraph: {
@@ -74,13 +75,13 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName,
       title: `${siteName} | ${tagline}`,
       description,
-      images: [{ url: "/icon-512x512.svg", width: 512, height: 512, alt: siteName }],
+      images: [{ url: "/notification-icon-512.png", width: 512, height: 512, alt: siteName }],
     },
     twitter: {
       card: "summary_large_image",
       title: `${siteName} | ${tagline}`,
       description,
-      images: ["/icon-512x512.svg"],
+      images: ["/notification-icon-512.png"],
     },
     appleWebApp: {
       capable: true,
@@ -89,11 +90,11 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     icons: {
       icon: [
-        { url: "/icon-192x192.svg", type: "image/svg+xml", sizes: "192x192" },
-        { url: "/icon-512x512.svg", type: "image/svg+xml", sizes: "512x512" },
+        { url: "/notification-icon-192.png", type: "image/png", sizes: "192x192" },
+        { url: "/notification-icon-512.png", type: "image/png", sizes: "512x512" },
       ],
-      apple: [{ url: "/icon-192x192.svg", type: "image/svg+xml", sizes: "192x192" }],
-      shortcut: ["/icon-192x192.svg"],
+      apple: [{ url: "/notification-icon-192.png", type: "image/png", sizes: "192x192" }],
+      shortcut: ["/notification-icon-192.png"],
     },
     robots: {
       index: true,

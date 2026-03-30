@@ -30,6 +30,7 @@ export default function InstallAppPage() {
   const [installUrl, setInstallUrl] = React.useState("https://fi-elsekka-drive.vercel.app/install-app")
   const [linkCopied, setLinkCopied] = React.useState(false)
   const deferredPrompt = React.useRef<DeferredInstallPrompt | null>(null)
+  const autoPromptAttempted = React.useRef(false)
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -54,6 +55,19 @@ export default function InstallAppPage() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
   }, [])
+
+  React.useEffect(() => {
+    if (!isMobile || !isAndroid || !isInstallReady || autoPromptAttempted.current || !deferredPrompt.current) {
+      return
+    }
+
+    autoPromptAttempted.current = true
+    window.setTimeout(() => {
+      if (deferredPrompt.current) {
+        void handleInstall()
+      }
+    }, 500)
+  }, [isAndroid, isInstallReady, isMobile])
 
   const handleInstall = async () => {
     if (!deferredPrompt.current) return
@@ -214,7 +228,7 @@ export default function InstallAppPage() {
             <div className="mt-6 rounded-3xl border border-primary/15 bg-primary/5 p-5">
               <p className="text-lg font-black text-foreground">على Android</p>
               <p className="mt-2 text-sm leading-7 text-gray-500">
-                لو متصفحك يدعم التثبيت، اضغط الزر تحت وسيظهر لك prompt التثبيت فورًا. ولو الزر ما زال غير متاح، افتح
+                لو متصفحك يدعم التثبيت، سيحاول التطبيق فتح prompt التثبيت تلقائيًا. ولو ما ظهرش، اضغط الزر تحت أو افتح
                 قائمة Chrome واختر <b>تثبيت التطبيق</b> أو <b>إضافة إلى الشاشة الرئيسية</b>.
               </p>
 

@@ -1,7 +1,7 @@
 {
   "id": "/book",
   "name": "في السكة مشاوير",
-  "short_name": "في السكة مشاوير",
+  "short_name": "في السكة",
   "description": "احجز مشوارك بسهولة من مكانك لوجهتك أو للمطار، واعتمد على كباتن في السكة في تنقلك اليومي.",
   "start_url": "/book",
   "scope": "/",
@@ -9,18 +9,19 @@
   "background_color": "#08100e",
   "theme_color": "#238267",
   "orientation": "portrait",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/icon-192x192.svg",
+      "src": "/notification-icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icon-512x512.svg",
+      "src": "/notification-icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
