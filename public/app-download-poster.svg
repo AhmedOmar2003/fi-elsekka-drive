@@ -31,22 +31,14 @@
     افتح صفحة التثبيت أو استخدم البوستر الديناميكي الجديد
   </text>
 
-  <rect x="420" y="1080" width="760" height="420" rx="44" fill="#0F1B17" stroke="#214136"/>
-  <text x="800" y="1210" text-anchor="middle" fill="#4BC0A1" font-size="58" font-family="Arial, sans-serif" font-weight="700">
-    صفحة التثبيت
-  </text>
-  <text x="800" y="1300" text-anchor="middle" fill="#F6F8F7" font-size="54" font-family="Arial, sans-serif" font-weight="700">
-    /install-app
-  </text>
-  <text x="800" y="1390" text-anchor="middle" fill="#94A29C" font-size="30" font-family="Arial, sans-serif" font-weight="400">
-    والـQR الصحيح الخاص بالمشاوير موجود في
-  </text>
-  <text x="800" y="1450" text-anchor="middle" fill="#D9E1DC" font-size="30" font-family="Arial, sans-serif" font-weight="600">
-    /install-app/poster
+  <rect x="470" y="980" width="660" height="660" rx="44" fill="white"/>
+  <image href="app-download-qr.jpg" x="525" y="1035" width="550" height="550"/>
+  <text x="800" y="1710" text-anchor="middle" fill="#94A29C" font-size="30" font-family="Arial, sans-serif" font-weight="400">
+    اعمل Scan من الموبايل وافتح صفحة التثبيت مباشرة
   </text>
 
   <rect x="420" y="1810" width="760" height="78" rx="39" fill="#10231D" stroke="#214136"/>
   <text x="800" y="1859" text-anchor="middle" fill="#D5DDD8" font-size="28" font-family="Arial, sans-serif" font-weight="500">
-    حمل التطبيق من موبايلك واستخدمه كتجربة PWA
+    ثبت التطبيق على موبايلك واستخدمه كتجربة PWA
   </text>
 </svg>

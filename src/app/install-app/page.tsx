@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Download, Share, PlusSquare, Smartphone, ArrowLeft, CheckCircle2, Copy, QrCode } from "lucide-react"
+import { Download, Share, PlusSquare, Smartphone, ArrowLeft, CheckCircle2, Copy, QrCode, Bike } from "lucide-react"
 
 type DeferredInstallPrompt = Event & {
   prompt: () => Promise<void>
@@ -30,8 +30,6 @@ export default function InstallAppPage() {
   const [installUrl, setInstallUrl] = React.useState("https://fi-elsekka.vercel.app/install-app")
   const [linkCopied, setLinkCopied] = React.useState(false)
   const deferredPrompt = React.useRef<DeferredInstallPrompt | null>(null)
-  const posterImageUrl = React.useMemo(() => "/install-app/poster", [])
-
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -111,12 +109,43 @@ export default function InstallAppPage() {
               افتح اللينك ده من الموبايل أو اعمل Scan للـQR من أي هاتف، وهيوديك مباشرة لصفحة تثبيت التطبيق.
             </p>
 
-            <div className="mt-4 overflow-hidden rounded-[28px] border border-white/10 bg-surface-container/60">
-              <img
-                src={posterImageUrl}
-                alt="بوستر تحميل تطبيق في السكة"
-                className="h-auto w-full"
-              />
+            <div className="mt-4 overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1714] p-5">
+              <div className="relative mx-auto max-w-[420px] overflow-hidden rounded-[32px] border border-white/5 bg-[radial-gradient(circle_at_top_right,rgba(45,161,124,0.14),transparent_28%),linear-gradient(180deg,#0f1f1a,#0c1613)] px-6 py-7 shadow-[0_0_80px_rgba(16,185,129,0.14)]">
+                <div className="absolute -left-10 bottom-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl" />
+                <div className="absolute -right-8 top-8 h-32 w-32 rounded-full bg-primary/10 blur-2xl" />
+
+                <div className="relative rounded-full border border-primary/10 bg-[#10231d] px-4 py-2 text-center text-xs font-black text-primary">
+                  في السكة | تحميل التطبيق
+                </div>
+
+                <div className="relative mt-6 flex justify-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-primary text-white shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                    <Bike className="h-10 w-10" />
+                  </div>
+                </div>
+
+                <div className="relative mt-5 text-center">
+                  <p className="text-4xl font-black text-white">في السكة</p>
+                  <p className="mt-3 text-sm font-bold text-white/80">تطبيق المشاوير لموبايلك</p>
+                  <p className="mt-2 text-xs leading-6 text-white/50">
+                    امسح الكود وابدأ التثبيت على موبايلك
+                  </p>
+                </div>
+
+                <div className="relative mt-6 flex justify-center">
+                  <div className="rounded-[24px] bg-white p-4 shadow-[0_0_50px_rgba(255,255,255,0.14)]">
+                    <img
+                      src="/app-download-qr.jpg"
+                      alt="QR لتحميل تطبيق في السكة"
+                      className="h-[220px] w-[220px] rounded-[12px] object-contain"
+                    />
+                  </div>
+                </div>
+
+                <p className="relative mt-5 text-center text-[11px] font-bold text-white/55">
+                  {installUrl.replace(/^https?:\/\//, "")}
+                </p>
+              </div>
             </div>
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
