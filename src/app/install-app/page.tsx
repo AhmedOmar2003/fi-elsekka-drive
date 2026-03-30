@@ -27,7 +27,7 @@ export default function InstallAppPage() {
   const [isInstallReady, setIsInstallReady] = React.useState(false)
   const [isInstalling, setIsInstalling] = React.useState(false)
   const [installSucceeded, setInstallSucceeded] = React.useState(false)
-  const [installUrl, setInstallUrl] = React.useState("https://fi-elsekka.vercel.app/install-app")
+  const [installUrl, setInstallUrl] = React.useState("https://fi-elsekka-drive.vercel.app/install-app")
   const [linkCopied, setLinkCopied] = React.useState(false)
   const deferredPrompt = React.useRef<DeferredInstallPrompt | null>(null)
   React.useEffect(() => {
@@ -82,8 +82,6 @@ export default function InstallAppPage() {
     }
   }
 
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(installUrl)}`
-
   return (
     <main className="min-h-screen bg-background px-4 py-10 md:px-6">
       <div className="mx-auto max-w-xl">
@@ -137,7 +135,7 @@ export default function InstallAppPage() {
                 <div className="relative mt-6 flex justify-center">
                   <div className="rounded-[24px] bg-white p-4 shadow-[0_0_50px_rgba(255,255,255,0.14)]">
                     <img
-                      src={qrUrl}
+                      src="/app-download-qr.png"
                       alt="QR لتحميل تطبيق في السكة"
                       className="h-[220px] w-[220px] rounded-[12px] object-contain"
                     />

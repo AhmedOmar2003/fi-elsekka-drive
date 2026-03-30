@@ -32,7 +32,7 @@
   </text>
 
   <rect x="470" y="980" width="660" height="660" rx="44" fill="white"/>
-  <image href="https://api.qrserver.com/v1/create-qr-code/?size=550x550&amp;data=https%3A%2F%2Ffi-elsekka.vercel.app%2Finstall-app" x="525" y="1035" width="550" height="550"/>
+  <image href="app-download-qr.png" x="525" y="1035" width="550" height="550"/>
   <text x="800" y="1710" text-anchor="middle" fill="#94A29C" font-size="30" font-family="Arial, sans-serif" font-weight="400">
     اعمل Scan من الموبايل وافتح صفحة التثبيت مباشرة
   </text>

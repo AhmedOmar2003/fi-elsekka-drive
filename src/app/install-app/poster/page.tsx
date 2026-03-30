@@ -1,13 +1,11 @@
 import { Bike } from "lucide-react";
 
-const FALLBACK_SITE_URL = "https://fi-elsekka.vercel.app";
+const FALLBACK_SITE_URL = "https://fi-elsekka-drive.vercel.app";
 
 export default function InstallPosterPage() {
   const origin =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || FALLBACK_SITE_URL;
   const installUrl = `${origin}/install-app`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=700x700&data=${encodeURIComponent(installUrl)}`;
-
   return (
     <main className="min-h-screen bg-[#08100e] p-4 md:p-10">
       <div className="mx-auto max-w-[560px] overflow-hidden rounded-[36px] border border-white/5 bg-[radial-gradient(circle_at_top_right,rgba(45,161,124,0.14),transparent_28%),linear-gradient(180deg,#0f1f1a,#0c1613)] px-6 py-8 shadow-[0_0_80px_rgba(16,185,129,0.14)] md:px-8">
@@ -37,7 +35,7 @@ export default function InstallPosterPage() {
         <div className="mt-8 flex justify-center">
           <div className="rounded-[28px] bg-white p-5 shadow-[0_0_60px_rgba(255,255,255,0.14)]">
             <img
-              src={qrUrl}
+              src="/app-download-qr.png"
               alt="QR لتحميل تطبيق في السكة"
               className="h-[280px] w-[280px] rounded-[16px] object-contain"
             />
