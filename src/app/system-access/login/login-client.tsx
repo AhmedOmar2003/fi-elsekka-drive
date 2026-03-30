@@ -62,6 +62,41 @@ export function LoginClient({
     const profile = signInData?.user?.id
       ? await getUserProfile(signInData.user.id)
       : null;
+    const authMetadataRole =
+      signInData?.user?.user_metadata?.role ||
+      signInData?.user?.app_metadata?.role ||
+      null;
+    const authMetadataPermissions = Array.isArray(
+      signInData?.user?.user_metadata?.permissions
+    )
+      ? signInData.user.user_metadata.permissions
+      : Array.isArray(signInData?.user?.app_metadata?.permissions)
+        ? signInData.user.app_metadata.permissions
+        : [];
+
+    const resolvedProfile = profile
+      ? {
+          ...profile,
+          role: profile.role || authMetadataRole || undefined,
+          permissions:
+            Array.isArray(profile.permissions) && profile.permissions.length > 0
+              ? profile.permissions
+              : authMetadataPermissions,
+        }
+      : signInData?.user?.id
+        ? {
+            id: signInData.user.id,
+            full_name:
+              signInData.user.user_metadata?.full_name ||
+              signInData.user.email ||
+              "",
+            email: signInData.user.email || "",
+            role: authMetadataRole || undefined,
+            permissions: authMetadataPermissions,
+            disabled: false,
+          }
+        : null;
+
     const adminRoles = [
       "super_admin",
       "admin",
@@ -70,7 +105,7 @@ export function LoginClient({
       "support_agent",
     ];
 
-    if (!profile || !adminRoles.includes(profile.role || "")) {
+    if (!resolvedProfile || !adminRoles.includes(resolvedProfile.role || "")) {
       await signOut();
       setIsLoading(false);
       toast.error("الحساب ده مش مخصص لدخول لوحة التحكم.");
@@ -79,7 +114,7 @@ export function LoginClient({
 
     setIsLoading(false);
     router.replace(
-      redirect === "/admin" ? getFirstAccessibleAdminPath(profile) : redirect
+      redirect === "/admin" ? getFirstAccessibleAdminPath(resolvedProfile) : redirect
     );
   };
 
