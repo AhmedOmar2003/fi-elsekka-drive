@@ -1,64 +1,52 @@
 <svg width="1600" height="2000" viewBox="0 0 1600 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="200" y1="120" x2="1420" y2="1880" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0F1714"/>
-      <stop offset="1" stop-color="#101F19"/>
+    <linearGradient id="bg" x1="200" y1="140" x2="1400" y2="1880" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08100E"/>
+      <stop offset="1" stop-color="#11231B"/>
     </linearGradient>
-    <linearGradient id="card" x1="260" y1="240" x2="1320" y2="1680" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#13211B"/>
-      <stop offset="1" stop-color="#0F1815"/>
+    <linearGradient id="card" x1="280" y1="240" x2="1320" y2="1720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12211B"/>
+      <stop offset="1" stop-color="#0D1714"/>
     </linearGradient>
-    <linearGradient id="accent" x1="420" y1="1100" x2="1180" y2="1500" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4BC0A1"/>
-      <stop offset="1" stop-color="#0FAE7D"/>
-    </linearGradient>
-    <filter id="soft" x="200" y="180" width="1200" height="1640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
-      <feGaussianBlur stdDeviation="25" result="effect1_foregroundBlur_1_1"/>
-    </filter>
-    <filter id="glow" x="280" y="980" width="1040" height="1040" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
-      <feGaussianBlur stdDeviation="32" result="effect1_foregroundBlur_1_1"/>
-    </filter>
   </defs>
 
   <rect width="1600" height="2000" fill="url(#bg)"/>
-  <circle cx="1360" cy="220" r="180" fill="#1A6F5A" fill-opacity="0.18"/>
-  <circle cx="250" cy="1650" r="220" fill="#0FAE7D" fill-opacity="0.10"/>
-  <circle cx="1280" cy="1550" r="260" fill="#E58EAA" fill-opacity="0.06"/>
+  <circle cx="1290" cy="220" r="180" fill="#0FAE7D" fill-opacity="0.12"/>
+  <circle cx="260" cy="1660" r="220" fill="#E58EAA" fill-opacity="0.08"/>
 
-  <g filter="url(#soft)">
-    <rect x="260" y="220" width="1080" height="1560" rx="56" fill="url(#card)" stroke="#24362E" stroke-width="2"/>
-  </g>
+  <rect x="280" y="220" width="1040" height="1560" rx="60" fill="url(#card)" stroke="#24362E" stroke-width="2"/>
 
-  <rect x="320" y="300" width="960" height="120" rx="60" fill="#12241D" stroke="#214136"/>
-  <text x="800" y="375" text-anchor="middle" fill="#4BC0A1" font-size="42" font-family="Arial, 'IBM Plex Sans Arabic', sans-serif" font-weight="700">
-    حمل تطبيق في السكة
+  <rect x="360" y="310" width="880" height="112" rx="56" fill="#10231D" stroke="#214136"/>
+  <text x="800" y="382" text-anchor="middle" fill="#4BC0A1" font-size="42" font-family="Arial, sans-serif" font-weight="700">
+    في السكة | تنزيل التطبيق
   </text>
 
-  <image href="data:image/png;base64,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" x="704" y="470" width="192" height="192"/>
-
-  <text x="800" y="760" text-anchor="middle" fill="#F4F7F5" font-size="106" font-family="Arial, 'IBM Plex Sans Arabic', sans-serif" font-weight="700">
+  <text x="800" y="660" text-anchor="middle" fill="#F6F8F7" font-size="118" font-family="Arial, sans-serif" font-weight="700">
     في السكة
   </text>
-  <text x="800" y="845" text-anchor="middle" fill="#A8B5AF" font-size="44" font-family="Arial, 'IBM Plex Sans Arabic', sans-serif" font-weight="500">
-    امسح الكود وابدأ التثبيت على موبايلك
+  <text x="800" y="760" text-anchor="middle" fill="#C7D1CC" font-size="56" font-family="Arial, sans-serif" font-weight="600">
+    تطبيق المشاوير للموبايل
   </text>
-  <text x="800" y="920" text-anchor="middle" fill="#86948E" font-size="34" font-family="Arial, 'IBM Plex Sans Arabic', sans-serif" font-weight="400">
-    تجربة أسرع وأسهل من فتح الموقع كل مرة من المتصفح
+  <text x="800" y="900" text-anchor="middle" fill="#94A29C" font-size="36" font-family="Arial, sans-serif" font-weight="400">
+    افتح صفحة التثبيت أو استخدم البوستر الديناميكي الجديد
   </text>
 
-  <g filter="url(#glow)">
-    <rect x="420" y="1080" width="760" height="760" rx="56" fill="url(#accent)" fill-opacity="0.18"/>
-  </g>
-  <rect x="470" y="1130" width="660" height="660" rx="44" fill="white"/>
-  <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIAAQMAAADOtka5AAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAACcklEQVR4nO3cMZLbMAyFYbpy6SPoKD6ar6aj8AgutxJiCgQISNnNzppJk/815tDUpw5DiLJLeTcPSXm+pi4i+t1VtvZxl/oa7lnLktdvAAAAAAFYR3W5v4B9aRuKfDTLrtp0yfKa9VwBAAAAZgM3Ebuql7SWpy5qw1q80C3Gyl7oAAAAAL4ArnGYy5AWJwAAAIB/BhRb2mZ/17UBAAAAfAF4vAxJn/Wlzn6nawMAAAD4KZASgJsWLytpmwEpAAAAABOBz3Oz7ZTXvDD8TgAAAP43IFQkPd7q8V4ubYwOxekDAAAAYCagxcuXtk5M9FDME9hws1K0awMAAAAw4DHaK413WqIF57AxWiLQAgAAADANaAn9WbDCi0F+VBaGeY8EAAAAMAW4S4j/BMNfDLJsqbqpVQAAAABOQNgNecEJJ12eNe+RtO0DAAAAmAQ8RGLx8o3RWnp0Pj2Y7qn7FAAAAEAEQkXyd5+1FfOETuvwe1EAAACAicBq36dWLZy96x0u6Wl0m6v7CAAAACDvkTz+Qy5Nb7rquEM4Cquh6QIAAACYApwe+OyALi3j4dA2hmJACwAAAMBUoOWSWrW2xgudLT0mdm0AAAAAA/CrQgN3WNqfUYst0OoFAAAAMA04JT1H6tulanfQm10GBAAAADCAh6Skf+a52mwd7CL+QrOyAAAAABOBdZQz3xiFkpYsL2njGgAAAICpQPo/1fN/hf257QMAAAD4BJBYcIp1bfvGyKuXQQAAAAB/HdB4HatW6A6xozIAAAAAA0Lt6Xsk67/Si4QlsWs5nb0DAAAAvAukPMfSdPbea14Y6s4JAAAAYCLwbn4B/cxYnfo1IVgAAAAASUVORK5CYII=" x="525" y="1185" width="550" height="550"/>
+  <rect x="420" y="1080" width="760" height="420" rx="44" fill="#0F1B17" stroke="#214136"/>
+  <text x="800" y="1210" text-anchor="middle" fill="#4BC0A1" font-size="58" font-family="Arial, sans-serif" font-weight="700">
+    صفحة التثبيت
+  </text>
+  <text x="800" y="1300" text-anchor="middle" fill="#F6F8F7" font-size="54" font-family="Arial, sans-serif" font-weight="700">
+    /install-app
+  </text>
+  <text x="800" y="1390" text-anchor="middle" fill="#94A29C" font-size="30" font-family="Arial, sans-serif" font-weight="400">
+    والـQR الصحيح الخاص بالمشاوير موجود في
+  </text>
+  <text x="800" y="1450" text-anchor="middle" fill="#D9E1DC" font-size="30" font-family="Arial, sans-serif" font-weight="600">
+    /install-app/poster
+  </text>
 
-  <rect x="430" y="1860" width="740" height="72" rx="36" fill="#12241D" stroke="#214136"/>
-  <text x="800" y="1906" text-anchor="middle" fill="#D5DDD8" font-size="30" font-family="Arial, 'IBM Plex Sans Arabic', sans-serif" font-weight="500">
-    fi-elsekka.vercel.app/install-app
+  <rect x="420" y="1810" width="760" height="78" rx="39" fill="#10231D" stroke="#214136"/>
+  <text x="800" y="1859" text-anchor="middle" fill="#D5DDD8" font-size="28" font-family="Arial, sans-serif" font-weight="500">
+    حمل التطبيق من موبايلك واستخدمه كتجربة PWA
   </text>
 </svg>
-

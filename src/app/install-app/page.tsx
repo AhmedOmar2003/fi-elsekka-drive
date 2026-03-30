@@ -30,11 +30,7 @@ export default function InstallAppPage() {
   const [installUrl, setInstallUrl] = React.useState("https://fi-elsekka.vercel.app/install-app")
   const [linkCopied, setLinkCopied] = React.useState(false)
   const deferredPrompt = React.useRef<DeferredInstallPrompt | null>(null)
-  const qrImageUrl = React.useMemo(
-    () =>
-      `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(installUrl)}`,
-    [installUrl]
-  )
+  const posterImageUrl = React.useMemo(() => "/install-app/poster", [])
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
@@ -115,18 +111,12 @@ export default function InstallAppPage() {
               افتح اللينك ده من الموبايل أو اعمل Scan للـQR من أي هاتف، وهيوديك مباشرة لصفحة تثبيت التطبيق.
             </p>
 
-            <div className="mt-4 rounded-[28px] border border-white/10 bg-surface-container/60 p-5">
-              <div className="mx-auto flex max-w-[320px] flex-col items-center rounded-[28px] border border-white/10 bg-white p-4 shadow-[var(--shadow-premium)]">
-                <img
-                  src={qrImageUrl}
-                  alt="QR لتحميل تطبيق في السكة"
-                  className="h-auto w-full rounded-[20px]"
-                />
-                <p className="mt-4 text-center text-lg font-black text-slate-900">في السكة</p>
-                <p className="mt-1 text-center text-xs leading-6 text-slate-500">
-                  اعمل Scan من موبايلك وهتدخل على صفحة تثبيت التطبيق مباشرة
-                </p>
-              </div>
+            <div className="mt-4 overflow-hidden rounded-[28px] border border-white/10 bg-surface-container/60">
+              <img
+                src={posterImageUrl}
+                alt="بوستر تحميل تطبيق في السكة"
+                className="h-auto w-full"
+              />
             </div>
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
