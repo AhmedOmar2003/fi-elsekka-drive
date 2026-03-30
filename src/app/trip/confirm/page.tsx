@@ -25,6 +25,36 @@ import {
 } from "@/lib/ride-booking-draft";
 import { useAuth } from "@/contexts/AuthContext";
 
+type TripPoint = NonNullable<RideBookingDraft["estimate"]>["pickup"];
+
+function formatPlaceTitle(point: TripPoint) {
+  const candidates = [point.label, point.area, point.city]
+    .map((value) => value?.trim())
+    .filter(Boolean) as string[];
+
+  if (candidates.length > 0) {
+    return candidates[0];
+  }
+
+  return point.address
+    .split("،")
+    .map((part) => part.trim())
+    .filter(Boolean)[0] || "مكان غير محدد";
+}
+
+function formatPlaceSubtitle(point: TripPoint) {
+  const addressParts = point.address
+    .split("،")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const title = formatPlaceTitle(point);
+  const filteredParts = addressParts.filter((part) => part !== title);
+  const detail = filteredParts.slice(0, 2).join("، ");
+
+  return detail || point.city || point.area || point.address;
+}
+
 export default function TripConfirmationPage() {
   const router = useRouter();
   const { user, profile, isLoading: isAuthLoading } = useAuth();
@@ -111,6 +141,10 @@ export default function TripConfirmationPage() {
   }
 
   const { estimate } = draft;
+  const pickupTitle = formatPlaceTitle(estimate.pickup);
+  const pickupSubtitle = formatPlaceSubtitle(estimate.pickup);
+  const destinationTitle = formatPlaceTitle(estimate.destination);
+  const destinationSubtitle = formatPlaceSubtitle(estimate.destination);
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,rgba(9,12,16,1),rgba(14,20,18,1))]">
@@ -161,12 +195,20 @@ export default function TripConfirmationPage() {
                 <div className="flex-1 space-y-4">
                   <div>
                     <p className="text-xs text-white/45">من</p>
-                    <p className="mt-1 text-sm font-black text-foreground">{estimate.pickup.address}</p>
+                    <p className="mt-1 text-sm font-black text-foreground">
+                      {pickupTitle}
+                    </p>
+                    <p className="mt-1 text-xs leading-6 text-white/55">
+                      {pickupSubtitle}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-white/45">إلى</p>
                     <p className="mt-1 text-sm font-black text-foreground">
-                      {estimate.destination.address}
+                      {destinationTitle}
+                    </p>
+                    <p className="mt-1 text-xs leading-6 text-white/55">
+                      {destinationSubtitle}
                     </p>
                   </div>
                 </div>
