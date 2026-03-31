@@ -63,15 +63,17 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
     const router = useRouter();
     const { user, profile } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
-    const visibleItems = useMemo(
-        () =>
-            NAV_ITEMS.filter((item) => {
-                if (item.fullAdmin) return hasFullAdminAccess(profile);
-                if (!item.permission) return true;
-                return hasPermission(profile, item.permission);
-            }),
-        [profile],
-    );
+    const visibleItems = useMemo(() => {
+        if (!profile && !user) {
+            return NAV_ITEMS;
+        }
+
+        return NAV_ITEMS.filter((item) => {
+            if (item.fullAdmin) return hasFullAdminAccess(profile);
+            if (!item.permission) return true;
+            return hasPermission(profile, item.permission);
+        });
+    }, [profile, user]);
 
     const pageTitle = useMemo(() => {
         const current = NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));

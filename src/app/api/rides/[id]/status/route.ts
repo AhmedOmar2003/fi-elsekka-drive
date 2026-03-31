@@ -99,6 +99,60 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "driver_arrived" });
     }
 
+    if (action === "customer_report_driver_delay") {
+      if (!isCustomer) {
+        return NextResponse.json({ error: "العميل فقط يقدر يبلغ بتأخير الكابتن." }, { status: 403 });
+      }
+
+      if (String(trip.status) !== "driver_on_the_way") {
+        return NextResponse.json({ error: "الحالة الحالية لا تسمح بتسجيل تأخير الكابتن." }, { status: 409 });
+      }
+
+      const { data: admins } = await serviceClient
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("account_status", "active")
+        .limit(100);
+
+      const adminNotifications = (admins || []).map((admin) => ({
+        recipient_user_id: admin.id,
+        type: "admin_message",
+        title: "العميل بلّغ إن الكابتن متأخر",
+        body: "الوقت المتوقع انتهى والعميل أكد إن الكابتن لسه ما وصلش. راجع الرحلة وكلم الكابتن فورًا.",
+        payload: { trip_id: trip.id, action: "driver_delay_reported" },
+        related_trip_id: trip.id,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const { error: notificationError } = await serviceClient
+          .from("notifications")
+          .insert(adminNotifications);
+        if (notificationError) throw notificationError;
+      }
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: String(trip.status),
+        changed_by: auth.profile.user.id,
+        note: "العميل بلّغ إن الكابتن متأخر عن زمن الوصول المتوقع.",
+      });
+      if (historyError) throw historyError;
+
+      if (trip.assigned_driver_id) {
+        await serviceClient.from("notifications").insert({
+          recipient_user_id: trip.assigned_driver_id,
+          type: "admin_message",
+          title: "العميل منتظرك الآن",
+          body: "الوقت المتوقع انتهى والعميل بلّغ إنك لسه ما وصلتش. حدّث حالة الرحلة أو تواصل فورًا.",
+          payload: { trip_id: trip.id, action: "driver_delay_reported" },
+          related_trip_id: trip.id,
+        });
+      }
+
+      return NextResponse.json({ success: true, status: trip.status, notifiedAdmins: adminNotifications.length });
+    }
+
     if (action === "driver_start_trip") {
       if (!isDriver) {
         return NextResponse.json({ error: "الكابتن فقط يقدر يبدأ المشوار." }, { status: 403 });
