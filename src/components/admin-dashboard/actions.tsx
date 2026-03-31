@@ -77,6 +77,7 @@ export function TripDispatchForm({
     drivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
 }) {
     const router = useRouter();
+    const hasDrivers = drivers.length > 0;
     const [driverId, setDriverId] = useState(drivers[0]?.id || "");
     const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">("dispatch_offer");
     const [isPending, startTransition] = useTransition();
@@ -87,12 +88,16 @@ export function TripDispatchForm({
         <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
             <Label className="text-white/75">إجراء التوزيع</Label>
             <div className="grid items-start gap-3 md:grid-cols-[1fr_220px_auto]">
-                <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white">
-                    {drivers.map((driver) => (
-                        <option key={driver.id} value={driver.id}>
-                            {driver.fullName} {driver.vehicleLabel ? `· ${driver.vehicleLabel}` : ""}
-                        </option>
-                    ))}
+                <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white" disabled={!hasDrivers}>
+                    {hasDrivers ? (
+                        drivers.map((driver) => (
+                            <option key={driver.id} value={driver.id}>
+                                {driver.fullName}{driver.vehicleLabel ? ` · ${driver.vehicleLabel}` : ""}
+                            </option>
+                        ))
+                    ) : (
+                        <option value="">مفيش كباتن متاحين حاليًا</option>
+                    )}
                 </Select>
                 <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
                     <option value="dispatch_offer">ابعت عرض</option>
@@ -100,6 +105,7 @@ export function TripDispatchForm({
                 </Select>
                 <Button
                     isLoading={isPending}
+                    disabled={!hasDrivers || !driverId}
                     onClick={() =>
                         startTransition(async () => {
                             if (!driverId) return;
@@ -115,6 +121,7 @@ export function TripDispatchForm({
                     تنفيذ
                 </Button>
             </div>
+            {!hasDrivers ? <p className="text-xs text-amber-300/90">لسه مفيش كابتن متاح أو معتمد يقدر يستقبل المشوار ده.</p> : null}
         </div>
     );
 }
@@ -546,6 +553,7 @@ export function CreateCaptainForm() {
         </div>
     );
 }
+
 
 
 
