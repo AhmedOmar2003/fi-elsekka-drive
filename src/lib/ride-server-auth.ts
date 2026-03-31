@@ -92,17 +92,25 @@ export async function requireRideUser(req: Request): Promise<RideSessionCheck> {
     };
   }
 
-  const { data: profile } = await serviceClient
-    .from("profiles")
-    .select("id, role, full_name, phone, email, account_status")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, { data: driverProfile }] = await Promise.all([
+    serviceClient
+      .from("profiles")
+      .select("id, role, full_name, phone, email, account_status")
+      .eq("id", user.id)
+      .maybeSingle(),
+    serviceClient
+      .from("driver_profiles")
+      .select("id, application_status, verification_status")
+      .eq("id", user.id)
+      .maybeSingle(),
+  ]);
 
-  const role =
-    profile?.role ||
-    user.user_metadata?.role ||
-    user.app_metadata?.role ||
-    null;
+  const role = driverProfile
+    ? "driver"
+    : profile?.role ||
+      user.user_metadata?.role ||
+      user.app_metadata?.role ||
+      null;
   const disabled =
     profile?.account_status && profile.account_status !== "active";
 
