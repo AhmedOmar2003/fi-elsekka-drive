@@ -88,6 +88,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Server misconfigured: missing Supabase service role key" }, { status: 500 });
     }
 
+    let createdUserId: string | null = null;
+
     try {
         const formData = await request.formData();
         const fullName = String(formData.get("fullName") || "").trim();
@@ -156,24 +158,29 @@ export async function POST(request: NextRequest) {
         }
 
         const userId = createdUser.user.id;
+        createdUserId = userId;
         const now = new Date().toISOString();
 
         const { error: profileError } = await supabase
             .from("profiles")
-            .update({
-                full_name: fullName,
-                display_name: fullName.split(" ")[0] || fullName,
-                email,
-                phone,
-                account_status: "active",
-                updated_at: now,
-                metadata: {
-                    auth_role: "driver",
-                    created_via: "admin_dashboard",
-                    admin_notes: adminNotes,
+            .upsert(
+                {
+                    id: userId,
+                    full_name: fullName,
+                    display_name: fullName.split(" ")[0] || fullName,
+                    email,
+                    phone,
+                    avatar_bucket: null,
+                    avatar_path: null,
+                    metadata: {
+                        auth_role: "driver",
+                        created_via: "admin_dashboard",
+                        admin_notes: adminNotes,
+                    },
+                    updated_at: now,
                 },
-            })
-            .eq("id", userId);
+                { onConflict: "id" }
+            );
 
         if (profileError) throw profileError;
 
@@ -332,6 +339,16 @@ export async function POST(request: NextRequest) {
             loginLink: "/captain/login",
         });
     } catch (error: any) {
-        return NextResponse.json({ error: error?.message || "تعذر إنشاء حساب الكابتن." }, { status: 500 });
+        if (createdUserId) {
+            await supabase.auth.admin.deleteUser(createdUserId).catch(() => null);
+        }
+
+        const errorMessage =
+            error?.message ||
+            error?.error_description ||
+            (typeof error === "string" ? error : null) ||
+            "تعذر إنشاء حساب الكابتن.";
+
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

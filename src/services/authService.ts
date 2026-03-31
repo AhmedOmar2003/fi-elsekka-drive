@@ -83,21 +83,35 @@ export const getSession = async () => {
 };
 
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
-    const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-    if (!error && data) {
-        return data as UserProfile;
-    }
-
     const { data: operationalProfile, error: profileError } = await supabase
         .from('profiles')
         .select('id, full_name, email, phone, role, account_status, created_at, last_login_at, avatar_path')
         .eq('id', userId)
         .single();
+
+    if (!profileError && operationalProfile) {
+        return {
+            id: operationalProfile.id,
+            full_name: operationalProfile.full_name || '',
+            email: operationalProfile.email || '',
+            profile_picture: operationalProfile.avatar_path || undefined,
+            role: operationalProfile.role || undefined,
+            permissions: [],
+            disabled: operationalProfile.account_status && operationalProfile.account_status !== 'active',
+            created_at: operationalProfile.created_at,
+            last_login_at: operationalProfile.last_login_at,
+        } as UserProfile;
+    }
+
+    const { data: legacyProfile, error: legacyError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (!legacyError && legacyProfile) {
+        return legacyProfile as UserProfile;
+    }
 
     if (profileError) {
         if (profileError.message?.includes('AbortError') || profileError.message?.includes('Lock broken')) {
@@ -107,17 +121,11 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         return null;
     }
 
-    return {
-        id: operationalProfile.id,
-        full_name: operationalProfile.full_name || '',
-        email: operationalProfile.email || '',
-        profile_picture: operationalProfile.avatar_path || undefined,
-        role: operationalProfile.role || undefined,
-        permissions: [],
-        disabled: operationalProfile.account_status && operationalProfile.account_status !== 'active',
-        created_at: operationalProfile.created_at,
-        last_login_at: operationalProfile.last_login_at,
-    } as UserProfile;
+    if (legacyError) {
+        console.error('Error fetching legacy user profile:', legacyError?.message || legacyError);
+    }
+
+    return null;
 };
 
 export const updateAuthEmail = async (newEmail: string) => {
