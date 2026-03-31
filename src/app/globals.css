@@ -272,3 +272,13 @@ button:active {
   border: 1px dashed rgba(35, 130, 103, 0.12);
   pointer-events: none;
 }
+
+select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background: #10211c;
+  color: #eef7f3;
+}

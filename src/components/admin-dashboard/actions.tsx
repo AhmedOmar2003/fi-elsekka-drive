@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { formatLabel } from "@/components/admin-dashboard/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,7 +49,7 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
                 <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
                     {["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed", "cancelled"].map((item) => (
                         <option key={item} value={item}>
-                            {item}
+                            {formatLabel(item)}
                         </option>
                     ))}
                 </Select>
@@ -545,3 +546,5 @@ export function CreateCaptainForm() {
         </div>
     );
 }
+
+

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { DataTable, FilterBar, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
+import { DataTable, FilterBar, SectionCard, StatusBadge, formatLabel } from "@/components/admin-dashboard/primitives";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { fetchDriversList, fetchTripsList } from "@/lib/admin-dashboard-data";
@@ -78,7 +78,7 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                                 "cancelled",
                             ].map((item) => (
                                 <option key={item} value={item}>
-                                    {item}
+                                    {formatLabel(item)}
                                 </option>
                             ))}
                         </Select>
@@ -153,3 +153,4 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
         </div>
     );
 }
+

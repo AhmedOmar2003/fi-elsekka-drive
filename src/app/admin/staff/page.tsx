@@ -553,7 +553,8 @@ export default function StaffPage() {
                   <InfoHint text={getRoleMeta(form.role).description} />
                 </div>
                 <select
-                  className="w-full h-10 rounded-xl border border-surface-hover bg-background px-3 text-sm"
+                  className="w-full h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                  style={{ colorScheme: "dark" }}
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                 >
@@ -760,3 +761,4 @@ export default function StaffPage() {
     </div>
   );
 }
+
