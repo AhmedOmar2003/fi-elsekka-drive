@@ -251,40 +251,104 @@ export async function PATCH(request: NextRequest, context: Context) {
                 return NextResponse.json({ error: "حدد سعر صحيح قبل الإسناد المباشر." }, { status: 400 });
             }
 
+            const { data: trip, error: tripError } = await supabase
+                .from("trips")
+                .select("id, status, pickup_label, destination_label, metadata")
+                .eq("id", id)
+                .single();
+
+            if (tripError || !trip) {
+                return NextResponse.json({ error: "المشوار المطلوب مش موجود." }, { status: 404 });
+            }
+
             const now = new Date().toISOString();
+            const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+            const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+
+            await supabase
+                .from("trip_offers")
+                .update({
+                    offer_status: "cancelled",
+                    responded_at: now,
+                    updated_at: now,
+                    rejection_reason: "تم تحويل المشوار إلى عرض حصري لكابتن آخر من الإدارة",
+                })
+                .eq("trip_id", id)
+                .neq("driver_id", driverId)
+                .in("offer_status", ["offered", "rejected", "cancelled"]);
+
+            const { error: offerError } = await supabase.from("trip_offers").upsert({
+                trip_id: id,
+                driver_id: driverId,
+                vehicle_id: vehicleId,
+                offered_by_admin_id: auth.profile.user.id,
+                offer_status: "offered",
+                offered_at: now,
+                responded_at: null,
+                rejection_reason: null,
+                expires_at: expiresAt,
+                updated_at: now,
+                metadata: {
+                    ...metadata,
+                    dispatch_mode: "admin_direct_offer",
+                    broadcast_price: price,
+                },
+            }, { onConflict: "trip_id,driver_id" });
+
+            if (offerError) throw offerError;
+
             const { error } = await supabase
                 .from("trips")
                 .update({
-                    assigned_driver_id: driverId,
-                    assigned_vehicle_id: vehicleId,
-                    status: "accepted",
-                    accepted_at: now,
+                    assigned_driver_id: null,
+                    assigned_vehicle_id: null,
+                    status: "offered",
+                    offered_at: now,
                     estimated_price: price,
                     updated_at: now,
+                    metadata: {
+                        ...metadata,
+                        admin_selected_price: price,
+                        admin_priced_at: now,
+                        admin_priced_by: auth.profile.user.id,
+                        latest_dispatch_mode: "admin_direct_offer",
+                        latest_direct_driver_id: driverId,
+                    },
                 })
                 .eq("id", id);
 
             if (error) throw error;
 
-            await supabase.from("trip_offers").upsert({
-                trip_id: id,
-                driver_id: driverId,
-                vehicle_id: vehicleId,
-                offered_by_admin_id: auth.profile.user.id,
-                offer_status: "accepted",
-                offered_at: now,
-                responded_at: now,
-                updated_at: now,
-            }, { onConflict: "trip_id,driver_id" });
-
             await supabase.from("trip_status_history").insert({
                 trip_id: id,
-                status: "accepted",
+                status: "offered",
                 changed_by: auth.profile.user.id,
-                note: "Admin assigned driver directly from dispatch board",
+                note: "تم إرسال عرض حصري للكابتن من لوحة التشغيل وينتظر موافقته.",
                 metadata: {
                     quoted_price: price,
+                    direct_driver_id: driverId,
                 },
+            });
+
+            await supabase.from("notifications").insert({
+                recipient_user_id: driverId,
+                type: "trip_offered",
+                title: "عرض مشوار مباشر من الإدارة",
+                body: `تم تخصيص مشوار لك من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")}. افتح التطبيق ووافق أو ارفض.`,
+                payload: {
+                    trip_id: id,
+                    estimated_price: price,
+                    dispatch_mode: "admin_direct_offer",
+                },
+                related_trip_id: id,
+            });
+
+            await sendPushToUserDevices(supabase, driverId, {
+                title: "الإدارة خصصت لك مشوار",
+                message: `مشوار من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")} في انتظار موافقتك الآن.`,
+                link: "/captain/offers",
+                requireInteraction: true,
+                topic: "admin-direct-offer",
             });
 
             return NextResponse.json({ success: true });
