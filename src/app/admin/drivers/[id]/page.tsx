@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DriverStateActions } from "@/components/admin-dashboard/actions";
+import { DriverCredentialsForm, DriverStateActions } from "@/components/admin-dashboard/actions";
 import { DataTable, MetricPanel, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
 import { fetchDriverDetail } from "@/lib/admin-dashboard-data";
 
@@ -36,6 +36,11 @@ export default async function AdminDriverDetailsPage({ params }: { params: Param
                             <p className="text-xs tracking-[0.2em] text-white/40">التواصل</p>
                             <p className="mt-3 text-sm text-white/75">{detail.profile.phone || "مفيش رقم"}</p>
                             <p className="mt-1 text-sm text-white/45">{detail.profile.email || "مفيش إيميل"}</p>
+                            <p className={`mt-2 text-xs ${detail.authAccount.exists ? "text-emerald-300/90" : "text-amber-300/90"}`}>
+                                {detail.authAccount.exists
+                                    ? `حساب الدخول جاهز${detail.authAccount.lastSignInAt ? ` · آخر دخول ${new Date(detail.authAccount.lastSignInAt).toLocaleString("ar-EG")}` : ""}`
+                                    : "حساب الدخول غير موجود في Auth"}
+                            </p>
                         </div>
                         <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
                             <p className="text-xs tracking-[0.2em] text-white/40">منطقة التشغيل</p>
@@ -50,7 +55,15 @@ export default async function AdminDriverDetailsPage({ params }: { params: Param
                     </div>
                 </SectionCard>
 
-                <DriverStateActions driverId={detail.profile.id} />
+                <div className="space-y-4">
+                    <DriverStateActions driverId={detail.profile.id} />
+                    <DriverCredentialsForm
+                        driverId={detail.profile.id}
+                        currentEmail={detail.authAccount.email || detail.profile.email}
+                        currentPhone={detail.profile.phone}
+                        authExists={detail.authAccount.exists}
+                    />
+                </div>
             </section>
 
             <SectionCard title="سجل المركبات" subtitle="العربيات والتكاتك المرتبطة بالكابتن">

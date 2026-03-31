@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminApi } from "@/lib/admin-guard";
 import { createAdminPlatformClient } from "@/lib/admin-platform-server";
+import { normalizeAuthEmail, validateCustomerEmail, validateStrongPassword } from "@/lib/auth-validation";
 import { hasPermission } from "@/lib/permissions";
 
 type Context = { params: Promise<{ id: string }> };
@@ -95,6 +96,80 @@ export async function PATCH(request: NextRequest, context: Context) {
                     updated_at: now,
                 })
                 .eq("id", id);
+
+            return NextResponse.json({ success: true });
+        }
+
+        if (action === "update_credentials") {
+            const email = normalizeAuthEmail(String(body.email || ""));
+            const password = String(body.password || "");
+            const phone = String(body.phone || "").trim() || null;
+
+            const emailError = validateCustomerEmail(email);
+            if (emailError) {
+                return NextResponse.json({ error: emailError }, { status: 400 });
+            }
+
+            if (password) {
+                const passwordError = validateStrongPassword(password);
+                if (passwordError) {
+                    return NextResponse.json({ error: passwordError }, { status: 400 });
+                }
+            }
+
+            const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(id);
+            if (authUserError || !authUserData.user) {
+                return NextResponse.json(
+                    { error: "حساب الدخول للكابتن مش موجود في Auth. أنشئ كابتن جديد أو راجع إنشاء الحساب من الإدارة." },
+                    { status: 404 }
+                );
+            }
+
+            const updatePayload: {
+                email: string;
+                password?: string;
+                email_confirm: true;
+                user_metadata: Record<string, unknown>;
+                app_metadata: Record<string, unknown>;
+            } = {
+                email,
+                email_confirm: true,
+                user_metadata: {
+                    ...(authUserData.user.user_metadata || {}),
+                    role: "driver",
+                    phone,
+                },
+                app_metadata: {
+                    ...(authUserData.user.app_metadata || {}),
+                    role: "driver",
+                },
+            };
+
+            if (password) {
+                updatePayload.password = password;
+            }
+
+            const { error: updateAuthError } = await supabase.auth.admin.updateUserById(id, updatePayload);
+            if (updateAuthError) {
+                return NextResponse.json({ error: updateAuthError.message || "تعذر تحديث بيانات دخول الكابتن." }, { status: 400 });
+            }
+
+            const { error: profileError } = await supabase
+                .from("profiles")
+                .update({
+                    email,
+                    phone,
+                    updated_at: now,
+                    metadata: {
+                        credentials_updated_by_admin: true,
+                        credentials_updated_at: now,
+                    },
+                })
+                .eq("id", id);
+
+            if (profileError) {
+                return NextResponse.json({ error: profileError.message || "اتحدثت بيانات Auth لكن فشل تحديث البروفايل." }, { status: 500 });
+            }
 
             return NextResponse.json({ success: true });
         }

@@ -587,3 +587,67 @@ export function CreateCaptainForm() {
 
 
 
+
+export function DriverCredentialsForm({
+    driverId,
+    currentEmail,
+    currentPhone,
+    authExists,
+}: {
+    driverId: string;
+    currentEmail: string | null;
+    currentPhone: string | null;
+    authExists: boolean;
+}) {
+    const router = useRouter();
+    const [email, setEmail] = useState(currentEmail || "");
+    const [phone, setPhone] = useState(currentPhone || "");
+    const [password, setPassword] = useState("");
+    const [isPending, startTransition] = useTransition();
+
+    const handleSubmit = (event: FormEvent) => {
+        event.preventDefault();
+        startTransition(async () => {
+            try {
+                await sendJson(`/api/admin/platform/drivers/${driverId}`, "PATCH", {
+                    action: "update_credentials",
+                    email,
+                    phone,
+                    password,
+                });
+                toast.success("اتحدثت بيانات دخول الكابتن بنجاح.");
+                setPassword("");
+                router.refresh();
+            } catch (error: any) {
+                toast.error(error?.message || "تعذر تحديث بيانات الدخول.");
+            }
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+            <Label className="text-white/75">بيانات دخول الكابتن</Label>
+            <p className={`text-xs ${authExists ? "text-emerald-300/90" : "text-amber-300/90"}`}>
+                {authExists ? "حساب الدخول موجود في Auth وجاهز للتعديل." : "حساب الدخول ده غير موجود في Auth، وده غالبًا سبب فشل تسجيل الدخول."}
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+                <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="captain@gmail.com" className="bg-white/5 text-white" dir="ltr" />
+                <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="رقم الموبايل" className="bg-white/5 text-white" dir="ltr" />
+                <div className="space-y-2 md:col-span-2">
+                    <Input
+                        type="password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="اكتب باسورد جديد لو حابب تغيّره"
+                        className="bg-white/5 text-white"
+                        dir="ltr"
+                    />
+                    <p className="text-xs text-white/45">سيب الباسورد فاضي لو عاوز تعدّل الإيميل أو الرقم فقط.</p>
+                </div>
+            </div>
+            <Button type="submit" isLoading={isPending}>
+                حفظ بيانات الدخول
+            </Button>
+        </form>
+    );
+}

@@ -154,6 +154,11 @@ export type AdminDriverDetail = {
         createdAt: string;
     }>;
     recentTrips: AdminTripListItem[];
+    authAccount: {
+        exists: boolean;
+        email: string | null;
+        lastSignInAt: string | null;
+    };
 };
 
 export type AdminVehicleListItem = {
@@ -626,15 +631,17 @@ export async function fetchDriverDetail(id: string) {
     const supabase = createAdminClient();
     if (!supabase) return null as AdminDriverDetail | null;
 
-    const [{ data: driverProfile }, { data: profile }, { data: vehicles }, { data: documents }, { data: trips }] = await Promise.all([
+    const [{ data: driverProfile }, { data: profile }, { data: vehicles }, { data: documents }, { data: trips }, authUserResult] = await Promise.all([
         supabase.from("driver_profiles").select("*").eq("id", id).maybeSingle(),
         supabase.from("profiles").select("id, full_name, phone, email, account_status").eq("id", id).maybeSingle(),
         supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number, approval_status, is_primary").eq("driver_id", id).order("is_primary", { ascending: false }),
         supabase.from("driver_documents").select("id, document_type, approval_status, file_name, storage_bucket, storage_path, created_at").eq("driver_id", id).order("created_at", { ascending: false }),
         supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count, metadata").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
+        supabase.auth.admin.getUserById(id),
     ]);
 
     const tripProfilesMap = await loadProfilesMap((trips || []).map((trip) => String(trip.customer_id)));
+    const authUser = authUserResult.data?.user || null;
 
     return {
         profile: profile
@@ -688,6 +695,11 @@ export async function fetchDriverDetail(id: string) {
             passengerCount: Number(trip.passenger_count || 1),
             luggageCount: Number(trip.luggage_count || 0),
         })),
+        authAccount: {
+            exists: Boolean(authUser),
+            email: authUser?.email || null,
+            lastSignInAt: authUser?.last_sign_in_at || null,
+        },
     };
 }
 
@@ -940,6 +952,11 @@ export async function fetchStaffSnapshot() {
         lastLogin: (item.last_login_at as string | null) || null,
     }));
 }
+
+
+
+
+
 
 
 
