@@ -81,12 +81,21 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                 </SectionCard>
 
                 <div className="space-y-6">
-                    <TripDispatchForm tripId={detail.trip.id} drivers={dispatchBoard.availableDrivers.map((driver) => ({
-                        id: driver.id,
-                        fullName: driver.fullName,
-                        vehicleId: driver.vehicleId,
-                        vehicleLabel: driver.vehicleLabel,
-                    }))} />
+                    <TripDispatchForm
+                        tripId={detail.trip.id}
+                        broadcastDrivers={dispatchBoard.availableDrivers.map((driver) => ({
+                            id: driver.id,
+                            fullName: driver.fullName,
+                            vehicleId: driver.vehicleId,
+                            vehicleLabel: driver.vehicleLabel,
+                        }))}
+                        assignableDrivers={dispatchBoard.assignableDrivers.map((driver) => ({
+                            id: driver.id,
+                            fullName: driver.fullName,
+                            vehicleId: driver.vehicleId,
+                            vehicleLabel: driver.vehicleLabel,
+                        }))}
+                    />
                     <TripStatusForm tripId={detail.trip.id} currentStatus={detail.trip.status} />
                 </div>
             </section>

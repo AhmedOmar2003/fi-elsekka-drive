@@ -34,7 +34,13 @@ export default async function AdminDispatchPage() {
                                 <div className="mt-4">
                                     <TripDispatchForm
                                         tripId={trip.id}
-                                        drivers={board.availableDrivers.map((driver) => ({
+                                        broadcastDrivers={board.availableDrivers.map((driver) => ({
+                                            id: driver.id,
+                                            fullName: driver.fullName,
+                                            vehicleId: driver.vehicleId,
+                                            vehicleLabel: driver.vehicleLabel,
+                                        }))}
+                                        assignableDrivers={board.assignableDrivers.map((driver) => ({
                                             id: driver.id,
                                             fullName: driver.fullName,
                                             vehicleId: driver.vehicleId,
@@ -52,7 +58,7 @@ export default async function AdminDispatchPage() {
                 </SectionCard>
 
                 <div className="space-y-6">
-                    <SectionCard title="الكباتن المتاحين" subtitle="الكباتن الأونلاين مع مركباتهم الأساسية">
+                    <SectionCard title="الكباتن المتاحين للبث" subtitle="أونلاين ومفعلين استقبال العروض. الإسناد المباشر يقدر يستخدم قائمة أوسع من داخل كارت المشوار.">
                         <div className="space-y-3">
                             {board.availableDrivers.map((driver) => (
                                 <Link key={driver.id} href={`/admin/drivers/${driver.id}`} className="flex items-center justify-between rounded-[24px] border border-white/10 bg-white/[0.03] p-4 transition hover:border-primary/25 hover:bg-white/[0.05]">

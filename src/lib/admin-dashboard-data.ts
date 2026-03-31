@@ -190,6 +190,7 @@ export type DispatchDriverItem = {
     city: string;
     vehicleId: string | null;
     vehicleLabel: string | null;
+    isAcceptingOffers: boolean;
 };
 
 export type SupportTicketListItem = {
@@ -730,12 +731,12 @@ export async function fetchVehiclesList() {
 
 export async function fetchDispatchBoard() {
     const supabase = createAdminClient();
-    if (!supabase) return { activeTrips: [] as DispatchTripItem[], availableDrivers: [] as DispatchDriverItem[] };
+    if (!supabase) return { activeTrips: [] as DispatchTripItem[], availableDrivers: [] as DispatchDriverItem[], assignableDrivers: [] as DispatchDriverItem[] };
 
     const [{ data: trips }, { data: drivers }, { data: vehicles }] = await Promise.all([
         supabase.from("trips").select("id, customer_id, pickup_label, destination_label, trip_type, status, created_at").in("status", ["pending", "searching_driver", "offered"]).order("created_at", { ascending: false }).limit(20),
-        supabase.from("driver_profiles").select("id, availability_status, working_city").eq("availability_status", "online").eq("is_accepting_offers", true).eq("application_status", "approved").eq("verification_status", "approved").order("updated_at", { ascending: false }).limit(30),
-        supabase.from("vehicles").select("id, driver_id, vehicle_type, brand, model, is_primary").eq("is_active", true),
+        supabase.from("driver_profiles").select("id, availability_status, working_city, is_accepting_offers").eq("application_status", "approved").eq("verification_status", "approved").order("updated_at", { ascending: false }).limit(60),
+        supabase.from("vehicles").select("id, driver_id, vehicle_type, brand, model, is_primary").eq("is_active", true).eq("approval_status", "approved"),
     ]);
 
     const profilesMap = await loadProfilesMap([...(trips || []).map((trip) => String(trip.customer_id)), ...(drivers || []).map((driver) => String(driver.id))]);
@@ -750,6 +751,21 @@ export async function fetchDispatchBoard() {
         }
     }
 
+    const normalizedDrivers = (drivers || [])
+        .filter((driver) => {
+            const profile = profilesMap.get(String(driver.id));
+            return (profile?.account_status as string | undefined) !== "suspended" && primaryVehicleMap.has(String(driver.id));
+        })
+        .map((driver) => ({
+            id: String(driver.id),
+            fullName: String((profilesMap.get(String(driver.id))?.full_name as string) || "كابتن"),
+            availabilityStatus: String(driver.availability_status),
+            city: String(driver.working_city || "غير محدد"),
+            vehicleId: primaryVehicleMap.get(String(driver.id))?.id || null,
+            vehicleLabel: primaryVehicleMap.get(String(driver.id))?.label || null,
+            isAcceptingOffers: Boolean(driver.is_accepting_offers),
+        }));
+
     return {
         activeTrips: (trips || []).map((trip) => ({
             id: String(trip.id),
@@ -760,14 +776,8 @@ export async function fetchDispatchBoard() {
             status: String(trip.status),
             createdAt: String(trip.created_at),
         })),
-        availableDrivers: (drivers || []).map((driver) => ({
-            id: String(driver.id),
-            fullName: String((profilesMap.get(String(driver.id))?.full_name as string) || "كابتن"),
-            availabilityStatus: String(driver.availability_status),
-            city: String(driver.working_city || "غير محدد"),
-            vehicleId: primaryVehicleMap.get(String(driver.id))?.id || null,
-            vehicleLabel: primaryVehicleMap.get(String(driver.id))?.label || null,
-        })),
+        availableDrivers: normalizedDrivers.filter((driver) => driver.availabilityStatus === "online" && driver.isAcceptingOffers),
+        assignableDrivers: normalizedDrivers,
     };
 }
 

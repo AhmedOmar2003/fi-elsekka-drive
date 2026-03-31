@@ -101,19 +101,22 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
 
 export function TripDispatchForm({
     tripId,
-    drivers,
+    broadcastDrivers,
+    assignableDrivers,
 }: {
     tripId: string;
-    drivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
+    broadcastDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
+    assignableDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
 }) {
     const router = useRouter();
-    const hasDrivers = drivers.length > 0;
-    const [driverId, setDriverId] = useState(drivers[0]?.id || "");
+    const hasBroadcastDrivers = broadcastDrivers.length > 0;
+    const hasAssignableDrivers = assignableDrivers.length > 0;
+    const [driverId, setDriverId] = useState(assignableDrivers[0]?.id || "");
     const [price, setPrice] = useState("");
     const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">("dispatch_offer");
     const [isPending, startTransition] = useTransition();
 
-    const selectedDriver = drivers.find((driver) => driver.id === driverId);
+    const selectedDriver = assignableDrivers.find((driver) => driver.id === driverId);
     const isDirectAssign = mode === "assign_driver";
 
     return (
@@ -135,9 +138,9 @@ export function TripDispatchForm({
             </div>
 
             {isDirectAssign ? (
-                <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white" disabled={!hasDrivers}>
-                    {hasDrivers ? (
-                        drivers.map((driver) => (
+                <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white" disabled={!hasAssignableDrivers}>
+                    {hasAssignableDrivers ? (
+                        assignableDrivers.map((driver) => (
                             <option key={driver.id} value={driver.id}>
                                 {driver.fullName}{driver.vehicleLabel ? ` · ${driver.vehicleLabel}` : ""}
                             </option>
@@ -148,15 +151,15 @@ export function TripDispatchForm({
                 </Select>
             ) : (
                 <div className="rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-3 text-sm text-white/70">
-                    {hasDrivers
-                        ? `العرض هيتبعت تلقائيًا إلى ${drivers.length} كباتن متاحين بالمركبة المناسبة، وأول كابتن يقبله هيتسند له المشوار.`
-                        : "مفيش كباتن متاحين حاليًا بالمركبة المناسبة للمشوار ده."}
+                    {hasBroadcastDrivers
+                        ? `العرض هيتبعت تلقائيًا إلى ${broadcastDrivers.length} كباتن متاحين بالمركبة المناسبة، وأول كابتن يقبله هيتسند له المشوار.`
+                        : "مفيش كباتن أونلاين وجاهزين حاليًا لاستقبال بث المشوار ده."}
                 </div>
             )}
 
             <Button
                 isLoading={isPending}
-                disabled={!hasDrivers || (isDirectAssign && !driverId)}
+                disabled={(!hasBroadcastDrivers && !isDirectAssign) || (!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && !driverId)}
                 onClick={() =>
                     startTransition(async () => {
                         await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
@@ -172,7 +175,8 @@ export function TripDispatchForm({
             >
                 {isDirectAssign ? "اسند للكابتن" : "سعّر وابعت للكباتن"}
             </Button>
-            {!hasDrivers ? <p className="text-xs text-amber-300/90">لسه مفيش كابتن متاح أو معتمد يقدر يستقبل المشوار ده.</p> : null}
+            {!hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">البث التلقائي يحتاج كباتن أونلاين ومفعلين استقبال العروض.</p> : null}
+            {!hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج على الأقل كابتن معتمد ومركبة أساسية جاهزة.</p> : null}
         </div>
     );
 }
