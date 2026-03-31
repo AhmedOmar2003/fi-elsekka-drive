@@ -91,31 +91,32 @@ export async function POST(request: NextRequest) {
     let createdUserId: string | null = null;
 
     try {
-        const formData = await request.formData();
-        const fullName = String(formData.get("fullName") || "").trim();
-        const phone = String(formData.get("phone") || "").trim();
-        const email = normalizeAuthEmail(String(formData.get("email") || ""));
-        const password = String(formData.get("password") || "");
-        const nationalId = String(formData.get("nationalId") || "").trim();
-        const workingCity = String(formData.get("workingCity") || "").trim();
-        const workingArea = String(formData.get("workingArea") || formData.get("operatingArea") || "").trim() || null;
-        const vehicleType = formData.get("vehicleType") === "tuk_tuk" ? "tuk_tuk" : "car";
-        const brand = String(formData.get("brand") || "").trim();
-        const model = String(formData.get("model") || "").trim();
-        const color = String(formData.get("color") || "").trim();
-        const manufacturingYear = Number(formData.get("manufacturingYear") || 0);
-        const plateNumber = String(formData.get("plateNumber") || "").trim() || null;
-        const seatCount = vehicleType === "car" ? Number(formData.get("seatCount") || 0) : null;
-        const operatingArea = String(formData.get("operatingArea") || "").trim() || null;
-        const vehicleCondition = String(formData.get("vehicleCondition") || "").trim() || null;
-        const adminNotes = String(formData.get("adminNotes") || "").trim() || null;
+        const contentType = request.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json") ? await request.json() : Object.fromEntries((await request.formData()).entries());
+        const fullName = String(payload.fullName || "").trim();
+        const phone = String(payload.phone || "").trim();
+        const email = normalizeAuthEmail(String(payload.email || ""));
+        const password = String(payload.password || "");
+        const nationalId = String(payload.nationalId || "").trim();
+        const workingCity = String(payload.workingCity || "").trim();
+        const workingArea = String(payload.workingArea || payload.operatingArea || "").trim() || null;
+        const vehicleType = payload.vehicleType === "tuk_tuk" ? "tuk_tuk" : "car";
+        const brand = String(payload.brand || "").trim();
+        const model = String(payload.model || "").trim();
+        const color = String(payload.color || "").trim();
+        const manufacturingYear = Number(payload.manufacturingYear || 0);
+        const plateNumber = String(payload.plateNumber || "").trim() || null;
+        const seatCount = vehicleType === "car" ? Number(payload.seatCount || 0) : null;
+        const operatingArea = String(payload.operatingArea || "").trim() || null;
+        const vehicleCondition = String(payload.vehicleCondition || "").trim() || null;
+        const adminNotes = String(payload.adminNotes || "").trim() || null;
 
-        const profilePhoto = formData.get("profilePhoto");
-        const nationalIdPhoto = formData.get("nationalIdPhoto");
-        const driverLicensePhoto = formData.get("driverLicensePhoto");
-        const vehicleLicensePhoto = formData.get("vehicleLicensePhoto");
-        const vehiclePhoto = formData.get("vehiclePhoto");
-        const criminalRecordPhoto = formData.get("criminalRecordPhoto");
+        const profilePhoto = payload.profilePhoto;
+        const nationalIdPhoto = payload.nationalIdPhoto;
+        const driverLicensePhoto = payload.driverLicensePhoto;
+        const vehicleLicensePhoto = payload.vehicleLicensePhoto;
+        const vehiclePhoto = payload.vehiclePhoto;
+        const criminalRecordPhoto = payload.criminalRecordPhoto;
 
         if (!fullName || !phone || !email || !password || !nationalId || !workingCity) {
             return NextResponse.json({ error: "اكتب كل البيانات الأساسية للكابتن." }, { status: 400 });

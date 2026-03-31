@@ -113,6 +113,11 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         return legacyProfile as UserProfile;
     }
 
+    const legacyUsersTableMissing =
+        legacyError?.code === 'PGRST205' ||
+        legacyError?.code === '42P01' ||
+        legacyError?.message?.includes("Could not find the table 'public.users'");
+
     if (profileError) {
         if (profileError.message?.includes('AbortError') || profileError.message?.includes('Lock broken')) {
             return null;
@@ -121,7 +126,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         return null;
     }
 
-    if (legacyError) {
+    if (legacyError && !legacyUsersTableMissing) {
         console.error('Error fetching legacy user profile:', legacyError?.message || legacyError);
     }
 

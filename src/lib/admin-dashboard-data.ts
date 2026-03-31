@@ -734,7 +734,7 @@ export async function fetchDispatchBoard() {
 
     const [{ data: trips }, { data: drivers }, { data: vehicles }] = await Promise.all([
         supabase.from("trips").select("id, customer_id, pickup_label, destination_label, trip_type, status, created_at").in("status", ["pending", "searching_driver", "offered"]).order("created_at", { ascending: false }).limit(20),
-        supabase.from("driver_profiles").select("id, availability_status, working_city").in("availability_status", ["online", "offline"]).eq("application_status", "approved").order("updated_at", { ascending: false }).limit(30),
+        supabase.from("driver_profiles").select("id, availability_status, working_city").eq("availability_status", "online").eq("is_accepting_offers", true).eq("application_status", "approved").eq("verification_status", "approved").order("updated_at", { ascending: false }).limit(30),
         supabase.from("vehicles").select("id, driver_id, vehicle_type, brand, model, is_primary").eq("is_active", true),
     ]);
 

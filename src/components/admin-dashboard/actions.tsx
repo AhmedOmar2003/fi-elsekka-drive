@@ -11,17 +11,20 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 
-async function sendJson(url: string, method: string, body: Record<string, unknown>) {
+async function sendJson<T = Record<string, unknown>>(url: string, method: string, body: Record<string, unknown>) {
     const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
 
+    const payload = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
         throw new Error(payload.error || "فشل تنفيذ الإجراء");
     }
+
+    return payload as T;
 }
 
 async function sendFormData(url: string, body: FormData) {
@@ -106,15 +109,32 @@ export function TripDispatchForm({
     const router = useRouter();
     const hasDrivers = drivers.length > 0;
     const [driverId, setDriverId] = useState(drivers[0]?.id || "");
+    const [price, setPrice] = useState("");
     const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">("dispatch_offer");
     const [isPending, startTransition] = useTransition();
 
     const selectedDriver = drivers.find((driver) => driver.id === driverId);
+    const isDirectAssign = mode === "assign_driver";
 
     return (
         <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
             <Label className="text-white/75">إجراء التوزيع</Label>
-            <div className="grid items-start gap-3 md:grid-cols-[1fr_220px_auto]">
+            <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
+                <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
+                    <option value="dispatch_offer">تسعير ثم بث للكباتن</option>
+                    <option value="assign_driver">اسناد مباشر لكابتن</option>
+                </Select>
+                <Input
+                    value={price}
+                    onChange={(event) => setPrice(event.target.value)}
+                    placeholder="السعر اللي الإدارة اعتمدته"
+                    className="bg-white/5 text-white"
+                    dir="ltr"
+                    inputMode="decimal"
+                />
+            </div>
+
+            {isDirectAssign ? (
                 <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white" disabled={!hasDrivers}>
                     {hasDrivers ? (
                         drivers.map((driver) => (
@@ -126,28 +146,32 @@ export function TripDispatchForm({
                         <option value="">مفيش كباتن متاحين حاليًا</option>
                     )}
                 </Select>
-                <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
-                    <option value="dispatch_offer">ابعت عرض</option>
-                    <option value="assign_driver">اسند مباشر</option>
-                </Select>
-                <Button
-                    isLoading={isPending}
-                    disabled={!hasDrivers || !driverId}
-                    onClick={() =>
-                        startTransition(async () => {
-                            if (!driverId) return;
-                            await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
-                                action: mode,
-                                driverId,
-                                vehicleId: selectedDriver?.vehicleId || null,
-                            });
-                            router.refresh();
-                        })
-                    }
-                >
-                    تنفيذ
-                </Button>
-            </div>
+            ) : (
+                <div className="rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-3 text-sm text-white/70">
+                    {hasDrivers
+                        ? `العرض هيتبعت تلقائيًا إلى ${drivers.length} كباتن متاحين بالمركبة المناسبة، وأول كابتن يقبله هيتسند له المشوار.`
+                        : "مفيش كباتن متاحين حاليًا بالمركبة المناسبة للمشوار ده."}
+                </div>
+            )}
+
+            <Button
+                isLoading={isPending}
+                disabled={!hasDrivers || (isDirectAssign && !driverId)}
+                onClick={() =>
+                    startTransition(async () => {
+                        await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                            action: mode,
+                            driverId: isDirectAssign ? driverId : null,
+                            vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
+                            price: price.trim() || null,
+                        });
+                        toast.success(isDirectAssign ? "تم الإسناد المباشر بنجاح." : "تم تسعير المشوار وإرساله للكباتن المتاحين.");
+                        router.refresh();
+                    })
+                }
+            >
+                {isDirectAssign ? "اسند للكابتن" : "سعّر وابعت للكباتن"}
+            </Button>
             {!hasDrivers ? <p className="text-xs text-amber-300/90">لسه مفيش كابتن متاح أو معتمد يقدر يستقبل المشوار ده.</p> : null}
         </div>
     );
@@ -373,26 +397,25 @@ export function CreateCaptainForm() {
 
         startTransition(async () => {
             try {
-                const formData = new FormData();
-                formData.set("fullName", fullName);
-                formData.set("phone", phone);
-                formData.set("email", email);
-                formData.set("password", password);
-                formData.set("nationalId", nationalId);
-                formData.set("workingCity", workingCity);
-                formData.set("workingArea", workingArea);
-                formData.set("vehicleType", vehicleType);
-                formData.set("brand", brand);
-                formData.set("model", model);
-                formData.set("color", color);
-                formData.set("manufacturingYear", manufacturingYear);
-                formData.set("plateNumber", plateNumber);
-                formData.set("seatCount", seatCount);
-                formData.set("operatingArea", operatingArea);
-                formData.set("vehicleCondition", vehicleCondition);
-                formData.set("adminNotes", adminNotes);
-
-                const payload = await sendFormData("/api/admin/platform/drivers", formData);
+                const payload = await sendJson<{ userId: string; vehicleId: string; loginLink: string }>("/api/admin/platform/drivers", "POST", {
+                    fullName,
+                    phone,
+                    email,
+                    password,
+                    nationalId,
+                    workingCity,
+                    workingArea,
+                    vehicleType,
+                    brand,
+                    model,
+                    color,
+                    manufacturingYear,
+                    plateNumber,
+                    seatCount,
+                    operatingArea,
+                    vehicleCondition,
+                    adminNotes,
+                });
                 const documentsUrl = `/api/admin/platform/drivers/${payload.userId}/documents`;
 
                 await uploadCaptainDocument(documentsUrl, "profile_photo", profilePhoto);

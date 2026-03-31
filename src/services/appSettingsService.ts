@@ -169,7 +169,12 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
 
   if (error || !data) {
     const errorMessage = error?.message || '';
-    if (error?.code === 'PGRST205' || errorMessage.includes("Could not find the table 'public.app_settings'")) {
+    if (
+      error?.code === 'PGRST205' ||
+      error?.code === '42P01' ||
+      errorMessage.includes("Could not find the table 'public.app_settings'") ||
+      errorMessage.toLowerCase().includes('not found')
+    ) {
       appSettingsTableUnavailable = true;
     }
     return DEFAULT_APP_SETTINGS;
