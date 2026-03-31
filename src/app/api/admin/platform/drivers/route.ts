@@ -336,6 +336,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             userId,
+            vehicleId: vehicle.id,
             loginLink: "/captain/login",
         });
     } catch (error: any) {

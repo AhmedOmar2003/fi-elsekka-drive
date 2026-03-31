@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { optimizeImageForUpload } from "@/lib/image-upload";
 
 async function sendJson(url: string, method: string, body: Record<string, unknown>) {
     const response = await fetch(url, {
@@ -35,6 +36,32 @@ async function sendFormData(url: string, body: FormData) {
     }
 
     return payload;
+}
+
+async function prepareUploadFile(file: File) {
+    if (file.type.startsWith("image/")) {
+        return optimizeImageForUpload(file, { maxDimension: 1200, quality: 0.72 });
+    }
+
+    return file;
+}
+
+async function uploadCaptainDocument(url: string, documentType: string, file: File | null, vehicleId?: string | null) {
+    if (!file) return;
+
+    const prepared = await prepareUploadFile(file);
+    if (prepared.size > 4 * 1024 * 1024) {
+        throw new Error(`ملف ${file.name} ما زال كبير. صغّره أو ارفعه PDF أخف.`);
+    }
+
+    const formData = new FormData();
+    formData.set("documentType", documentType);
+    formData.set("file", prepared);
+    if (vehicleId) {
+        formData.set("vehicleId", vehicleId);
+    }
+
+    await sendFormData(url, formData);
 }
 
 export function TripStatusForm({ tripId, currentStatus }: { tripId: string; currentStatus: string }) {
@@ -365,14 +392,16 @@ export function CreateCaptainForm() {
                 formData.set("vehicleCondition", vehicleCondition);
                 formData.set("adminNotes", adminNotes);
 
-                if (profilePhoto) formData.set("profilePhoto", profilePhoto);
-                if (nationalIdPhoto) formData.set("nationalIdPhoto", nationalIdPhoto);
-                if (driverLicensePhoto) formData.set("driverLicensePhoto", driverLicensePhoto);
-                if (vehicleLicensePhoto) formData.set("vehicleLicensePhoto", vehicleLicensePhoto);
-                if (vehiclePhoto) formData.set("vehiclePhoto", vehiclePhoto);
-                if (criminalRecordPhoto) formData.set("criminalRecordPhoto", criminalRecordPhoto);
+                const payload = await sendFormData("/api/admin/platform/drivers", formData);
+                const documentsUrl = `/api/admin/platform/drivers/${payload.userId}/documents`;
 
-                await sendFormData("/api/admin/platform/drivers", formData);
+                await uploadCaptainDocument(documentsUrl, "profile_photo", profilePhoto);
+                await uploadCaptainDocument(documentsUrl, "national_id", nationalIdPhoto);
+                await uploadCaptainDocument(documentsUrl, "driver_license", driverLicensePhoto);
+                await uploadCaptainDocument(documentsUrl, "criminal_record", criminalRecordPhoto);
+                await uploadCaptainDocument(documentsUrl, "vehicle_license", vehicleLicensePhoto, payload.vehicleId);
+                await uploadCaptainDocument(documentsUrl, "vehicle_photo", vehiclePhoto, payload.vehicleId);
+
                 toast.success(`تم إنشاء حساب الكابتن. رابط الدخول: /captain/login`);
                 resetForm();
                 setIsOpen(false);

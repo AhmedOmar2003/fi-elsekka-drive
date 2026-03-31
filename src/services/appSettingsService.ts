@@ -18,6 +18,7 @@ export type AppSettings = {
 export const APP_SETTINGS_ID = 'global';
 export const APP_SETTINGS_STORAGE_KEY = 'fi-elsekka:public-app-settings';
 export const APP_SETTINGS_UPDATED_EVENT = 'fi-elsekka:app-settings-updated';
+let appSettingsTableUnavailable = false;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   siteName: 'في السكة',
@@ -122,6 +123,10 @@ export function emitAppSettingsUpdate(settings: AppSettings) {
 }
 
 export async function fetchPublicAppSettings(): Promise<AppSettings> {
+  if (appSettingsTableUnavailable) {
+    return DEFAULT_APP_SETTINGS;
+  }
+
   const withWhatsAppColumns = await supabase
     .from('app_settings')
     .select(`
@@ -163,6 +168,10 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
   const { data, error } = result;
 
   if (error || !data) {
+    const errorMessage = error?.message || '';
+    if (error?.code === 'PGRST205' || errorMessage.includes("Could not find the table 'public.app_settings'")) {
+      appSettingsTableUnavailable = true;
+    }
     return DEFAULT_APP_SETTINGS;
   }
 
