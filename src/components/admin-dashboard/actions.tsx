@@ -396,9 +396,7 @@ export function CreateCaptainForm() {
         setVehicleType("car");
     };
 
-    const handleSubmit = (event: FormEvent) => {
-        event.preventDefault();
-
+    const handleCreateCaptain = () => {
         startTransition(async () => {
             try {
                 const payload = await sendJson<{ userId: string; vehicleId: string; loginLink: string }>("/api/admin/platform/drivers", "POST", {
@@ -429,7 +427,7 @@ export function CreateCaptainForm() {
                 await uploadCaptainDocument(documentsUrl, "vehicle_license", vehicleLicensePhoto, payload.vehicleId);
                 await uploadCaptainDocument(documentsUrl, "vehicle_photo", vehiclePhoto, payload.vehicleId);
 
-                toast.success(`تم إنشاء حساب الكابتن. رابط الدخول: /captain/login`);
+                toast.success("تم إنشاء حساب الكابتن ورفع ملفاته الأساسية بنجاح.");
                 resetForm();
                 setIsOpen(false);
                 router.refresh();
@@ -454,7 +452,7 @@ export function CreateCaptainForm() {
             </div>
 
             {isOpen ? (
-                <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+                <form onSubmit={(event) => event.preventDefault()} className="mt-5 space-y-5">
                     <div className="grid gap-3 md:grid-cols-4">
                         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
                             <p className="text-xs text-white/45">الحساب</p>
@@ -600,7 +598,7 @@ export function CreateCaptainForm() {
                         <Button type="button" variant="ghost" className="border border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={() => { resetForm(); setIsOpen(false); }}>
                             إلغاء
                         </Button>
-                        <Button type="submit" isLoading={isPending} className="md:min-w-48">
+                        <Button type="button" isLoading={isPending} className="md:min-w-48" onClick={handleCreateCaptain}>
                             حفظ الكابتن وإنشاء الحساب
                         </Button>
                     </div>

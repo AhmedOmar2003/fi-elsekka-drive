@@ -102,6 +102,24 @@ export default async function AdminDriverDetailsPage({ params }: { params: Param
                 />
             </SectionCard>
 
+            <SectionCard title="تقييمات العملاء" subtitle="آخر التقييمات اللي وصلت للكابتن من المشاوير المكتملة">
+                <DataTable
+                    columns={[
+                        { key: "trip", label: "الرحلة" },
+                        { key: "customer", label: "العميل" },
+                        { key: "rating", label: "التقييم" },
+                        { key: "comment", label: "التعليق" },
+                    ]}
+                    rows={detail.recentReviews.map((review) => ({
+                        trip: <div><Link href={`/admin/trips/${review.tripId}`} className="font-mono text-xs text-primary">{review.tripId.slice(0, 8)}</Link><p className="mt-1 text-xs text-white/45">{review.pickup} → {review.destination}</p></div>,
+                        customer: review.customerName,
+                        rating: <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-200">{review.rating} / 5</span>,
+                        comment: review.comment || 'مفيش تعليق نصي',
+                    }))}
+                    emptyState="لسه مفيش تقييمات وصلت للكابتن ده."
+                />
+            </SectionCard>
+
             <SectionCard title="أحدث المشاوير" subtitle="آخر المشاوير اللي الكابتن اشتغل عليها">
                 <DataTable
                     columns={[

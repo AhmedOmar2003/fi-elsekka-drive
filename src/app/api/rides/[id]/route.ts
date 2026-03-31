@@ -38,7 +38,7 @@ export async function GET(request: Request, context: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const [customerResult, driverResult, vehicleResult, timelineResult] =
+    const [customerResult, driverResult, vehicleResult, timelineResult, reviewResult] =
       await Promise.all([
         serviceClient
           .from("profiles")
@@ -64,6 +64,11 @@ export async function GET(request: Request, context: Params) {
           .select("id, status, note, created_at, changed_by")
           .eq("trip_id", id)
           .order("created_at", { ascending: true }),
+        serviceClient
+          .from("trip_reviews")
+          .select("id, customer_id, driver_id, rating, comment, created_at")
+          .eq("trip_id", id)
+          .maybeSingle(),
       ]);
 
     return NextResponse.json({
@@ -72,6 +77,7 @@ export async function GET(request: Request, context: Params) {
       driver: driverResult.data,
       vehicle: vehicleResult.data,
       timeline: timelineResult.data || [],
+      review: reviewResult.data || null,
     });
   } catch (error: any) {
     return NextResponse.json(

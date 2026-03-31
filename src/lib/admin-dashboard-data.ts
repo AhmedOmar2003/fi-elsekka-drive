@@ -102,6 +102,13 @@ export type AdminTripDetail = {
         createdAt: string;
         changedByName: string | null;
     }>;
+    review: {
+        rating: number;
+        comment: string | null;
+        createdAt: string;
+        customerName: string;
+        driverName: string;
+    } | null;
 };
 
 export type AdminDriverListItem = {
@@ -159,6 +166,16 @@ export type AdminDriverDetail = {
         email: string | null;
         lastSignInAt: string | null;
     };
+    recentReviews: Array<{
+        id: string;
+        rating: number;
+        comment: string | null;
+        createdAt: string;
+        customerName: string;
+        tripId: string;
+        pickup: string;
+        destination: string;
+    }>;
 };
 
 export type AdminVehicleListItem = {
@@ -478,7 +495,7 @@ export async function fetchTripDetail(id: string) {
 
     if (!trip) return null;
 
-    const [{ data: customer }, { data: driverProfile }, { data: vehicle }, { data: offers }, { data: history }] = await Promise.all([
+    const [{ data: customer }, { data: driverProfile }, { data: vehicle }, { data: offers }, { data: history }, { data: review }] = await Promise.all([
         supabase.from("profiles").select("id, full_name, phone, email").eq("id", trip.customer_id).maybeSingle(),
         trip.assigned_driver_id
             ? supabase.from("driver_profiles").select("id, working_city, availability_status").eq("id", trip.assigned_driver_id).maybeSingle()
@@ -488,6 +505,7 @@ export async function fetchTripDetail(id: string) {
             : Promise.resolve({ data: null }),
         supabase.from("trip_offers").select("id, driver_id, vehicle_id, offer_status, offered_at, responded_at, rejection_reason").eq("trip_id", id).order("offered_at", { ascending: false }),
         supabase.from("trip_status_history").select("id, status, note, changed_by, created_at").eq("trip_id", id).order("created_at", { ascending: true }),
+        supabase.from("trip_reviews").select("id, rating, comment, created_at, customer_id, driver_id").eq("trip_id", id).maybeSingle(),
     ]);
 
     const offerDriverIds = (offers || []).map((offer) => String(offer.driver_id));
@@ -564,6 +582,15 @@ export async function fetchTripDetail(id: string) {
             createdAt: String(entry.created_at),
             changedByName: entry.changed_by ? String((profilesMap.get(String(entry.changed_by))?.full_name as string) || "System") : "System",
         })),
+        review: review
+            ? {
+                  rating: Number(review.rating || 0),
+                  comment: (review.comment as string | null) || null,
+                  createdAt: String(review.created_at),
+                  customerName: String(customer?.full_name || "عميل"),
+                  driverName: String((profilesMap.get(String(review.driver_id))?.full_name as string) || "كابتن"),
+              }
+            : null,
     };
 }
 
@@ -632,16 +659,17 @@ export async function fetchDriverDetail(id: string) {
     const supabase = createAdminClient();
     if (!supabase) return null as AdminDriverDetail | null;
 
-    const [{ data: driverProfile }, { data: profile }, { data: vehicles }, { data: documents }, { data: trips }, authUserResult] = await Promise.all([
+    const [{ data: driverProfile }, { data: profile }, { data: vehicles }, { data: documents }, { data: trips }, { data: reviews }, authUserResult] = await Promise.all([
         supabase.from("driver_profiles").select("*").eq("id", id).maybeSingle(),
         supabase.from("profiles").select("id, full_name, phone, email, account_status").eq("id", id).maybeSingle(),
         supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number, approval_status, is_primary").eq("driver_id", id).order("is_primary", { ascending: false }),
         supabase.from("driver_documents").select("id, document_type, approval_status, file_name, storage_bucket, storage_path, created_at").eq("driver_id", id).order("created_at", { ascending: false }),
         supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count, metadata").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
+        supabase.from("trip_reviews").select("id, trip_id, customer_id, rating, comment, created_at").eq("driver_id", id).order("created_at", { ascending: false }).limit(12),
         supabase.auth.admin.getUserById(id),
     ]);
 
-    const tripProfilesMap = await loadProfilesMap((trips || []).map((trip) => String(trip.customer_id)));
+    const tripProfilesMap = await loadProfilesMap([...(trips || []).map((trip) => String(trip.customer_id)), ...(reviews || []).map((review) => String(review.customer_id))]);
     const authUser = authUserResult.data?.user || null;
 
     return {
@@ -701,6 +729,19 @@ export async function fetchDriverDetail(id: string) {
             email: authUser?.email || null,
             lastSignInAt: authUser?.last_sign_in_at || null,
         },
+        recentReviews: (reviews || []).map((review) => {
+            const relatedTrip = (trips || []).find((trip) => String(trip.id) === String(review.trip_id));
+            return {
+                id: String(review.id),
+                rating: Number(review.rating || 0),
+                comment: (review.comment as string | null) || null,
+                createdAt: String(review.created_at),
+                customerName: String((tripProfilesMap.get(String(review.customer_id))?.full_name as string) || "عميل"),
+                tripId: String(review.trip_id),
+                pickup: String(relatedTrip?.pickup_label || relatedTrip?.pickup_address || "من"),
+                destination: String(relatedTrip?.destination_label || "إلى"),
+            };
+        }),
     };
 }
 

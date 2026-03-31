@@ -122,6 +122,26 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                         {detail.offers.length === 0 ? <p className="text-sm text-white/45">لسه مفيش عروض اتبعتت.</p> : null}
                     </div>
                 </SectionCard>
+
+                <SectionCard title="تقييم العميل" subtitle="بيظهر بعد اكتمال الرحلة">
+                    {detail.review ? (
+                        <div className="space-y-4 rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-lg font-black text-white">{detail.review.customerName}</p>
+                                    <p className="mt-1 text-sm text-white/55">قيّم الكابتن {detail.review.driverName}</p>
+                                </div>
+                                <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-200">
+                                    {detail.review.rating} / 5 نجوم
+                                </div>
+                            </div>
+                            <p className="text-sm text-white/75">{detail.review.comment || 'العميل ما كتبش تعليق نصي، لكن سجّل تقييم بالنجوم.'}</p>
+                            <p className="text-xs text-white/45">اتسجل التقييم يوم {new Date(detail.review.createdAt).toLocaleString("ar-EG")}</p>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-white/45">لسه العميل ما قيّمش الرحلة دي.</p>
+                    )}
+                </SectionCard>
             </section>
         </div>
     );

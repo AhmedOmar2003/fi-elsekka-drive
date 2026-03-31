@@ -19,6 +19,7 @@ export const APP_SETTINGS_ID = 'global';
 export const APP_SETTINGS_STORAGE_KEY = 'fi-elsekka:public-app-settings';
 export const APP_SETTINGS_UPDATED_EVENT = 'fi-elsekka:app-settings-updated';
 let appSettingsTableUnavailable = false;
+let appSettingsInflight: Promise<AppSettings> | null = null;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   siteName: 'في السكة',
@@ -127,76 +128,88 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
     return DEFAULT_APP_SETTINGS;
   }
 
-  const withWhatsAppColumns = await supabase
-    .from('app_settings')
-    .select(`
-      site_name,
-      site_tagline,
-      support_phone,
-      support_email,
-      support_whatsapp_1,
-      support_whatsapp_2,
-      support_whatsapp_3,
-      free_shipping_threshold,
-      default_shipping_cost,
-      notify_new_orders,
-      notify_new_users,
-      maintenance_mode
-    `)
-    .eq('id', APP_SETTINGS_ID)
-    .maybeSingle();
-
-  const result =
-    withWhatsAppColumns.error && withWhatsAppColumns.error.message.includes('support_whatsapp')
-      ? await supabase
-          .from('app_settings')
-          .select(`
-            site_name,
-            site_tagline,
-            support_phone,
-            support_email,
-            free_shipping_threshold,
-            default_shipping_cost,
-            notify_new_orders,
-            notify_new_users,
-            maintenance_mode
-          `)
-          .eq('id', APP_SETTINGS_ID)
-          .maybeSingle()
-      : withWhatsAppColumns;
-
-  const { data, error } = result;
-
-  if (error || !data) {
-    const errorMessage = error?.message || '';
-    if (
-      error?.code === 'PGRST205' ||
-      error?.code === '42P01' ||
-      errorMessage.includes("Could not find the table 'public.app_settings'") ||
-      errorMessage.toLowerCase().includes('not found')
-    ) {
-      appSettingsTableUnavailable = true;
-    }
-    return DEFAULT_APP_SETTINGS;
+  if (appSettingsInflight) {
+    return appSettingsInflight;
   }
 
-  const normalized = normalizeSettings({
-    siteName: data.site_name,
-    siteTagline: data.site_tagline,
-    supportPhone: data.support_phone,
-    supportEmail: data.support_email,
-    supportWhatsApp1: 'support_whatsapp_1' in data ? (data as any).support_whatsapp_1 : '',
-    supportWhatsApp2: 'support_whatsapp_2' in data ? (data as any).support_whatsapp_2 : '',
-    supportWhatsApp3: 'support_whatsapp_3' in data ? (data as any).support_whatsapp_3 : '',
-    freeShippingThreshold: String(data.free_shipping_threshold ?? DEFAULT_APP_SETTINGS.freeShippingThreshold),
-    defaultShippingCost: String(data.default_shipping_cost ?? DEFAULT_APP_SETTINGS.defaultShippingCost),
-    notifyNewOrders: data.notify_new_orders ?? DEFAULT_APP_SETTINGS.notifyNewOrders,
-    notifyNewUsers: data.notify_new_users ?? DEFAULT_APP_SETTINGS.notifyNewUsers,
-    maintenanceMode: data.maintenance_mode ?? DEFAULT_APP_SETTINGS.maintenanceMode,
-  });
+  appSettingsInflight = (async () => {
+    const withWhatsAppColumns = await supabase
+      .from('app_settings')
+      .select(`
+        site_name,
+        site_tagline,
+        support_phone,
+        support_email,
+        support_whatsapp_1,
+        support_whatsapp_2,
+        support_whatsapp_3,
+        free_shipping_threshold,
+        default_shipping_cost,
+        notify_new_orders,
+        notify_new_users,
+        maintenance_mode
+      `)
+      .eq('id', APP_SETTINGS_ID)
+      .maybeSingle();
 
-  emitAppSettingsUpdate(normalized);
-  return normalized;
+    const result =
+      withWhatsAppColumns.error && withWhatsAppColumns.error.message.includes('support_whatsapp')
+        ? await supabase
+            .from('app_settings')
+            .select(`
+              site_name,
+              site_tagline,
+              support_phone,
+              support_email,
+              free_shipping_threshold,
+              default_shipping_cost,
+              notify_new_orders,
+              notify_new_users,
+              maintenance_mode
+            `)
+            .eq('id', APP_SETTINGS_ID)
+            .maybeSingle()
+        : withWhatsAppColumns;
+
+    const { data, error } = result;
+
+    if (error || !data) {
+      const errorMessage = error?.message || '';
+      if (
+        error?.code === 'PGRST205' ||
+        error?.code == '42P01' ||
+        errorMessage.includes("Could not find the table 'public.app_settings'") ||
+        errorMessage.toLowerCase().includes('not found')
+      ) {
+        appSettingsTableUnavailable = true;
+      }
+      return DEFAULT_APP_SETTINGS;
+    }
+
+    const normalized = normalizeSettings({
+      siteName: data.site_name,
+      siteTagline: data.site_tagline,
+      supportPhone: data.support_phone,
+      supportEmail: data.support_email,
+      supportWhatsApp1: 'support_whatsapp_1' in data ? (data as any).support_whatsapp_1 : '',
+      supportWhatsApp2: 'support_whatsapp_2' in data ? (data as any).support_whatsapp_2 : '',
+      supportWhatsApp3: 'support_whatsapp_3' in data ? (data as any).support_whatsapp_3 : '',
+      freeShippingThreshold: String(data.free_shipping_threshold ?? DEFAULT_APP_SETTINGS.freeShippingThreshold),
+      defaultShippingCost: String(data.default_shipping_cost ?? DEFAULT_APP_SETTINGS.defaultShippingCost),
+      notifyNewOrders: data.notify_new_orders ?? DEFAULT_APP_SETTINGS.notifyNewOrders,
+      notifyNewUsers: data.notify_new_users ?? DEFAULT_APP_SETTINGS.notifyNewUsers,
+      maintenanceMode: data.maintenance_mode ?? DEFAULT_APP_SETTINGS.maintenanceMode,
+    });
+
+    emitAppSettingsUpdate(normalized);
+    return normalized;
+  })();
+
+  try {
+    return await appSettingsInflight;
+  } finally {
+    appSettingsInflight = null;
+  }
 }
 
 export async function saveAdminAppSettings(settings: AppSettings) {

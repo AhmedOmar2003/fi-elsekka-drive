@@ -19,6 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         pathname?.startsWith('/discounts') ||
         pathname?.startsWith('/offers') ||
         pathname?.startsWith('/checkout');
+    const useAdminShellOnly = pathname?.startsWith('/admin');
 
     const content = useLegacyStoreProviders ? (
         <AppSettingsProvider>
@@ -33,6 +34,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 </ProductsProvider>
             </AuthProvider>
         </AppSettingsProvider>
+    ) : useAdminShellOnly ? (
+        <>
+            <SiteVisitTracker />
+            {children}
+        </>
     ) : (
         <AuthProvider>
             <SiteVisitTracker />
