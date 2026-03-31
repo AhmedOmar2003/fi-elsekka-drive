@@ -43,7 +43,7 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
     const [isPending, startTransition] = useTransition();
 
     return (
-        <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
             <Label className="text-white/75">غيّر حالة المشوار</Label>
             <div className="flex flex-col gap-3 md:flex-row">
                 <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
@@ -84,17 +84,17 @@ export function TripDispatchForm({
     const selectedDriver = drivers.find((driver) => driver.id === driverId);
 
     return (
-        <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
             <Label className="text-white/75">إجراء التوزيع</Label>
-            <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-                <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="bg-white/5 text-white">
+            <div className="grid items-start gap-3 md:grid-cols-[1fr_220px_auto]">
+                <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white">
                     {drivers.map((driver) => (
                         <option key={driver.id} value={driver.id}>
                             {driver.fullName} {driver.vehicleLabel ? `· ${driver.vehicleLabel}` : ""}
                         </option>
                     ))}
                 </Select>
-                <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="bg-white/5 text-white">
+                <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
                     <option value="dispatch_offer">ابعت عرض</option>
                     <option value="assign_driver">اسند مباشر</option>
                 </Select>
@@ -131,7 +131,7 @@ export function DriverStateActions({ driverId }: { driverId: string }) {
         });
 
     return (
-        <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
             <Label className="text-white/75">إجراءات الكابتن</Label>
             <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="ملاحظة إدارية أو سبب الإيقاف" className="bg-white/5 text-white" />
             <div className="flex flex-wrap gap-2">
@@ -546,5 +546,7 @@ export function CreateCaptainForm() {
         </div>
     );
 }
+
+
 
 
