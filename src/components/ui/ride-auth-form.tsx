@@ -119,7 +119,7 @@ export function AuthForm({
   };
 
   return (
-    <div className="mx-auto max-w-md w-full animate-fade-in pt-4 pb-12">
+    <div className="mx-auto max-w-[420px] w-full animate-fade-scale-in rounded-[36px] bg-surface-container-low/60 backdrop-blur-2xl border border-white/10 p-6 md:p-10 shadow-[var(--shadow-premium)]">
       {!isRegister ? (
         <div className="flex bg-surface-container-low p-1 rounded-full mb-8 shadow-inner border border-white/5">
           <Link
@@ -141,14 +141,17 @@ export function AuthForm({
         </div>
       ) : null}
 
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-black text-foreground mb-2">
-          {isRegister ? "إنشاء حساب جديد" : (isCaptain ? "دخول الكباتن" : "تسجيل الدخول")}
+      <div className="text-center mb-10">
+        <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-6 shadow-inner border border-primary/20">
+          {isRegister ? <UserPlus className="h-7 w-7 text-primary" /> : <LogIn className="h-7 w-7 text-primary" />}
+        </div>
+        <h1 className="text-3xl font-black text-foreground mb-3 tracking-tight">
+          {isRegister ? "أهلاً بيك في السكة" : (isCaptain ? "دخول الكباتن" : "سجل دخولك")}
         </h1>
-        <p className="text-sm text-gray-500 max-w-[320px] mx-auto leading-7">
+        <p className="text-sm text-gray-400 font-medium max-w-[280px] mx-auto leading-relaxed">
           {isRegister
-            ? "سجّل بالإيميل العادي Gmail من غير انتظار رسالة تأكيد."
-            : "ادخل بالإيميل والباسورد وتابع مشاويرك على طول."}
+            ? "اعمل حساب جديد بخطوة واحدة واطلب أول مشوار ليك."
+            : "سجل دخولك عشان تطلب مشوارك وتتابع رحلاتك."}
         </p>
       </div>
 
@@ -157,9 +160,9 @@ export function AuthForm({
           <Input
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
-            className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5"
-          placeholder="اسمك بالكامل"
-        />
+            className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 transition-all"
+            placeholder="اسمك بالكامل"
+          />
         ) : null}
 
         {isRegister ? (
@@ -167,7 +170,7 @@ export function AuthForm({
             type="tel"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
-            className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5 text-left"
+            className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 text-left transition-all"
             dir="ltr"
             placeholder="رقم الموبايل"
           />
@@ -177,25 +180,24 @@ export function AuthForm({
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5 text-left"
+          className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 text-left transition-all"
           dir="ltr"
-          placeholder="name@gmail.com"
+          placeholder="الإيميل بتاعك"
         />
 
         <Input
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="h-14 bg-surface-container-low border-white/10 rounded-[20px] px-5"
+          className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 transition-all"
           placeholder="كلمة المرور"
         />
 
         <Button
           type="submit"
           isLoading={isLoading}
-          className="h-14 w-full rounded-full text-base font-black mt-4 shadow-[0_4px_20px_-4px_rgba(61,161,132,0.4)]"
+          className="h-14 w-full rounded-[20px] text-[17px] font-black mt-6 shadow-[var(--shadow-glow-primary)] transition-transform active:scale-[0.98]"
         >
-          {isRegister ? <UserPlus className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
           {submitLabel}
         </Button>
 

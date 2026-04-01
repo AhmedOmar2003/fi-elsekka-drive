@@ -94,7 +94,7 @@ export function NotificationBell() {
 
     const showNotificationToast = React.useCallback((notification: AppNotification) => {
         toast.custom((toastId) => (
-            <div className="w-[min(92vw,420px)] overflow-hidden rounded-3xl border border-primary/20 bg-background/95 shadow-2xl backdrop-blur-xl">
+            <div className="w-[min(92vw,420px)] overflow-hidden rounded-[32px] border border-white/5 bg-surface-container-low/95 shadow-[var(--shadow-premium)] backdrop-blur-3xl animate-fade-scale-in">
                 <div className="h-1.5 bg-gradient-to-r from-primary via-emerald-400 to-primary" />
                 <div className="p-4">
                     <div className="flex items-start gap-3">
@@ -445,7 +445,7 @@ export function NotificationBell() {
             </button>
 
             {isOpen && (
-                <div className="fixed left-3 right-3 top-[84px] z-50 flex max-h-[78vh] w-auto flex-col overflow-hidden rounded-2xl border border-surface-hover bg-surface shadow-premium sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
+                <div className="fixed left-3 right-3 top-[84px] z-50 flex max-h-[78vh] w-auto flex-col overflow-hidden rounded-[28px] border border-white/5 bg-surface-container-low/95 backdrop-blur-2xl shadow-[var(--shadow-premium)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 animate-fade-scale-in">
                     <div className="border-b border-surface-hover bg-surface-lighter/50 px-4 py-3">
                         <h3 className="font-heading font-black text-foreground">الإشعارات</h3>
                         <p className="mt-1 text-[11px] text-gray-500">أحدث 4 إشعارات فقط</p>

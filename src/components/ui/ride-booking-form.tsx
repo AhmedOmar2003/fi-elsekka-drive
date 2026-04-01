@@ -638,38 +638,28 @@ export function BookingForm() {
             </div>
           </div>
 
-          <div className="flex max-h-[48vh] flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-              {/* Trip Type Selector */}
-              <div className="flex gap-2 rounded-full bg-surface-container-low p-1 border border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setTripType("normal_ride")}
-                  className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all duration-300 ${
-                    tripType === "normal_ride" 
-                      ? "bg-primary text-white shadow-md" 
-                      : "text-white/60 hover:text-white"
-                  }`}
-                >
-                  مشوار عادي
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTripType("airport_ride")}
-                  className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all duration-300 flex items-center justify-center gap-1.5 ${
-                    tripType === "airport_ride" 
-                      ? "bg-secondary text-white shadow-md relative overflow-hidden" 
-                      : "text-white/60 hover:text-white"
-                  }`}
-                >
-                  {tripType === "airport_ride" && <span className="absolute inset-0 bg-white/10 animate-pulse"></span>}
-                  <PlaneTakeoff className="w-4 h-4" />
-                  مشوار مطار
-                </button>
-              </div>
-
+          <div className="flex max-h-[54vh] flex-col">
+            <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 custom-scrollbar">
+              
               <div className="rounded-[28px] border border-white/5 bg-surface-container-low p-2 shadow-inner">
                 <div className="space-y-2">
+                  <div className="relative group">
+                    <Input
+                      value={destination}
+                      onFocus={() => setActiveAutocompleteField("destination")}
+                      onChange={(event) => {
+                        setDestination(event.target.value);
+                        setDestinationLocation(null);
+                        setEstimate(null);
+                        setActiveAutocompleteField("destination");
+                      }}
+                      className="h-16 text-lg rounded-[22px] border-0 bg-white/5 px-5 shadow-none ring-0 placeholder:text-gray-400 focus-visible:bg-white/10 font-black transition-all"
+                      placeholder="رايح فين؟"
+                    />
+                  </div>
+
+                  <div className="mx-4 h-[2px] bg-white/5 rounded-full" />
+
                   <div className="relative">
                     <Input
                       value={pickup}
@@ -680,25 +670,8 @@ export function BookingForm() {
                         setEstimate(null);
                         setActiveAutocompleteField("pickup");
                       }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5 font-bold transition-all"
+                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-sm shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5 font-bold transition-all"
                       placeholder="موقعك الحالي"
-                    />
-                  </div>
-
-                  <div className="mx-4 h-px bg-surface-border/50" />
-
-                  <div className="relative">
-                    <Input
-                      value={destination}
-                      onFocus={() => setActiveAutocompleteField("destination")}
-                      onChange={(event) => {
-                        setDestination(event.target.value);
-                        setDestinationLocation(null);
-                        setEstimate(null);
-                        setActiveAutocompleteField("destination");
-                      }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5 font-bold transition-all"
-                      placeholder="رايح فين؟"
                     />
                   </div>
                 </div>
@@ -742,10 +715,59 @@ export function BookingForm() {
               ) : null}
 
               <div className="flex flex-col gap-3">
-                <p className="text-sm font-black text-white px-1">اختار وسيلة المشوار</p>
-                <div className="grid grid-cols-2 gap-3">
-                <div className="relative">
-                  <UserRound className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
+                <p className="text-xs font-bold text-white/50 px-1">اختار المركبة</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTripType("normal_ride");
+                      setPreferredVehicleType("car");
+                    }}
+                    className={`flex flex-col items-center justify-center gap-2 rounded-[24px] border border-white/5 p-4 transition-all duration-300 ${
+                      tripType === "normal_ride" && preferredVehicleType === "car"
+                        ? "bg-primary/20 border-primary shadow-[0_4px_20px_-4px_rgba(61,161,132,0.3)] scale-[1.02]"
+                        : "bg-surface-container-low hover:bg-surface-container hover:scale-[1.02]"
+                    }`}
+                  >
+                    <span className="text-3xl drop-shadow-md">🚗</span>
+                    <span className={`text-xs font-black ${tripType === "normal_ride" && preferredVehicleType === "car" ? "text-primary" : "text-white"}`}>عربية</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTripType("normal_ride");
+                      setPreferredVehicleType("tuk_tuk");
+                    }}
+                    className={`flex flex-col items-center justify-center gap-2 rounded-[24px] border border-white/5 p-4 transition-all duration-300 ${
+                      tripType === "normal_ride" && preferredVehicleType === "tuk_tuk"
+                        ? "bg-primary/20 border-primary shadow-[0_4px_20px_-4px_rgba(61,161,132,0.3)] scale-[1.02]"
+                        : "bg-surface-container-low hover:bg-surface-container hover:scale-[1.02]"
+                    }`}
+                  >
+                    <span className="text-3xl drop-shadow-md">🛺</span>
+                    <span className={`text-xs font-black ${tripType === "normal_ride" && preferredVehicleType === "tuk_tuk" ? "text-primary" : "text-white"}`}>توك توك</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTripType("airport_ride");
+                      setPreferredVehicleType("car");
+                    }}
+                    className={`flex flex-col items-center justify-center gap-2 rounded-[24px] border border-white/5 p-4 transition-all duration-300 ${
+                      tripType === "airport_ride"
+                        ? "bg-secondary/20 border-secondary shadow-[0_4px_20px_-4px_rgba(207,122,143,0.3)] scale-[1.02]"
+                        : "bg-surface-container-low hover:bg-surface-container hover:scale-[1.02]"
+                    }`}
+                  >
+                    <span className="text-3xl drop-shadow-md">✈️</span>
+                    <span className={`text-[11px] font-black ${tripType === "airport_ride" ? "text-secondary" : "text-white"}`}>توصيلة مطار</span>
+                  </button>
+                </div>
+
+                <div className="relative mt-2">
+                  <UserRound className="pointer-events-none absolute end-4 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
                   <Input
                     value={passengerCount}
                     onChange={(event) => {
@@ -753,45 +775,10 @@ export function BookingForm() {
                       setEstimate(null);
                     }}
                     placeholder="عدد الركاب"
-                    className="h-12 rounded-[18px] border-white/10 bg-surface-container-low pe-10"
+                    className="h-12 rounded-[20px] border-white/5 bg-surface-container-low pe-12 ps-4 text-sm font-bold"
                   />
                 </div>
-
-                {tripType === "airport_ride" ? (
-                  <div className="rounded-[18px] border border-primary/20 bg-primary/10 px-4 py-3">
-                    <p className="text-xs text-white/45">نوع المركبة</p>
-                    <p className="mt-1 text-sm font-black text-white">عربية فقط</p>
-                  </div>
-                ) : (
-                  <div className="relative border border-white/5 rounded-[18px] bg-surface-container-low overflow-hidden">
-                    <Select
-                      value={preferredVehicleType}
-                      onChange={(event) => {
-                        setPreferredVehicleType(
-                          event.target.value === "car" ||
-                            event.target.value === "tuk_tuk"
-                            ? event.target.value
-                            : "any"
-                        );
-                        setEstimate(null);
-                      }}
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                    >
-                      <option value="any">الأقرب والمتاح</option>
-                      <option value="car">عربية</option>
-                      <option value="tuk_tuk">توك توك</option>
-                    </Select>
-                    <div className="h-12 flex items-center px-4 justify-between pointer-events-none">
-                      <span className="text-sm text-white font-bold">
-                        {preferredVehicleType === "any" ? "الأقرب والمتاح" : 
-                         preferredVehicleType === "car" ? "عربية" : "توك توك"}
-                      </span>
-                      <ChevronDown className="w-4 h-4 text-white/50" />
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
 
               {tripType === "airport_ride" ? (
                 <div className="grid gap-3 rounded-[24px] border border-secondary/20 bg-secondary/10 p-4 animate-fade-in">
