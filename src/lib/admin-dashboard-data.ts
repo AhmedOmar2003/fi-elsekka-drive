@@ -65,7 +65,11 @@ export type AdminTripDetail = {
         airportRideMode: string | null;
         flightNumber: string | null;
         flightTime: string | null;
+        airportDepartureTime: string | null;
+        airportDepartureLabel: string | null;
         estimatedPrice: number | null;
+        mapEstimatedPrice: number | null;
+        adminSelectedPrice: number | null;
         actualPrice: number | null;
         createdAt: string;
         requestedAt: string;
@@ -530,7 +534,11 @@ export async function fetchTripDetail(id: string) {
             airportRideMode: (trip.airport_ride_mode as string | null) || null,
             flightNumber: (trip.flight_number as string | null) || null,
             flightTime: (trip.flight_time as string | null) || null,
+            airportDepartureTime: (trip.metadata?.airport_departure_time as string | null) || null,
+            airportDepartureLabel: (trip.metadata?.airport_departure_label as string | null) || null,
             estimatedPrice: trip.estimated_price === null ? null : Number(trip.estimated_price),
+            mapEstimatedPrice: trip.metadata?.map_estimated_price === undefined || trip.metadata?.map_estimated_price === null ? null : Number(trip.metadata.map_estimated_price),
+            adminSelectedPrice: trip.metadata?.admin_selected_price === undefined || trip.metadata?.admin_selected_price === null ? null : Number(trip.metadata.admin_selected_price),
             actualPrice: trip.actual_price === null ? null : Number(trip.actual_price),
             createdAt: String(trip.created_at),
             requestedAt: String(trip.requested_at),
@@ -1003,6 +1011,9 @@ export async function fetchStaffSnapshot() {
         lastLogin: (item.last_login_at as string | null) || null,
     }));
 }
+
+
+
 
 
 

@@ -48,6 +48,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (tripType === "airport_ride" && (!body.flightTime || !body.departureTime)) {
+      return NextResponse.json(
+        { error: "في مشوار المطار لازم تحدد موعد التحرك وموعد إقلاع الطائرة." },
+        { status: 400 }
+      );
+    }
+
     const { data: tripId, error: tripError } = await authedClient.rpc(
       "create_trip_request",
       {
@@ -60,7 +67,7 @@ export async function POST(request: Request) {
         p_pickup_longitude: estimate.pickup.longitude,
         p_destination_latitude: estimate.destination.latitude,
         p_destination_longitude: estimate.destination.longitude,
-        p_airport_name: tripType === "airport_ride" ? body.airportName || null : null,
+        p_airport_name: tripType === "airport_ride" ? body.airportName || estimate.destination.label || null : null,
         p_airport_terminal: tripType === "airport_ride" ? body.airportTerminal || null : null,
         p_airport_ride_mode: tripType === "airport_ride" ? body.airportRideMode || null : null,
         p_flight_number: tripType === "airport_ride" ? body.flightNumber || null : null,
@@ -81,7 +88,7 @@ export async function POST(request: Request) {
     const { error: tripMetaError } = await serviceClient
       .from("trips")
       .update({
-        estimated_price: estimatedPrice,
+        estimated_price: null,
         search_started_at: now,
         status: "pending",
         metadata: {
@@ -89,11 +96,14 @@ export async function POST(request: Request) {
           route_duration_minutes: estimate.durationMinutes,
           suggested_price_min: estimate.minPrice,
           suggested_price_max: estimate.maxPrice,
+          map_estimated_price: estimatedPrice,
           preferred_vehicle_type: preferredVehicleType,
           pickup_city: estimate.pickup.city,
           destination_city: estimate.destination.city,
           pickup_area: estimate.pickup.area,
           destination_area: estimate.destination.area,
+          airport_departure_time: tripType === "airport_ride" ? body.departureTime || null : null,
+          airport_departure_label: tripType === "airport_ride" ? body.departureTimeLabel || null : null,
           dispatch_mode: "admin_dispatch_only",
           awaiting_admin_dispatch: true,
         },
@@ -149,7 +159,7 @@ export async function POST(request: Request) {
       recipient_user_id: auth.profile.user.id,
       type: "trip_created",
       title: "استلمنا طلب مشوارك",
-      body: "تم تحديد المسافة والمدة والسعر المقترح، والطلب الآن عند الإدارة لتسعيره وإسناده لكابتن مناسب.",
+      body: "تم تحديد المسافة والمدة، والطلب الآن عند الإدارة لتسعيره وإسناده لكابتن مناسب.",
       payload: {
         trip_id: tripId,
         estimated_price: estimatedPrice,
@@ -172,3 +182,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

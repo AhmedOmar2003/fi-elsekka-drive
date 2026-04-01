@@ -149,9 +149,12 @@ export async function PATCH(request: NextRequest, context: Context) {
 
             const now = new Date().toISOString();
             const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-            const broadcastPrice = price ?? (trip.estimated_price === null ? null : Number(trip.estimated_price));
             const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
-
+            const fallbackMapEstimate =
+                trip.estimated_price === null
+                    ? Number((metadata.map_estimated_price as number | null) ?? 0) || null
+                    : Number(trip.estimated_price);
+            const broadcastPrice = price ?? fallbackMapEstimate;
             const offersPayload = rankedDrivers.map((driver) => ({
                 trip_id: id,
                 driver_id: driver.id,
@@ -291,7 +294,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                 metadata: {
                     ...metadata,
                     dispatch_mode: "admin_direct_offer",
-                    broadcast_price: price,
+                    broadcast_price: price ?? (metadata.map_estimated_price as number | null) ?? null,
                 },
             }, { onConflict: "trip_id,driver_id" });
 
@@ -304,11 +307,11 @@ export async function PATCH(request: NextRequest, context: Context) {
                     assigned_vehicle_id: null,
                     status: "offered",
                     offered_at: now,
-                    estimated_price: price,
+                    estimated_price: price ?? ((metadata.map_estimated_price as number | null) ?? null),
                     updated_at: now,
                     metadata: {
                         ...metadata,
-                        admin_selected_price: price,
+                        admin_selected_price: price ?? ((metadata.map_estimated_price as number | null) ?? null),
                         admin_priced_at: now,
                         admin_priced_by: auth.profile.user.id,
                         latest_dispatch_mode: "admin_direct_offer",
@@ -325,7 +328,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                 changed_by: auth.profile.user.id,
                 note: "تم إرسال عرض حصري للكابتن من لوحة التشغيل وينتظر موافقته.",
                 metadata: {
-                    quoted_price: price,
+                    quoted_price: price ?? ((metadata.map_estimated_price as number | null) ?? null),
                     direct_driver_id: driverId,
                 },
             });
@@ -337,7 +340,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                 body: `تم تخصيص مشوار لك من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")}. افتح التطبيق ووافق أو ارفض.`,
                 payload: {
                     trip_id: id,
-                    estimated_price: price,
+                    estimated_price: price ?? ((metadata.map_estimated_price as number | null) ?? null),
                     dispatch_mode: "admin_direct_offer",
                 },
                 related_trip_id: id,
@@ -414,3 +417,7 @@ export async function PATCH(request: NextRequest, context: Context) {
         return NextResponse.json({ error: error.message || "Unexpected trip action failure" }, { status: 500 });
     }
 }
+
+
+
+

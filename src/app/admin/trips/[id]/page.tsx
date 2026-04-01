@@ -67,7 +67,8 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                                 <p className="text-sm text-white/75">النوع: {detail.trip.airportRideMode || "—"}</p>
                                 <p className="text-sm text-white/75">الترمينال: {detail.trip.airportTerminal || "—"}</p>
                                 <p className="text-sm text-white/75">رقم الرحلة: {detail.trip.flightNumber || "—"}</p>
-                                <p className="text-sm text-white/75 md:col-span-2">ميعاد الرحلة: {detail.trip.flightTime ? new Date(detail.trip.flightTime).toLocaleString("ar-EG") : "—"}</p>
+                                <p className="text-sm text-white/75">موعد التحرك: {detail.trip.airportDepartureLabel || (detail.trip.airportDepartureTime ? new Date(detail.trip.airportDepartureTime).toLocaleString("ar-EG") : "—")}</p>
+                                <p className="text-sm text-white/75">ميعاد الرحلة: {detail.trip.flightTime ? new Date(detail.trip.flightTime).toLocaleString("ar-EG") : "—"}</p>
                             </div>
                         </div>
                     ) : null}
@@ -146,3 +147,5 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
         </div>
     );
 }
+
+
