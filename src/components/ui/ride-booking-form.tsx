@@ -607,60 +607,33 @@ export function BookingForm() {
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center pb-0">
         <div
-          className="pointer-events-auto w-full max-w-xl rounded-t-[30px] border-t border-white/10 bg-surface-container/95 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-3xl transition-transform duration-300 md:rounded-[30px] md:border"
+          className="pointer-events-auto w-full max-w-xl rounded-t-[40px] border-t border-white/5 bg-surface-container/95 shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.6)] backdrop-blur-3xl transition-transform duration-300 relative lg:rounded-[40px] lg:border lg:mb-4 lg:bottom-4 lg:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)]"
           style={{ transform: sheetTransform }}
         >
-          <div className="px-4 pt-3">
-            <div className="mb-2 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-black text-foreground">رايح فين؟</h2>
-                <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
-                  <Sparkles className="h-3 w-3" />
-                  اكتب أو اختار من الخريطة
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setSheetMode((current) =>
-                    current === "expanded" ? "collapsed" : "expanded"
-                  )
-                }
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary/15"
-                aria-label={sheetMode === "expanded" ? "طي الطلب" : "فتح الطلب"}
-              >
-                {sheetMode === "expanded" ? (
-                  <ChevronDown className="h-5 w-5" />
-                ) : (
-                  <ChevronUp className="h-5 w-5" />
-                )}
-              </button>
+          {/* Hardware Pull Handle */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-white/20" />
+
+          <div className="px-6 pt-9 pb-3">
+            <div 
+              className="mb-2 flex items-center justify-between cursor-pointer" 
+              onClick={() => setSheetMode(current => current === "expanded" ? "collapsed" : "expanded")}
+            >
+              <h2 className="text-[26px] font-black text-foreground tracking-tight">مشوارك الجديد</h2>
             </div>
           </div>
 
-          <div className="flex max-h-[54vh] flex-col">
-            <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 custom-scrollbar">
+          <div className="flex max-h-[62vh] flex-col">
+            <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-6 custom-scrollbar">
               
-              <div className="rounded-[28px] border border-white/5 bg-surface-container-low p-2 shadow-inner">
-                <div className="space-y-2">
-                  <div className="relative group">
-                    <Input
-                      value={destination}
-                      onFocus={() => setActiveAutocompleteField("destination")}
-                      onChange={(event) => {
-                        setDestination(event.target.value);
-                        setDestinationLocation(null);
-                        setEstimate(null);
-                        setActiveAutocompleteField("destination");
-                      }}
-                      className="h-16 text-lg rounded-[22px] border-0 bg-white/5 px-5 shadow-none ring-0 placeholder:text-gray-400 focus-visible:bg-white/10 font-black transition-all"
-                      placeholder="رايح فين؟"
-                    />
-                  </div>
-
-                  <div className="mx-4 h-[2px] bg-white/5 rounded-full" />
-
-                  <div className="relative">
+              <div className="rounded-[24px] border border-white/5 bg-surface-container-low p-2 shadow-inner relative flex">
+                <div className="w-12 shrink-0 flex flex-col items-center justify-center py-5">
+                  <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
+                  <div className="flex-1 w-0.5 bg-white/10 my-1" />
+                  <div className="w-3 h-3 rounded-sm bg-secondary ring-4 ring-secondary/20" />
+                </div>
+                
+                <div className="flex-1 flex flex-col justify-center">
+                  <div className="relative group pe-2">
                     <Input
                       value={pickup}
                       onFocus={() => setActiveAutocompleteField("pickup")}
@@ -670,8 +643,25 @@ export function BookingForm() {
                         setEstimate(null);
                         setActiveAutocompleteField("pickup");
                       }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-sm shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5 font-bold transition-all"
+                      className="h-14 w-full border-0 bg-transparent px-2 text-sm shadow-none ring-0 placeholder:text-gray-500 font-bold transition-all focus-visible:bg-white/5 rounded-2xl"
                       placeholder="موقعك الحالي"
+                    />
+                  </div>
+
+                  <div className="mx-2 h-[1px] bg-white/5 my-0.5" />
+
+                  <div className="relative pe-2">
+                    <Input
+                      value={destination}
+                      onFocus={() => setActiveAutocompleteField("destination")}
+                      onChange={(event) => {
+                        setDestination(event.target.value);
+                        setDestinationLocation(null);
+                        setEstimate(null);
+                        setActiveAutocompleteField("destination");
+                      }}
+                      className="h-16 w-full border-0 bg-transparent px-2 text-[20px] shadow-none ring-0 placeholder:text-gray-400 font-black transition-all focus-visible:bg-white/5 rounded-2xl"
+                      placeholder="رايح فين؟"
                     />
                   </div>
                 </div>
@@ -714,23 +704,27 @@ export function BookingForm() {
                 </div>
               ) : null}
 
-              <div className="flex flex-col gap-3">
-                <p className="text-xs font-bold text-white/50 px-1">اختار المركبة</p>
-                <div className="grid grid-cols-3 gap-3">
+              <div className="flex flex-col gap-3 pt-2">
+                <p className="text-sm font-black text-white px-2">اختار المركبة</p>
+                <div className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 -mx-1 custom-scrollbar">
+                  
                   <button
                     type="button"
                     onClick={() => {
                       setTripType("normal_ride");
                       setPreferredVehicleType("car");
                     }}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-[24px] border border-white/5 p-4 transition-all duration-300 ${
+                    className={`shrink-0 flex flex-col items-start justify-between w-[125px] h-[150px] rounded-[32px] border p-5 transition-all duration-300 ${
                       tripType === "normal_ride" && preferredVehicleType === "car"
-                        ? "bg-primary/20 border-primary shadow-[0_4px_20px_-4px_rgba(61,161,132,0.3)] scale-[1.02]"
-                        : "bg-surface-container-low hover:bg-surface-container hover:scale-[1.02]"
+                        ? "border-primary bg-primary/15 shadow-[0_8px_24px_-8px_rgba(61,161,132,0.4)] ring-1 ring-primary/50"
+                        : "border-white/5 bg-surface-container-low hover:bg-surface-container"
                     }`}
                   >
-                    <span className="text-3xl drop-shadow-md">🚗</span>
-                    <span className={`text-xs font-black ${tripType === "normal_ride" && preferredVehicleType === "car" ? "text-primary" : "text-white"}`}>عربية</span>
+                    <span className="text-[48px] drop-shadow-2xl translate-x-1">🚗</span>
+                    <div className="flex flex-col items-start w-full gap-1 flex-1 justify-end">
+                      <span className="text-sm font-black text-white">عربية</span>
+                      {estimate && <span className="text-xs font-bold text-primary">{estimate.minPrice} ج.م</span>}
+                    </div>
                   </button>
 
                   <button
@@ -739,14 +733,17 @@ export function BookingForm() {
                       setTripType("normal_ride");
                       setPreferredVehicleType("tuk_tuk");
                     }}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-[24px] border border-white/5 p-4 transition-all duration-300 ${
+                    className={`shrink-0 flex flex-col items-start justify-between w-[125px] h-[150px] rounded-[32px] border p-5 transition-all duration-300 ${
                       tripType === "normal_ride" && preferredVehicleType === "tuk_tuk"
-                        ? "bg-primary/20 border-primary shadow-[0_4px_20px_-4px_rgba(61,161,132,0.3)] scale-[1.02]"
-                        : "bg-surface-container-low hover:bg-surface-container hover:scale-[1.02]"
+                        ? "border-primary bg-primary/15 shadow-[0_8px_24px_-8px_rgba(61,161,132,0.4)] ring-1 ring-primary/50"
+                        : "border-white/5 bg-surface-container-low hover:bg-surface-container"
                     }`}
                   >
-                    <span className="text-3xl drop-shadow-md">🛺</span>
-                    <span className={`text-xs font-black ${tripType === "normal_ride" && preferredVehicleType === "tuk_tuk" ? "text-primary" : "text-white"}`}>توك توك</span>
+                    <span className="text-[48px] drop-shadow-2xl translate-x-1">🛺</span>
+                    <div className="flex flex-col items-start w-full gap-1 flex-1 justify-end">
+                      <span className="text-sm font-black text-white">تكتك</span>
+                      {estimate && <span className="text-xs font-bold text-primary">{Math.max(10, estimate.minPrice * 0.7).toFixed()} ج.م</span>}
+                    </div>
                   </button>
 
                   <button
@@ -755,14 +752,17 @@ export function BookingForm() {
                       setTripType("airport_ride");
                       setPreferredVehicleType("car");
                     }}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-[24px] border border-white/5 p-4 transition-all duration-300 ${
+                    className={`shrink-0 flex flex-col items-start justify-between w-[125px] h-[150px] rounded-[32px] border p-5 transition-all duration-300 ${
                       tripType === "airport_ride"
-                        ? "bg-secondary/20 border-secondary shadow-[0_4px_20px_-4px_rgba(207,122,143,0.3)] scale-[1.02]"
-                        : "bg-surface-container-low hover:bg-surface-container hover:scale-[1.02]"
+                        ? "border-secondary bg-secondary/15 shadow-[0_8px_24px_-8px_rgba(207,122,143,0.4)] ring-1 ring-secondary/50"
+                        : "border-white/5 bg-surface-container-low hover:bg-surface-container"
                     }`}
                   >
-                    <span className="text-3xl drop-shadow-md">✈️</span>
-                    <span className={`text-[11px] font-black ${tripType === "airport_ride" ? "text-secondary" : "text-white"}`}>توصيلة مطار</span>
+                    <span className="text-[48px] drop-shadow-2xl translate-x-1">✈️</span>
+                    <div className="flex flex-col items-start w-full gap-1 flex-1 justify-end">
+                      <span className="text-[13px] font-black text-foreground leading-none">مطار</span>
+                      <span className="text-[10px] font-bold text-secondary">حجز مسبق</span>
+                    </div>
                   </button>
                 </div>
 
@@ -878,7 +878,7 @@ export function BookingForm() {
               ) : null}
             </div>
 
-            <div className="relative shrink-0 space-y-3 border-t border-white/5 bg-surface-container-high/50 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
+            <div className="relative shrink-0 space-y-3 border-t border-white/5 bg-surface-container-high/70 px-6 pb-[max(24px,env(safe-area-inset-bottom))] pt-5 backdrop-blur-md">
               <Button
                 type="button"
                 onClick={handleContinue}

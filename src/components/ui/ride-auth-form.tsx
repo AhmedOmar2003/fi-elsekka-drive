@@ -155,43 +155,53 @@ export function AuthForm({
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        {isRegister ? (
-          <Input
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 transition-all"
-            placeholder="اسمك بالكامل"
-          />
-        ) : null}
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        <div className="bg-surface-container-high/30 rounded-[28px] overflow-hidden border border-white/5 shadow-inner">
+          {isRegister ? (
+            <div className="border-b border-white/5">
+              <Input
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                className="h-16 bg-transparent border-0 rounded-none px-6 focus-visible:bg-white/5 transition-all text-[15px]"
+                placeholder="اسمك بالكامل"
+              />
+            </div>
+          ) : null}
 
-        {isRegister ? (
-          <Input
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 text-left transition-all"
-            dir="ltr"
-            placeholder="رقم الموبايل"
-          />
-        ) : null}
+          {isRegister ? (
+            <div className="border-b border-white/5">
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                className="h-16 bg-transparent border-0 rounded-none px-6 text-left focus-visible:bg-white/5 transition-all text-[15px]"
+                dir="ltr"
+                placeholder="رقم الموبايل"
+              />
+            </div>
+          ) : null}
 
-        <Input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 text-left transition-all"
-          dir="ltr"
-          placeholder="الإيميل بتاعك"
-        />
+          <div className="border-b border-white/5">
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="h-16 bg-transparent border-0 rounded-none px-6 text-left focus-visible:bg-white/5 transition-all text-[15px]"
+              dir="ltr"
+              placeholder="الإيميل بتاعك"
+            />
+          </div>
 
-        <Input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="h-14 bg-surface-container-high/50 border-white/5 focus-visible:bg-white/5 rounded-[20px] px-5 transition-all"
-          placeholder="كلمة المرور"
-        />
+          <div>
+            <Input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-16 bg-transparent border-0 rounded-none px-6 focus-visible:bg-white/5 transition-all text-[15px]"
+              placeholder="كلمة المرور"
+            />
+          </div>
+        </div>
 
         <Button
           type="submit"
