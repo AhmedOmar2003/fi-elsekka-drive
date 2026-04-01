@@ -25,11 +25,12 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                 <StatusBadge status={detail.trip.status} />
             </div>
 
-            <section className="grid gap-4 lg:grid-cols-4">
+            <section className="grid gap-4 lg:grid-cols-5">
                 <MetricPanel label="نوع المشوار" value={detail.trip.tripType} />
                 <MetricPanel label="عدد الركاب" value={String(detail.trip.passengerCount)} />
                 <MetricPanel label="عدد الشنط" value={String(detail.trip.luggageCount)} sublabel="في مشاوير المطار فقط" />
-                <MetricPanel label="السعر التقديري" value={detail.trip.estimatedPrice ? `${detail.trip.estimatedPrice} ج.م` : "لسه"} />
+                <MetricPanel label="السعر التقديري" value={detail.trip.mapEstimatedPrice ? `${detail.trip.mapEstimatedPrice} ج.م` : "لسه"} />
+                <MetricPanel label="السعر النهائي" value={detail.trip.adminSelectedPrice ? `${detail.trip.adminSelectedPrice} ج.م` : "لسه ما اتحددش"} />
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -83,6 +84,7 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
 
                 <div className="space-y-6">
                     <TripDispatchForm
+                        mapEstimatedPrice={detail.trip.mapEstimatedPrice}
                         tripId={detail.trip.id}
                         broadcastDrivers={dispatchBoard.availableDrivers.map((driver) => ({
                             id: driver.id,
@@ -147,5 +149,6 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
         </div>
     );
 }
+
 
 

@@ -98,15 +98,16 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
         </div>
     );
 }
-
 export function TripDispatchForm({
     tripId,
     broadcastDrivers,
     assignableDrivers,
+    mapEstimatedPrice,
 }: {
     tripId: string;
     broadcastDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
     assignableDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
+    mapEstimatedPrice?: number | null;
 }) {
     const router = useRouter();
     const hasBroadcastDrivers = broadcastDrivers.length > 0;
@@ -130,11 +131,16 @@ export function TripDispatchForm({
                 <Input
                     value={price}
                     onChange={(event) => setPrice(event.target.value)}
-                    placeholder="السعر اللي الإدارة اعتمدته"
+                    placeholder="السعر النهائي اللي الإدارة اعتمدته"
                     className="bg-white/5 text-white"
                     dir="ltr"
                     inputMode="decimal"
                 />
+            </div>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-sm text-white/80">
+                السعر التقديري من الخريطة: <span className="font-black text-primary">{mapEstimatedPrice ? `${mapEstimatedPrice} ج.م` : "غير متاح"}</span>.
+                السعر اللي هتكتبه هنا هو السعر النهائي اللي هيظهر للعميل والكابتن بعد التسعير.
             </div>
 
             {isDirectAssign ? (
@@ -676,3 +682,4 @@ export function DriverCredentialsForm({
         </form>
     );
 }
+
