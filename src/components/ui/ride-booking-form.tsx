@@ -640,19 +640,33 @@ export function BookingForm() {
 
           <div className="flex max-h-[48vh] flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-              <Select
-                value={tripType}
-                onChange={(event) =>
-                  setTripType(
-                    event.target.value === "airport_ride"
-                      ? "airport_ride"
-                      : "normal_ride"
-                  )
-                }
-              >
-                <option value="normal_ride">مشوار عادي</option>
-                <option value="airport_ride">مشوار مطار</option>
-              </Select>
+              {/* Trip Type Selector */}
+              <div className="flex gap-2 rounded-full bg-surface-container-low p-1 border border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setTripType("normal_ride")}
+                  className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all duration-300 ${
+                    tripType === "normal_ride" 
+                      ? "bg-primary text-white shadow-md" 
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  مشوار عادي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTripType("airport_ride")}
+                  className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all duration-300 flex items-center justify-center gap-1.5 ${
+                    tripType === "airport_ride" 
+                      ? "bg-secondary text-white shadow-md relative overflow-hidden" 
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {tripType === "airport_ride" && <span className="absolute inset-0 bg-white/10 animate-pulse"></span>}
+                  <PlaneTakeoff className="w-4 h-4" />
+                  مشوار مطار
+                </button>
+              </div>
 
               <div className="rounded-[28px] border border-white/5 bg-surface-container-low p-2 shadow-inner">
                 <div className="space-y-2">
@@ -666,8 +680,8 @@ export function BookingForm() {
                         setEstimate(null);
                         setActiveAutocompleteField("pickup");
                       }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
-                      placeholder="منين هتتحرك؟"
+                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5 font-bold transition-all"
+                      placeholder="موقعك الحالي"
                     />
                   </div>
 
@@ -683,7 +697,7 @@ export function BookingForm() {
                         setEstimate(null);
                         setActiveAutocompleteField("destination");
                       }}
-                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5"
+                      className="h-14 rounded-[20px] border-0 bg-transparent px-5 text-base shadow-none ring-0 placeholder:text-gray-500 focus-visible:bg-white/5 font-bold transition-all"
                       placeholder="رايح فين؟"
                     />
                   </div>
@@ -727,7 +741,9 @@ export function BookingForm() {
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-black text-white px-1">اختار وسيلة المشوار</p>
+                <div className="grid grid-cols-2 gap-3">
                 <div className="relative">
                   <UserRound className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
                   <Input
@@ -747,24 +763,35 @@ export function BookingForm() {
                     <p className="mt-1 text-sm font-black text-white">عربية فقط</p>
                   </div>
                 ) : (
-                  <Select
-                    value={preferredVehicleType}
-                    onChange={(event) => {
-                      setPreferredVehicleType(
-                        event.target.value === "car" ||
-                          event.target.value === "tuk_tuk"
-                          ? event.target.value
-                          : "any"
-                      );
-                      setEstimate(null);
-                    }}
-                  >
-                    <option value="any">الأقرب والمتاح</option>
-                    <option value="car">عربية</option>
-                    <option value="tuk_tuk">توك توك</option>
-                  </Select>
+                  <div className="relative border border-white/5 rounded-[18px] bg-surface-container-low overflow-hidden">
+                    <Select
+                      value={preferredVehicleType}
+                      onChange={(event) => {
+                        setPreferredVehicleType(
+                          event.target.value === "car" ||
+                            event.target.value === "tuk_tuk"
+                            ? event.target.value
+                            : "any"
+                        );
+                        setEstimate(null);
+                      }}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                    >
+                      <option value="any">الأقرب والمتاح</option>
+                      <option value="car">عربية</option>
+                      <option value="tuk_tuk">توك توك</option>
+                    </Select>
+                    <div className="h-12 flex items-center px-4 justify-between pointer-events-none">
+                      <span className="text-sm text-white font-bold">
+                        {preferredVehicleType === "any" ? "الأقرب والمتاح" : 
+                         preferredVehicleType === "car" ? "عربية" : "توك توك"}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-white/50" />
+                    </div>
+                  </div>
                 )}
               </div>
+            </div>
 
               {tripType === "airport_ride" ? (
                 <div className="grid gap-3 rounded-[24px] border border-secondary/20 bg-secondary/10 p-4 animate-fade-in">
@@ -869,9 +896,9 @@ export function BookingForm() {
                 type="button"
                 onClick={handleContinue}
                 isLoading={isEstimating}
-                className="h-[58px] w-full rounded-[24px] bg-primary text-[17px] font-black text-white hover:bg-primary-hover"
+                className="h-[60px] w-full rounded-[24px] bg-primary text-[18px] font-black text-white transition-all active:scale-[0.98] hover:bg-primary-hover shadow-[var(--shadow-glow-primary)] flex items-center justify-center gap-2"
               >
-                راجع الطلب وكمله
+                اطلب الكابتن
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </div>

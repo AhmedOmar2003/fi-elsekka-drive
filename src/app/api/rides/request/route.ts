@@ -5,10 +5,9 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
-import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 function normalizeVehicleType(value: unknown) {
-  return value === "car" || value === "tuk_tuk" ? value : "any";
+  return value === "car" || value === "tuk_tuk" ? value : "car";
 }
 
 export async function POST(request: Request) {
@@ -35,11 +34,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const tripType =
-      body.tripType === "airport_ride" ? "airport_ride" : "normal_ride";
+    const tripType = body.tripType === "airport_ride" ? "airport_ride" : "normal_ride";
     const passengerCount = Math.max(1, Number(body.passengerCount || 1));
     const luggageCount = Math.max(0, Number(body.luggageCount || 0));
-    const preferredVehicleType = normalizeVehicleType(body.preferredVehicleType);
+    const preferredVehicleType =
+      tripType === "airport_ride" ? "car" : normalizeVehicleType(body.preferredVehicleType);
     const estimate = body.estimate;
 
     if (!estimate?.pickup || !estimate?.destination) {
@@ -62,16 +61,10 @@ export async function POST(request: Request) {
         p_destination_latitude: estimate.destination.latitude,
         p_destination_longitude: estimate.destination.longitude,
         p_airport_name: tripType === "airport_ride" ? body.airportName || null : null,
-        p_airport_terminal:
-          tripType === "airport_ride" ? body.airportTerminal || null : null,
-        p_airport_ride_mode:
-          tripType === "airport_ride" ? body.airportRideMode || null : null,
-        p_flight_number:
-          tripType === "airport_ride" ? body.flightNumber || null : null,
-        p_flight_time:
-          tripType === "airport_ride" && body.flightTime
-            ? body.flightTime
-            : null,
+        p_airport_terminal: tripType === "airport_ride" ? body.airportTerminal || null : null,
+        p_airport_ride_mode: tripType === "airport_ride" ? body.airportRideMode || null : null,
+        p_flight_number: tripType === "airport_ride" ? body.flightNumber || null : null,
+        p_flight_time: tripType === "airport_ride" && body.flightTime ? body.flightTime : null,
         p_luggage_count: luggageCount,
         p_passenger_count: passengerCount,
         p_rider_notes: body.notes || null,
@@ -83,14 +76,14 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
-    const pickupCity = estimate.pickup.city || estimate.destination.city || null;
+    const estimatedPrice = Number(estimate.suggestedPrice || estimate.minPrice || 0);
 
     const { error: tripMetaError } = await serviceClient
       .from("trips")
       .update({
-        estimated_price: Number(estimate.suggestedPrice || 0),
+        estimated_price: estimatedPrice,
         search_started_at: now,
-        status: "searching_driver",
+        status: "pending",
         metadata: {
           route_distance_km: estimate.distanceKm,
           route_duration_minutes: estimate.durationMinutes,
@@ -101,6 +94,8 @@ export async function POST(request: Request) {
           destination_city: estimate.destination.city,
           pickup_area: estimate.pickup.area,
           destination_area: estimate.destination.area,
+          dispatch_mode: "admin_dispatch_only",
+          awaiting_admin_dispatch: true,
         },
       })
       .eq("id", tripId);
@@ -109,166 +104,57 @@ export async function POST(request: Request) {
 
     await serviceClient.from("trip_status_history").insert({
       trip_id: tripId,
-      status: "searching_driver",
+      status: "pending",
       changed_by: auth.profile.user.id,
-      note: "العميل أنشأ المشوار وبدأ البحث عن كابتن.",
+      note: "العميل أرسل الطلب والخط السير اتحدد. الطلب دلوقتي في انتظار تسعير وإسناد الإدارة.",
       metadata: {
         distance_km: estimate.distanceKm,
         duration_minutes: estimate.durationMinutes,
+        preferred_vehicle_type: preferredVehicleType,
       },
     });
 
-    const { data: candidateDrivers, error: driversError } = await serviceClient
-      .from("driver_profiles")
-      .select(
-        "id, working_city, working_area, availability_status, is_accepting_offers, application_status, verification_status"
-      )
-      .eq("availability_status", "online")
-      .eq("is_accepting_offers", true)
-      .eq("application_status", "approved")
-      .eq("verification_status", "approved");
+    const { data: admins, error: adminsError } = await serviceClient
+      .from("profiles")
+      .select("id")
+      .eq("role", "admin")
+      .eq("account_status", "active");
 
-    if (driversError) throw driversError;
+    if (adminsError) throw adminsError;
 
-    const driverIds = (candidateDrivers || []).map((driver) => driver.id);
-
-    const [{ data: profiles }, { data: vehicles }] = await Promise.all([
-      driverIds.length
-        ? serviceClient
-            .from("profiles")
-            .select("id, account_status, full_name")
-            .in("id", driverIds)
-        : Promise.resolve({ data: [] as any[] }),
-      driverIds.length
-        ? serviceClient
-            .from("vehicles")
-            .select(
-              "id, driver_id, vehicle_type, approval_status, is_primary, is_active, brand, model"
-            )
-            .in("driver_id", driverIds)
-            .eq("approval_status", "approved")
-            .eq("is_primary", true)
-            .eq("is_active", true)
-        : Promise.resolve({ data: [] as any[] }),
-    ]);
-
-    const activeProfiles = new Map(
-      (profiles || [])
-        .filter((profile) => profile.account_status === "active")
-        .map((profile) => [profile.id, profile])
-    );
-
-    const primaryVehicleByDriver = new Map(
-      (vehicles || []).map((vehicle) => [vehicle.driver_id, vehicle])
-    );
-
-    const rankedDrivers = (candidateDrivers || [])
-      .filter((driver) => activeProfiles.has(driver.id))
-      .map((driver) => ({
-        ...driver,
-        vehicle: primaryVehicleByDriver.get(driver.id) || null,
-        score:
-          (pickupCity &&
-          driver.working_city &&
-          driver.working_city.toLowerCase().includes(String(pickupCity).toLowerCase())
-            ? 2
-            : 0) +
-          (driver.working_area &&
-          estimate.pickup.area &&
-          driver.working_area.toLowerCase().includes(String(estimate.pickup.area).toLowerCase())
-            ? 1
-            : 0),
-      }))
-      .filter((driver) => {
-        if (!driver.vehicle) return false;
-        if (preferredVehicleType === "any") return true;
-        return driver.vehicle.vehicle_type === preferredVehicleType;
-      })
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 8);
-
-    if (rankedDrivers.length > 0) {
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-
-      const offersPayload = rankedDrivers.map((driver) => ({
+    const adminNotifications = (admins || []).map((admin) => ({
+      recipient_user_id: admin.id,
+      type: "admin_message",
+      title: "طلب مشوار جديد جاهز للتوزيع",
+      body: `مشوار من ${estimate.pickup.label} إلى ${estimate.destination.label}. حدّد السعر النهائي وأسنده للكباتن.`,
+      payload: {
         trip_id: tripId,
-        driver_id: driver.id,
-        vehicle_id: driver.vehicle?.id || null,
-        offer_status: "offered",
-        offered_at: now,
-        expires_at: expiresAt,
-        metadata: {
-          preferred_vehicle_type: preferredVehicleType,
-          routed_by: "customer_auto_dispatch",
-        },
-      }));
+        pickup_label: estimate.pickup.label,
+        destination_label: estimate.destination.label,
+        trip_type: tripType,
+        preferred_vehicle_type: preferredVehicleType,
+        suggested_price: estimatedPrice,
+      },
+      related_trip_id: tripId,
+    }));
 
-      const notificationsPayload = rankedDrivers.map((driver) => ({
-        recipient_user_id: driver.id,
-        type: "trip_offered",
-        title: "فيه مشوار جديد قريب منك",
-        body: `مشوار من ${estimate.pickup.label} إلى ${estimate.destination.label}. راجعه بسرعة قبل ما يروح لغيرك.`,
-        payload: {
-          trip_id: tripId,
-          pickup_label: estimate.pickup.label,
-          destination_label: estimate.destination.label,
-          estimated_price: estimate.suggestedPrice,
-        },
-        related_trip_id: tripId,
-      }));
-
-      const [{ error: offersError }, { error: notificationsError }] =
-        await Promise.all([
-          serviceClient.from("trip_offers").insert(offersPayload),
-          serviceClient.from("notifications").insert(notificationsPayload),
-        ]);
-
-      if (offersError) throw offersError;
-      if (notificationsError) throw notificationsError;
-
-      await Promise.all(
-        rankedDrivers.map((driver) =>
-          sendPushToUserDevices(serviceClient, driver.id, {
-            title: "وصلك طلب مشوار جديد",
-            message: `مشوار من ${estimate.pickup.label} إلى ${estimate.destination.label}. افتح التطبيق ورد بسرعة.`,
-            link: "/captain/offers",
-            requireInteraction: true,
-            topic: "ride-offer",
-          })
-        )
-      );
-
-      await serviceClient
-        .from("trips")
-        .update({
-          status: "offered",
-          offered_at: now,
-          offered_driver_count: rankedDrivers.length,
-        })
-        .eq("id", tripId);
-
-      await serviceClient.from("trip_status_history").insert({
-        trip_id: tripId,
-        status: "offered",
-        changed_by: auth.profile.user.id,
-        note: "تم إرسال المشوار للكباتن المتاحين.",
-        metadata: {
-          offered_driver_count: rankedDrivers.length,
-        },
-      });
+    if (adminNotifications.length > 0) {
+      const { error: adminsNotifyError } = await serviceClient
+        .from("notifications")
+        .insert(adminNotifications);
+      if (adminsNotifyError) throw adminsNotifyError;
     }
 
     await serviceClient.from("notifications").insert({
       recipient_user_id: auth.profile.user.id,
       type: "trip_created",
       title: "استلمنا طلب مشوارك",
-      body:
-        rankedDrivers.length > 0
-          ? "بنبعت الطلب دلوقتي للكباتن المتاحين، وأول ما حد يقبل هتوصلك الحالة."
-          : "استلمنا الطلب ولسه بندور على كابتن مناسب قريب منك.",
+      body: "تم تحديد المسافة والمدة والسعر المقترح، والطلب الآن عند الإدارة لتسعيره وإسناده لكابتن مناسب.",
       payload: {
         trip_id: tripId,
-        offered_driver_count: rankedDrivers.length,
+        estimated_price: estimatedPrice,
+        route_distance_km: estimate.distanceKm,
+        route_duration_minutes: estimate.durationMinutes,
       },
       related_trip_id: tripId,
     });
@@ -276,8 +162,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       tripId,
-      status: rankedDrivers.length > 0 ? "offered" : "searching_driver",
-      offeredDriverCount: rankedDrivers.length,
+      status: "pending",
+      offeredDriverCount: 0,
     });
   } catch (error: any) {
     return NextResponse.json(

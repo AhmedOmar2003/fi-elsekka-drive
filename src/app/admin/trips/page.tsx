@@ -13,7 +13,6 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
     const tripType = typeof params.tripType === "string" ? params.tripType : "all";
     const city = typeof params.city === "string" ? params.city : "";
     const driverId = typeof params.driverId === "string" ? params.driverId : "all";
-    const manualMode = typeof params.manualMode === "string" ? params.manualMode : "all";
 
     const [drivers, trips] = await Promise.all([
         fetchDriversList({}),
@@ -22,42 +21,29 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
             tripType,
             city: city || undefined,
             driverId,
-            manualMode,
         }),
     ]);
 
-    const manualTrips = trips.filter((trip) => trip.manualRequest);
+    const pendingTrips = trips.filter((trip) => trip.status === "pending");
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap gap-3">
-                <Link href="/admin/trips" className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${manualMode === "all" ? "bg-primary text-white" : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}>
-                    كل المشاوير
-                </Link>
-                <Link href="/admin/trips?manualMode=manual" className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${manualMode === "manual" ? "bg-primary text-white" : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}>
-                    طلبات يدوية
-                </Link>
-                <Link href="/admin/trips?manualMode=mapped" className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${manualMode === "mapped" ? "bg-primary text-white" : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}>
-                    طلبات بالخريطة
-                </Link>
-            </div>
-
-            <SectionCard title="إدارة المشاوير" subtitle="راجع وفلتر وافتح تفاصيل أي طلب مشوار في النظام">
+            <SectionCard title="إدارة المشاوير" subtitle="كل الطلبات بتيجي هنا الأول، وبعدها الإدارة تحدد السعر النهائي وتعمل بث للكباتن أو إسناد مباشر">
                 <div className="grid gap-4 md:grid-cols-3">
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
-                        <p className="text-xs text-white/45">طلبات يدوية محتاجة مراجعة</p>
-                        <p className="mt-2 text-2xl font-black text-white">{manualTrips.length}</p>
-                        <p className="mt-2 text-sm text-white/60">دي الطلبات اللي محتاجة تحدد لها سعر ومدة وكابتن من الإدارة.</p>
+                        <p className="text-xs text-white/45">طلبات في انتظار الإدارة</p>
+                        <p className="mt-2 text-2xl font-black text-white">{pendingTrips.length}</p>
+                        <p className="mt-2 text-sm text-white/60">دي المشاوير اللي لسه محتاجة تسعير نهائي ثم بث أو إسناد للكباتن.</p>
                     </div>
                     <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/5 p-4 md:col-span-2">
-                        <p className="text-sm font-black text-white">محتاج تحديد سعر ومدة ومندوب</p>
+                        <p className="text-sm font-black text-white">جاهز للتسعير والإسناد</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                            {manualTrips.slice(0, 4).map((trip) => (
+                            {pendingTrips.slice(0, 4).map((trip) => (
                                 <Link key={trip.id} href={`/admin/trips/${trip.id}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
                                     {trip.customerName} · {trip.pickup}
                                 </Link>
                             ))}
-                            {manualTrips.length === 0 ? <p className="text-sm text-white/55">مفيش طلبات يدوية جديدة دلوقتي.</p> : null}
+                            {pendingTrips.length === 0 ? <p className="text-sm text-white/55">مفيش طلبات جديدة منتظرة الإدارة دلوقتي.</p> : null}
                         </div>
                     </div>
                 </div>
@@ -95,11 +81,6 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                                 </option>
                             ))}
                         </Select>
-                        <Select name="manualMode" defaultValue={manualMode} className="bg-white/5 text-white">
-                            <option value="all">كل أنواع الطلب</option>
-                            <option value="manual">طلبات يدوية</option>
-                            <option value="mapped">طلبات بالخريطة</option>
-                        </Select>
                         <Input name="city" defaultValue={city} placeholder="فلتر حسب المدينة" className="bg-white/5 text-white" />
                         <button className="rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white">تطبيق الفلاتر</button>
                     </FilterBar>
@@ -126,12 +107,7 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                                 </div>
                             ),
                             driver: trip.driverName || <span className="text-white/40">لسه من غير كابتن</span>,
-                            type: (
-                                <div className="space-y-1">
-                                    <span className="block text-white/70">{trip.tripType}</span>
-                                    {trip.manualRequest ? <span className="inline-flex rounded-full bg-amber-400/15 px-2 py-1 text-[11px] font-bold text-amber-300">طلب يدوي</span> : null}
-                                </div>
-                            ),
+                            type: <span className="text-white/70">{trip.tripType}</span>,
                             route: (
                                 <div>
                                     <p className="text-white/70">{trip.pickup}</p>
@@ -153,4 +129,3 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
         </div>
     );
 }
-

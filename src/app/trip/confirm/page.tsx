@@ -174,9 +174,9 @@ export default function TripConfirmationPage() {
         <div className="mt-auto rounded-[32px] border border-white/10 bg-surface-container/95 p-5 shadow-[var(--shadow-premium)] backdrop-blur-2xl">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-black text-foreground">راجع المشوار قبل الإرسال</h1>
+              <h1 className="text-2xl font-black text-foreground">راجع مشوارك</h1>
               <p className="mt-1 text-sm leading-7 text-white/60">
-                الطلب هيروح لفريق التشغيل الأول، وبعدها هيتبعت للكباتن القريبين علشان يختاروا.
+                الطلب هيتبعت للكباتن القريبين عشان يقبلوه على طول.
               </p>
             </div>
             <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-primary/20 bg-primary/10 text-primary">
@@ -323,16 +323,16 @@ export default function TripConfirmationPage() {
             ) : null}
 
             <div className="flex gap-3">
-              <Button asChild variant="secondary" className="h-14 rounded-[20px] px-5">
-                <Link href="/book">تعديل</Link>
+              <Button asChild variant="secondary" className="h-[60px] rounded-[24px] px-6 text-base shadow-sm">
+                <Link href="/book">عدّل</Link>
               </Button>
               <Button
                 type="button"
                 isLoading={isSubmitting}
                 onClick={handleConfirm}
-                className="h-14 flex-1 rounded-[20px] text-base font-black"
+                className="h-[60px] flex-1 rounded-[24px] text-lg font-black shadow-[var(--shadow-glow-primary)] active:scale-[0.98]"
               >
-                {user ? "ابعت الطلب للكباتن" : "ادخل وكمل الطلب"}
+                {user ? "أكد المشوار" : "سجل وكمل من هنا"}
               </Button>
             </div>
           </div>
