@@ -99,6 +99,25 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "driver_arrived" });
     }
 
+    if (action === "customer_cancel_trip") {
+      if (!isCustomer && auth.profile.role !== "admin") {
+        return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يلغوا المشوار." }, { status: 403 });
+      }
+
+      if (ALREADY_DONE_STATUSES.has(String(trip.status))) {
+        return NextResponse.json({ error: "المشوار بدأ بالفعل ولا يمكن إلغاؤه من التطبيق." }, { status: 409 });
+      }
+
+      const { error: cancelError } = await serviceClient.rpc('cancel_trip_request', {
+        p_trip_id: trip.id,
+        p_reason: 'تم الإلغاء بواسطة العميل من التطبيق.'
+      });
+
+      if (cancelError) throw cancelError;
+
+      return NextResponse.json({ success: true, status: "cancelled" });
+    }
+
     if (action === "customer_report_driver_delay") {
       if (!isCustomer) {
         return NextResponse.json({ error: "العميل فقط يقدر يبلغ بتأخير الكابتن." }, { status: 403 });
