@@ -619,7 +619,7 @@ export async function fetchDriversList(filters: {
 
     if (filters.approvalStatus && filters.approvalStatus !== "all") query = query.eq("application_status", filters.approvalStatus);
     if (filters.city) query = query.ilike("working_city", `%${filters.city}%`);
-    if (filters.availabilityStatus && filters.availabilityStatus !== "all") query = query.eq("availability_status", filters.availabilityStatus);
+    // التواجد النهائي بيتحسب لاحقًا من حالة الرحلات الفعلية، علشان نقدر نميز الكابتن المشغول.
 
     const { data } = await query;
     let rows = (data || []) as Array<Record<string, unknown>>;
@@ -694,7 +694,7 @@ export async function fetchDriverDetail(id: string) {
             ? {
                   applicationStatus: String(driverProfile.application_status),
                   verificationStatus: String(driverProfile.verification_status),
-                  availabilityStatus: String(driverProfile.availability_status),
+                  availabilityStatus: (trips || []).some((trip) => ["accepted", "driver_on_the_way", "driver_arrived", "trip_started"].includes(String(trip.status))) ? "busy" : String(driverProfile.availability_status),
                   workingCity: String(driverProfile.working_city || ""),
                   workingArea: (driverProfile.working_area as string | null) || null,
                   operationalNotes: (driverProfile.operational_notes as string | null) || null,
@@ -1011,6 +1011,8 @@ export async function fetchStaffSnapshot() {
         lastLogin: (item.last_login_at as string | null) || null,
     }));
 }
+
+
 
 
 
