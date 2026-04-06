@@ -240,6 +240,29 @@ export async function PATCH(request: NextRequest, context: Context) {
                 )
             );
 
+            if (trip.customer_id) {
+                await supabase.from("notifications").insert({
+                    recipient_user_id: trip.customer_id,
+                    type: "trip_offered",
+                    title: "عرضنا رحلتك على الكباتن",
+                    body: `دلوقتي رحلتك اتبعت لـ ${rankedDrivers.length} كابتن مناسبين. أول ما حد يقبل هنبلّغك فورًا.`,
+                    payload: {
+                        trip_id: id,
+                        offered_driver_count: rankedDrivers.length,
+                        estimated_price: broadcastPrice,
+                        dispatch_mode: "admin_broadcast",
+                    },
+                    related_trip_id: id,
+                });
+
+                await sendPushToUserDevices(supabase, trip.customer_id, {
+                    title: "عرضنا رحلتك على الكباتن",
+                    message: "رحلتك اتبعت للكباتن المناسبين، وأول ما كابتن يقبل هنبلغك فورًا.",
+                    link: "/trip/live",
+                    topic: "customer-trip-offered",
+                });
+            }
+
             return NextResponse.json({ success: true, offeredDriverCount: rankedDrivers.length, price: broadcastPrice });
         }
 
@@ -256,7 +279,7 @@ export async function PATCH(request: NextRequest, context: Context) {
 
             const { data: trip, error: tripError } = await supabase
                 .from("trips")
-                .select("id, status, pickup_label, destination_label, metadata")
+                .select("id, status, customer_id, pickup_label, destination_label, metadata")
                 .eq("id", id)
                 .single();
 
@@ -354,6 +377,29 @@ export async function PATCH(request: NextRequest, context: Context) {
                 topic: "admin-direct-offer",
             });
 
+            if (trip.customer_id) {
+                await supabase.from("notifications").insert({
+                    recipient_user_id: trip.customer_id,
+                    type: "trip_offered",
+                    title: "رشحنالك كابتن مناسب",
+                    body: "رحلتك اتعرضت على كابتن مناسب وبنستنى رده دلوقتي. أول ما يوافق هيوصلك إشعار فورًا.",
+                    payload: {
+                        trip_id: id,
+                        estimated_price: price ?? ((metadata.map_estimated_price as number | null) ?? null),
+                        dispatch_mode: "admin_direct_offer",
+                        direct_driver_id: driverId,
+                    },
+                    related_trip_id: id,
+                });
+
+                await sendPushToUserDevices(supabase, trip.customer_id, {
+                    title: "رشحنالك كابتن مناسب",
+                    message: "رحلتك اتعرضت على كابتن مناسب، وأول ما يوافق هنوصل لك خبر فورًا.",
+                    link: "/trip/live",
+                    topic: "customer-direct-offer",
+                });
+            }
+
             return NextResponse.json({ success: true });
         }
 
@@ -417,6 +463,7 @@ export async function PATCH(request: NextRequest, context: Context) {
         return NextResponse.json({ error: error.message || "Unexpected trip action failure" }, { status: 500 });
     }
 }
+
 
 
 
