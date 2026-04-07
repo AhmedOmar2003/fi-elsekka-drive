@@ -1,0 +1,44 @@
+<svg width="1600" height="2000" viewBox="0 0 1600 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="200" y1="140" x2="1400" y2="1880" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08100E"/>
+      <stop offset="1" stop-color="#11231B"/>
+    </linearGradient>
+    <linearGradient id="card" x1="280" y1="240" x2="1320" y2="1720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12211B"/>
+      <stop offset="1" stop-color="#0D1714"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="2000" fill="url(#bg)"/>
+  <circle cx="1290" cy="220" r="180" fill="#0FAE7D" fill-opacity="0.12"/>
+  <circle cx="260" cy="1660" r="220" fill="#E58EAA" fill-opacity="0.08"/>
+
+  <rect x="280" y="220" width="1040" height="1560" rx="60" fill="url(#card)" stroke="#24362E" stroke-width="2"/>
+
+  <rect x="360" y="310" width="880" height="112" rx="56" fill="#10231D" stroke="#214136"/>
+  <text x="800" y="382" text-anchor="middle" fill="#4BC0A1" font-size="42" font-family="Arial, sans-serif" font-weight="700">
+    في السكة | تنزيل التطبيق
+  </text>
+
+  <text x="800" y="660" text-anchor="middle" fill="#F6F8F7" font-size="118" font-family="Arial, sans-serif" font-weight="700">
+    في السكة
+  </text>
+  <text x="800" y="760" text-anchor="middle" fill="#C7D1CC" font-size="56" font-family="Arial, sans-serif" font-weight="600">
+    تطبيق المشاوير للموبايل
+  </text>
+  <text x="800" y="900" text-anchor="middle" fill="#94A29C" font-size="36" font-family="Arial, sans-serif" font-weight="400">
+    افتح صفحة التثبيت أو استخدم البوستر الديناميكي الجديد
+  </text>
+
+  <rect x="470" y="980" width="660" height="660" rx="44" fill="white"/>
+  <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAMgAQMAAADhvpQrAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAADgUlEQVR4nO3dTXLkKBAGUBy9qGUdQUfR0UpHq6PoCLP0YsJqeyAQibDb1T8ezcT7VmVAPJYZREpO6Sty28ZZ8vTrr7/q2m+vf93rY2V8yuvveXqUFwgEAoFAIBAI5HFk36XZ7BW55DWv00/51995+rI/nweedmTp95ogEAgEAoFAIJBzI/tzcfU+vuaBedueU2oeW9852/a2OwQCgUAgEAgE8ruRWAuv9eL3Oe953f6phae8GQQCgUAgEAgE8j9CUt2srC7TTT44GwQCgUAgEAgE8stISLN6R1KthbdwhsNjMRAIBAKBQCAQyImRYQ7IlFt550GPRNPKOwoEAoFAIBAIBPIo8ulM4Y2zpR1/YBcIBAKBQCAQCOQ0yK0vj++DyrnpkThkDR9nuOV6fGs7gCEQCAQCgUAgkEeR1L46VpAmW9/dMNd74Y+yr59KqQyBQCAQCAQCgZwNufXNDiVL//WFrZ6h3Atfw2Yp1OkpBgKBQCAQCAQC+Skk1dJ4rm0KKbWfV1jzwFzPkPqzlXvhLZxthUAgEAgEAoFAToqEvI3e+x6JWHDHHHYIZxu3+EIgEAgEAoFAIJ9BrnlozX/N4c2yffU0+vpCarsehvfCU9MjAYFAIBAIBAKBnAx5yz5/HxTcKSBN8tTwXng7VvUQCAQCgUAgEMjnkfjG2Xurp1AjL/Vsa3+d/Fw3btsXIBAIBAKBQCCQsyFlszrR9OpewngKhfjSnu3YcLGfLUEgEAgEAoFAID+NhBzaF96yhl1u+b543+xwtmstocf/SA0CgUAgEAgEAvn3kbg69T25++rjvXBOuRcueHxsfCQIBAKBQCAQCOQzSN5lC6tLH0JE5v6Nsw/Sti9AIBAIBAKBQCCnRo4XvFu7WezVLT0Sqb7W1qRM57xAIBAIBAKBQCAPIh/kEnZZM3IfLHwK45dehEAgEAgEAoFATonc+qGSpe/JLZnr9DWsv+czLC3S9khAIBAIBAKBQCCPIYc+hLI6ZurfRNs7gAuS9unw2AsEAoFAIBAIBHJiJKyOlXPs9N0e6JF4gUAgEAgEAoFA/iBybF8YPdYkiBAIBAKBQCAQyH8RSX3mrcs6KrjD9PhIEAgEAoFAIBDID5GQiMRW3tTfF6eALHlka0toCAQCgUAgEAjkrMgwAWlyz+NL7ZGY6hm+7au6s0EgEAgEAoFAICdEviLfAXSLZvzfigbMAAAAAElFTkSuQmCC" x="525" y="1035" width="550" height="550"/>
+  <text x="800" y="1710" text-anchor="middle" fill="#94A29C" font-size="30" font-family="Arial, sans-serif" font-weight="400">
+    اعمل Scan من الموبايل وافتح صفحة التثبيت مباشرة
+  </text>
+
+  <rect x="420" y="1810" width="760" height="78" rx="39" fill="#10231D" stroke="#214136"/>
+  <text x="800" y="1859" text-anchor="middle" fill="#D5DDD8" font-size="28" font-family="Arial, sans-serif" font-weight="500">
+    ثبت التطبيق على موبايلك واستخدمه كتجربة PWA
+  </text>
+</svg>
