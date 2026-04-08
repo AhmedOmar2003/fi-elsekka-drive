@@ -11,7 +11,8 @@ export async function POST(request: Request) {
       body.tripType === "airport_ride" ? "airport_ride" : "normal_ride";
     const preferredVehicleType =
       body.preferredVehicleType === "car" ||
-      body.preferredVehicleType === "tuk_tuk"
+      body.preferredVehicleType === "tuk_tuk" ||
+      body.preferredVehicleType === "mini_bus"
         ? body.preferredVehicleType
         : "any";
     const pickupLocation = body.pickupLocation as GeocodedLocation | null | undefined;

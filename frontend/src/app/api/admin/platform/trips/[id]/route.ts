@@ -13,14 +13,14 @@ type DriverCandidate = {
     workingCity: string | null;
     workingArea: string | null;
     vehicleId: string | null;
-    vehicleType: "car" | "tuk_tuk" | null;
+    vehicleType: "car" | "tuk_tuk" | "mini_bus" | null;
     vehicleLabel: string | null;
     score: number;
 };
 
 function normalizePreferredVehicleType(value: unknown, tripType: string) {
     if (tripType === "airport_ride") return "car";
-    return value === "car" || value === "tuk_tuk" ? value : "any";
+    return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "any";
 }
 
 async function fetchEligibleDriversForTrip(
@@ -81,7 +81,7 @@ async function fetchEligibleDriversForTrip(
                 workingCity: driver.working_city as string | null,
                 workingArea: driver.working_area as string | null,
                 vehicleId: vehicle ? String(vehicle.id) : null,
-                vehicleType: vehicle ? (String(vehicle.vehicle_type) as "car" | "tuk_tuk") : null,
+                vehicleType: vehicle ? (String(vehicle.vehicle_type) as "car" | "tuk_tuk" | "mini_bus") : null,
                 vehicleLabel: vehicle ? `${String(vehicle.brand)} ${String(vehicle.model)} · ${String(vehicle.vehicle_type)}` : null,
                 score: cityScore + areaScore,
             } satisfies DriverCandidate;

@@ -7,7 +7,7 @@ import {
 } from "@/lib/ride-server-auth";
 
 function normalizeVehicleType(value: unknown) {
-  return value === "car" || value === "tuk_tuk" ? value : "car";
+  return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "car";
 }
 
 export async function POST(request: Request) {
