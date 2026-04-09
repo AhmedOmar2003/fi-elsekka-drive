@@ -99,6 +99,82 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "driver_arrived" });
     }
 
+    if (action === "customer_confirm_price") {
+      if (!isCustomer && auth.profile.role !== "admin") {
+        return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يؤكدوا السعر." }, { status: 403 });
+      }
+
+      const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+      const hasQuotedPrice =
+        Number((metadata["admin_selected_price"] as number?) ?? 0) > 0;
+
+      if (!hasQuotedPrice) {
+        return NextResponse.json({ error: "لسه مفيش سعر نهائي من الإدارة لتأكيده." }, { status: 409 });
+      }
+
+      if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed"].includes(String(trip.status))) {
+        return NextResponse.json({ success: true, status: trip.status });
+      }
+
+      const nextStatus = String(trip.status) == "offered" ? "offered" : "searching_driver";
+      const nextMetadata = {
+        ...metadata,
+        awaiting_admin_dispatch: false,
+        customer_price_confirmed: true,
+        customer_price_confirmed_at: now,
+      };
+
+      const { error: updateError } = await serviceClient
+        .from("trips")
+        .update({
+          status: nextStatus,
+          updated_at: now,
+          metadata: nextMetadata,
+        })
+        .eq("id", trip.id);
+      if (updateError) throw updateError;
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: nextStatus,
+        changed_by: auth.profile.user.id,
+        note: "العميل وافق على السعر النهائي، والرحلة أصبحت جاهزة لتوزيع الإدارة.",
+        metadata: {
+          admin_selected_price: metadata["admin_selected_price"] ?? null,
+        },
+      });
+      if (historyError) throw historyError;
+
+      const { data: admins } = await serviceClient
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("account_status", "active")
+        .limit(100);
+
+      const adminNotifications = (admins || []).map((admin) => ({
+        recipient_user_id: admin.id,
+        type: "admin_message",
+        title: "العميل وافق على السعر",
+        body: "العميل أكد السعر النهائي، والرحلة الآن جاهزة لبدء توزيعها على الكباتن.",
+        payload: {
+          trip_id: trip.id,
+          action: "customer_confirm_price",
+          admin_selected_price: metadata["admin_selected_price"] ?? null,
+        },
+        related_trip_id: trip.id,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const { error: notificationError } = await serviceClient
+          .from("notifications")
+          .insert(adminNotifications);
+        if (notificationError) throw notificationError;
+      }
+
+      return NextResponse.json({ success: true, status: nextStatus });
+    }
+
     if (action === "customer_cancel_trip") {
       if (!isCustomer && auth.profile.role !== "admin") {
         return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يلغوا المشوار." }, { status: 403 });
