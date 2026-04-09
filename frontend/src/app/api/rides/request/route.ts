@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     }
 
     const { data: tripId, error: tripError } = await authedClient.rpc(
-      "create_trip_request",
+      "create_trip_request_v2",
       {
         p_trip_type: tripType,
         p_pickup_label: estimate.pickup.label,
