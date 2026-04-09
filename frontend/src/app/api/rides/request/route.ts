@@ -94,6 +94,7 @@ export async function POST(request: Request) {
         metadata: {
           route_distance_km: estimate.distanceKm,
           route_duration_minutes: estimate.durationMinutes,
+          route_points: Array.isArray(estimate.routePoints) ? estimate.routePoints : [],
           suggested_price_min: estimate.minPrice,
           suggested_price_max: estimate.maxPrice,
           map_estimated_price: estimatedPrice,
