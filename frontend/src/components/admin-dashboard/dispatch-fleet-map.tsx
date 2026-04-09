@@ -10,7 +10,7 @@ import {
     Tooltip,
     useMap,
 } from "react-leaflet";
-import type { LatLngExpression } from "leaflet";
+import type { LatLngBoundsExpression, LatLngExpression, LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 import type {
@@ -32,10 +32,15 @@ function toLatLng(point: DispatchLocationPoint | null | undefined): LatLngExpres
     return [point.latitude, point.longitude];
 }
 
+function toBoundsLatLng(point: DispatchLocationPoint | null | undefined): LatLngTuple | null {
+    if (!point) return null;
+    return [point.latitude, point.longitude];
+}
+
 function FitVisibleBounds({
     boundsPoints,
 }: {
-    boundsPoints: Array<LatLngExpression>;
+    boundsPoints: LatLngTuple[];
 }) {
     const map = useMap();
 
@@ -45,7 +50,7 @@ function FitVisibleBounds({
             map.flyTo(boundsPoints[0], Math.max(map.getZoom(), 12), { duration: 0.8 });
             return;
         }
-        map.fitBounds(boundsPoints, { padding: [36, 36], maxZoom: 14 });
+        map.fitBounds(boundsPoints as LatLngBoundsExpression, { padding: [36, 36], maxZoom: 14 });
     }, [boundsPoints, map]);
 
     return null;
@@ -213,8 +218,8 @@ export function DispatchFleetMap({
             selectedLiveTrip?.driverLocation,
             selectedDriver?.location,
         ]
-            .map(toLatLng)
-            .filter((point): point is LatLngExpression => point !== null);
+            .map(toBoundsLatLng)
+            .filter((point): point is LatLngTuple => point !== null);
 
         if (focusedPoints.length > 0) return focusedPoints;
 
@@ -223,8 +228,8 @@ export function DispatchFleetMap({
             ...board.liveTrips.flatMap((trip) => [trip.pickupLocation, trip.destinationLocation, trip.driverLocation]),
             ...board.availableDrivers.map((driver) => driver.location),
         ]
-            .map(toLatLng)
-            .filter((point): point is LatLngExpression => point !== null);
+            .map(toBoundsLatLng)
+            .filter((point): point is LatLngTuple => point !== null);
     }, [board, selectedDriverId, selectedTripId]);
 
     return (
