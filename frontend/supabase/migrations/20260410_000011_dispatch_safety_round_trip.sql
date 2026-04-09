@@ -245,6 +245,7 @@ begin
             when 'waiting_for_return' then new.waiting_for_return_at = coalesce(new.waiting_for_return_at, timezone('utc', now()));
             when 'completed' then new.completed_at = coalesce(new.completed_at, timezone('utc', now()));
             when 'cancelled' then new.cancelled_at = coalesce(new.cancelled_at, timezone('utc', now()));
+            else null;
         end case;
     end if;
 
