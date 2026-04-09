@@ -25,7 +25,13 @@ export async function POST(request: Request, context: Params) {
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const action = String(body.action || "").trim();
+    const requestedAction = String(body.action || "").trim();
+    const action =
+      requestedAction === "confirmed"
+        ? "customer_confirm_price"
+        : requestedAction === "cancelled"
+          ? "customer_cancel_trip"
+          : requestedAction;
     const now = new Date().toISOString();
 
     const { data: trip, error: tripError } = await serviceClient
