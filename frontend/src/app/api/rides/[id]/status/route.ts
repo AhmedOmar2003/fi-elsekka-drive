@@ -56,7 +56,7 @@ export async function POST(request: Request, context: Params) {
 
     const { data: trip, error: tripError } = await serviceClient
       .from("trips")
-      .select("id, customer_id, assigned_driver_id, status, metadata")
+      .select("id, customer_id, assigned_driver_id, trip_type, pickup_label, destination_label, estimated_price, status, metadata")
       .eq("id", id)
       .maybeSingle();
 
