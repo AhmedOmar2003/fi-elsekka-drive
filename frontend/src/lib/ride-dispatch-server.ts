@@ -26,6 +26,11 @@ export type DriverCandidate = {
     score: number;
 };
 
+export type DriverEligibilityResult = {
+    drivers: DriverCandidate[];
+    fallbackReason: "no_eligible_drivers_online" | "invalid_vehicle_match" | "driver_conflict" | null;
+};
+
 const OFFER_EXPIRY_MINUTES = 2;
 const DEFAULT_DRIVER_BROADCAST_LIMIT = 5;
 const MAX_MARKETPLACE_ATTEMPTS = 2;
@@ -34,6 +39,7 @@ const ACTIVE_ASSIGNED_TRIP_STATUSES = new Set([
     "driver_on_the_way",
     "driver_arrived",
     "trip_started",
+    "waiting_for_return",
 ]);
 const NON_DISPATCHABLE_TRIP_STATUSES = new Set([
     ...ACTIVE_ASSIGNED_TRIP_STATUSES,
@@ -54,7 +60,7 @@ function coercePositiveNumber(value: unknown) {
 export async function fetchEligibleDriversForTrip(
     supabase: RideServiceClient,
     trip: { trip_type: string; metadata: Record<string, unknown> | null }
-): Promise<DriverCandidate[]> {
+): Promise<DriverEligibilityResult> {
     const preferredVehicleType = normalizePreferredVehicleType(
         trip.metadata?.preferred_vehicle_type,
         String(trip.trip_type)
@@ -65,7 +71,7 @@ export async function fetchEligibleDriversForTrip(
     const { data: driverProfiles, error: driversError } = await supabase
         .from("driver_profiles")
         .select("id, working_city, working_area, availability_status, is_accepting_offers, application_status, verification_status, last_seen_at")
-        .eq("availability_status", "online")
+        .eq("availability_status", "available")
         .eq("is_accepting_offers", true)
         .eq("application_status", "approved")
         .eq("verification_status", "approved");
@@ -73,7 +79,12 @@ export async function fetchEligibleDriversForTrip(
     if (driversError) throw driversError;
 
     const driverIds = (driverProfiles || []).map((driver) => String(driver.id));
-    if (driverIds.length === 0) return [];
+    if (driverIds.length === 0) {
+        return {
+            drivers: [],
+            fallbackReason: "no_eligible_drivers_online",
+        };
+    }
 
     const nowIso = new Date().toISOString();
     const [
@@ -127,7 +138,7 @@ export async function fetchEligibleDriversForTrip(
             .map((driverId) => String(driverId))
     );
 
-    return (driverProfiles || [])
+    const operationalDrivers = (driverProfiles || [])
         .filter((driver) => activeProfiles.has(String(driver.id)))
         .filter((driver) => !driversWithOpenOffers.has(String(driver.id)))
         .filter((driver) => !driversWithActiveTrips.has(String(driver.id)))
@@ -162,13 +173,37 @@ export async function fetchEligibleDriversForTrip(
                 score: cityScore + areaScore + freshnessScore,
             } satisfies DriverCandidate;
         })
+        .filter((driver) => driver.vehicleId && driver.vehicleType);
+
+    if (operationalDrivers.length === 0) {
+        return {
+            drivers: [],
+            fallbackReason:
+                driversWithOpenOffers.size > 0 || driversWithActiveTrips.size > 0
+                    ? "driver_conflict"
+                    : "no_eligible_drivers_online",
+        };
+    }
+
+    const rankedDrivers = operationalDrivers
         .filter((driver) => {
-            if (!driver.vehicleId || !driver.vehicleType) return false;
             if (preferredVehicleType === "any") return true;
             return driver.vehicleType === preferredVehicleType;
         })
         .sort((left, right) => right.score - left.score)
         .slice(0, 12);
+
+    if (rankedDrivers.length === 0) {
+        return {
+            drivers: [],
+            fallbackReason: preferredVehicleType === "any" ? "no_eligible_drivers_online" : "invalid_vehicle_match",
+        };
+    }
+
+    return {
+        drivers: rankedDrivers,
+        fallbackReason: null,
+    };
 }
 
 async function notifyAdminsAboutDispatchFallback(
@@ -325,17 +360,17 @@ export async function dispatchTripToMarketplace(
         };
     }
 
-    const rankedDrivers = await fetchEligibleDriversForTrip(supabase, {
+    const eligibility = await fetchEligibleDriversForTrip(supabase, {
         trip_type: String(currentTrip.trip_type),
         metadata,
     });
 
-    if (rankedDrivers.length === 0) {
+    if (eligibility.drivers.length === 0) {
         await markTripAwaitingAdminDispatch(
             supabase,
             currentTrip,
             options.triggeredByUserId,
-            "no_eligible_drivers_online"
+            eligibility.fallbackReason || "no_eligible_drivers_online"
         );
         return {
             success: true,
@@ -343,11 +378,11 @@ export async function dispatchTripToMarketplace(
             status: "searching_driver",
             offeredDriverCount: 0,
             fallbackToAdmin: true,
-            skipped: "no_drivers",
+            skipped: eligibility.fallbackReason || "no_drivers",
         };
     }
 
-    const selectedDrivers = rankedDrivers.slice(0, DEFAULT_DRIVER_BROADCAST_LIMIT);
+    const selectedDrivers = eligibility.drivers.slice(0, DEFAULT_DRIVER_BROADCAST_LIMIT);
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + OFFER_EXPIRY_MINUTES * 60 * 1000).toISOString();
 

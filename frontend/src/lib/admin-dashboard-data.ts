@@ -479,11 +479,11 @@ export async function fetchDashboardOverview() {
         recentTripsResult,
     ] = await Promise.all([
         safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).gte("created_at", todayIso)),
-        safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started"])),
+        safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"])),
         safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).eq("status", "completed").gte("completed_at", todayIso)),
         safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).eq("status", "cancelled")),
         safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("application_status", "approved")),
-        safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("availability_status", "online")),
+        safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("availability_status", "available")),
         safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).in("application_status", ["pending", "requires_review"])),
         safeCount(supabase.from("support_tickets").select("*", { count: "exact", head: true }).in("status", ["open", "in_progress", "waiting_user"])),
         supabase
@@ -523,7 +523,7 @@ export async function fetchDashboardOverview() {
 
     const profilesMap = await loadProfilesMap(recentTrips.map((trip) => String(trip.customer_id)));
     const activeTrips = recentTrips
-        .filter((trip) => ["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started"].includes(String(trip.status)))
+            .filter((trip) => ["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"].includes(String(trip.status)))
         .slice(-6)
         .reverse()
         .map((trip) => ({
@@ -815,7 +815,7 @@ export async function fetchDriverDetail(id: string) {
             ? {
                   applicationStatus: String(driverProfile.application_status),
                   verificationStatus: String(driverProfile.verification_status),
-                  availabilityStatus: (trips || []).some((trip) => ["accepted", "driver_on_the_way", "driver_arrived", "trip_started"].includes(String(trip.status))) ? "busy" : String(driverProfile.availability_status),
+        availabilityStatus: (trips || []).some((trip) => ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"].includes(String(trip.status))) ? "busy" : String(driverProfile.availability_status),
                   workingCity: String(driverProfile.working_city || ""),
                   workingArea: (driverProfile.working_area as string | null) || null,
                   operationalNotes: (driverProfile.operational_notes as string | null) || null,
@@ -934,7 +934,7 @@ export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
         supabase
             .from("trips")
             .select("id, customer_id, assigned_driver_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, accepted_at, metadata")
-            .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started"])
+            .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"])
             .order("updated_at", { ascending: false })
             .limit(50),
         supabase
@@ -1115,7 +1115,7 @@ export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
 
     const availableDrivers = normalizedDrivers.filter(
         (driver) =>
-            driver.availabilityStatus === "online" &&
+            driver.availabilityStatus === "available" &&
             driver.isAcceptingOffers &&
             !driver.hasActiveTrip
     );
@@ -1136,7 +1136,7 @@ export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
         metrics: {
             queueTripsCount: queueTrips.length,
             liveTripsCount: liveTrips.length,
-            onlineDriversCount: normalizedDrivers.filter((driver) => driver.availabilityStatus === "online").length,
+            onlineDriversCount: normalizedDrivers.filter((driver) => driver.availabilityStatus === "available").length,
             adminRescueCount: queueTrips.filter((trip) => trip.awaitingAdminDispatch).length,
             breachedTripsCount: [...queueTrips, ...liveTrips].filter((trip) => trip.slaState === "breached").length,
         },

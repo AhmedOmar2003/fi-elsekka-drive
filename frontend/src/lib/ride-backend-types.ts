@@ -9,13 +9,21 @@ export type TripStatus =
     | 'accepted'
     | 'driver_on_the_way'
     | 'driver_arrived'
+    | 'waiting_for_return'
     | 'trip_started'
     | 'completed'
     | 'cancelled';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'requires_review' | 'suspended';
-export type DriverAvailabilityStatus = 'offline' | 'online' | 'busy';
+export type DriverAvailabilityStatus = 'offline' | 'available' | 'busy';
 export type OfferStatus = 'offered' | 'accepted' | 'rejected' | 'timed_out' | 'cancelled';
 export type AirportRideMode = 'arrival' | 'departure';
+export type RoundTripReturnStatus =
+    | 'not_applicable'
+    | 'outbound'
+    | 'waiting_for_return'
+    | 'return_in_progress'
+    | 'return_cancelled'
+    | 'return_completed';
 export type NotificationType =
     | 'trip_created'
     | 'trip_offered'
@@ -106,6 +114,17 @@ export interface TripRecord {
     destination_address: string;
     destination_latitude: number | null;
     destination_longitude: number | null;
+    is_round_trip: boolean;
+    waiting_duration_minutes: number | null;
+    return_status: RoundTripReturnStatus;
+    return_pickup_label: string | null;
+    return_pickup_address: string | null;
+    return_pickup_latitude: number | null;
+    return_pickup_longitude: number | null;
+    return_destination_label: string | null;
+    return_destination_address: string | null;
+    return_destination_latitude: number | null;
+    return_destination_longitude: number | null;
     airport_name: string | null;
     airport_terminal: string | null;
     airport_ride_mode: AirportRideMode | null;
@@ -126,6 +145,9 @@ export interface TripRecord {
     driver_on_the_way_at: string | null;
     driver_arrived_at: string | null;
     trip_started_at: string | null;
+    waiting_for_return_at: string | null;
+    return_started_at: string | null;
+    return_cancelled_at: string | null;
     completed_at: string | null;
     cancelled_at: string | null;
     admin_notes: string | null;
@@ -152,6 +174,16 @@ export interface CreateTripRequestInput {
     luggage_count?: number;
     passenger_count?: number;
     rider_notes?: string | null;
+    is_round_trip?: boolean;
+    waiting_duration_minutes?: number | null;
+    return_pickup_label?: string | null;
+    return_pickup_address?: string | null;
+    return_pickup_latitude?: number | null;
+    return_pickup_longitude?: number | null;
+    return_destination_label?: string | null;
+    return_destination_address?: string | null;
+    return_destination_latitude?: number | null;
+    return_destination_longitude?: number | null;
 }
 
 export interface DriverOfferDecisionInput {

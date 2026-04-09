@@ -36,6 +36,7 @@ export async function POST(request: Request, context: Params) {
       "driver_on_the_way",
       "driver_arrived",
       "trip_started",
+      "waiting_for_return",
     ]);
     const etaMinutes =
       action === "accept"
@@ -164,7 +165,6 @@ export async function POST(request: Request, context: Params) {
         .from("driver_profiles")
         .update({
           availability_status: "busy",
-          is_accepting_offers: false,
           last_seen_at: new Date().toISOString(),
         })
         .eq("id", auth.profile.user.id);

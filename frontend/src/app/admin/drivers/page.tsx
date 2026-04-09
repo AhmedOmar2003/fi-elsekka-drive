@@ -43,7 +43,7 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
                         </Select>
                         <Select name="availabilityStatus" defaultValue={availabilityStatus} className="bg-white/5 text-white">
                             <option value="all">كل حالات التواجد</option>
-                            <option value="online">أونلاين</option>
+                            <option value="available">متاح</option>
                             <option value="offline">أوفلاين</option>
                             <option value="busy">مشغول</option>
                         </Select>

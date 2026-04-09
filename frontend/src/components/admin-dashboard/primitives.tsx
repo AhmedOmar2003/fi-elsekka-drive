@@ -18,7 +18,7 @@ export function statusTone(status: string): Tone {
         case "completed":
         case "approved":
         case "active":
-        case "online":
+        case "available":
             return "success";
         case "cancelled":
         case "rejected":
@@ -33,6 +33,7 @@ export function statusTone(status: string): Tone {
         case "driver_on_the_way":
         case "driver_arrived":
         case "trip_started":
+        case "waiting_for_return":
         case "offered":
         case "busy":
             return "info";
@@ -46,7 +47,7 @@ export function formatLabel(value: string) {
         completed: "مكتمل",
         approved: "مقبول",
         active: "نشط",
-        online: "أونلاين",
+        available: "متاح",
         cancelled: "ملغي",
         rejected: "مرفوض",
         suspended: "موقوف",
@@ -58,6 +59,7 @@ export function formatLabel(value: string) {
         driver_on_the_way: "الكابتن في الطريق",
         driver_arrived: "الكابتن وصل",
         trip_started: "المشوار بدأ",
+        waiting_for_return: "في انتظار الرجوع",
         offered: "اتعرض على كابتن",
         busy: "مشغول",
         airport_ride: "مشوار مطار",

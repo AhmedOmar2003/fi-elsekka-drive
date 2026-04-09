@@ -38,6 +38,10 @@ export async function POST(request: Request) {
     const tripType = body.tripType === "airport_ride" ? "airport_ride" : "normal_ride";
     const passengerCount = Math.max(1, Number(body.passengerCount || 1));
     const luggageCount = Math.max(0, Number(body.luggageCount || 0));
+    const isRoundTrip = body.isRoundTrip === true;
+    const waitingDurationMinutes = isRoundTrip
+      ? Math.min(720, Math.max(0, Number(body.waitingDurationMinutes || 0)))
+      : null;
     const preferredVehicleType =
       tripType === "airport_ride" ? "car" : normalizeVehicleType(body.preferredVehicleType);
     const estimate = body.estimate;
@@ -76,6 +80,12 @@ export async function POST(request: Request) {
         p_luggage_count: luggageCount,
         p_passenger_count: passengerCount,
         p_rider_notes: body.notes || null,
+        p_is_round_trip: isRoundTrip,
+        p_waiting_duration_minutes: waitingDurationMinutes,
+        p_return_destination_label: isRoundTrip ? body.returnDestinationLabel || null : null,
+        p_return_destination_address: isRoundTrip ? body.returnDestinationAddress || null : null,
+        p_return_destination_latitude: isRoundTrip ? Number(body.returnDestinationLatitude ?? NaN) || null : null,
+        p_return_destination_longitude: isRoundTrip ? Number(body.returnDestinationLongitude ?? NaN) || null : null,
       }
     );
 
@@ -107,6 +117,9 @@ export async function POST(request: Request) {
           destination_area: estimate.destination.area,
           airport_departure_time: tripType === "airport_ride" ? body.departureTime || null : null,
           airport_departure_label: tripType === "airport_ride" ? body.departureTimeLabel || null : null,
+          is_round_trip: isRoundTrip,
+          waiting_duration_minutes: waitingDurationMinutes,
+          return_status: isRoundTrip ? 'outbound' : 'not_applicable',
           dispatch_mode: "instant_marketplace",
           awaiting_admin_dispatch: false,
           customer_price_confirmed: true,
@@ -128,6 +141,8 @@ export async function POST(request: Request) {
         preferred_vehicle_type: preferredVehicleType,
         dispatch_mode: "instant_marketplace",
         auto_priced_price: estimatedPrice > 0 ? estimatedPrice : null,
+        is_round_trip: isRoundTrip,
+        waiting_duration_minutes: waitingDurationMinutes,
       },
     });
 
@@ -141,6 +156,7 @@ export async function POST(request: Request) {
         estimated_price: estimatedPrice,
         route_distance_km: estimate.distanceKm,
         route_duration_minutes: estimate.durationMinutes,
+        is_round_trip: isRoundTrip,
       },
       related_trip_id: tripId,
     });

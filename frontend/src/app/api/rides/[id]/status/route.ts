@@ -10,7 +10,8 @@ import { sendPushToUserDevices } from "@/lib/user-push-server";
 type Params = { params: Promise<{ id: string }> };
 
 const ROUTE_VERSION = "trip-status-v3-2026-04-09";
-const ALREADY_DONE_STATUSES = new Set(["driver_arrived", "trip_started", "completed"]);
+const ALREADY_DONE_STATUSES = new Set(["driver_arrived", "trip_started", "waiting_for_return", "completed"]);
+const NON_CANCELLABLE_CUSTOMER_STATUSES = new Set(["trip_started", "completed"]);
 const CONFIRM_PRICE_ALIASES = new Set([
   "customer_confirm_price",
   "confirmed",
@@ -56,7 +57,7 @@ export async function POST(request: Request, context: Params) {
 
     const { data: trip, error: tripError } = await serviceClient
       .from("trips")
-      .select("id, customer_id, assigned_driver_id, trip_type, pickup_label, destination_label, estimated_price, status, metadata")
+      .select("id, customer_id, assigned_driver_id, trip_type, pickup_label, destination_label, estimated_price, status, is_round_trip, waiting_duration_minutes, return_status, return_destination_label, return_destination_address, return_destination_latitude, return_destination_longitude, metadata")
       .eq("id", id)
       .maybeSingle();
 
@@ -143,7 +144,7 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ error: "لسه مفيش سعر نهائي من الإدارة لتأكيده." }, { status: 409 });
       }
 
-      if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed"].includes(String(trip.status))) {
+      if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return", "completed"].includes(String(trip.status))) {
         return NextResponse.json({ success: true, status: trip.status, routeVersion: ROUTE_VERSION });
       }
 
@@ -184,7 +185,7 @@ export async function POST(request: Request, context: Params) {
           trip: {
             ...trip,
             status: nextStatus,
-            estimated_price: null,
+            estimated_price: trip.estimated_price,
             metadata: nextMetadata,
           },
           triggeredByUserId: auth.profile.user.id,
@@ -205,7 +206,7 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يلغوا المشوار." }, { status: 403 });
       }
 
-      if (ALREADY_DONE_STATUSES.has(String(trip.status))) {
+      if (NON_CANCELLABLE_CUSTOMER_STATUSES.has(String(trip.status))) {
         return NextResponse.json({ error: "المشوار بدأ بالفعل ولا يمكن إلغاؤه من التطبيق." }, { status: 409 });
       }
 
@@ -327,6 +328,128 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "trip_started", routeVersion: ROUTE_VERSION });
     }
 
+    if (action === "customer_start_return") {
+      if (!isCustomer && auth.profile.role !== "admin") {
+        return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يبدأوا الرجوع." }, { status: 403 });
+      }
+
+      if (trip.is_round_trip !== true) {
+        return NextResponse.json({ error: "المشوار الحالي ليس ذهاب وعودة." }, { status: 409 });
+      }
+
+      if (String(trip.status) === "trip_started" && trip.return_status === "return_in_progress") {
+        return NextResponse.json({ success: true, status: "trip_started", routeVersion: ROUTE_VERSION });
+      }
+
+      if (String(trip.status) !== "waiting_for_return" || String(trip.return_status) !== "waiting_for_return") {
+        return NextResponse.json({ error: "الرحلة ليست في مرحلة انتظار الرجوع." }, { status: 409 });
+      }
+
+      const nextMetadata = {
+        ...metadata,
+        return_status: "return_in_progress",
+        return_started_at: now,
+      };
+
+      const { error: updateError } = await serviceClient
+        .from("trips")
+        .update({
+          status: "trip_started",
+          return_status: "return_in_progress",
+          return_started_at: now,
+          updated_at: now,
+          metadata: nextMetadata,
+        })
+        .eq("id", trip.id);
+      if (updateError) throw updateError;
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: "trip_started",
+        changed_by: auth.profile.user.id,
+        note: "العميل أكد بدء رحلة الرجوع مع نفس الكابتن.",
+        metadata: {
+          round_trip: true,
+          return_status: "return_in_progress",
+        },
+      });
+      if (historyError) throw historyError;
+
+      if (trip.assigned_driver_id) {
+        await serviceClient.from("notifications").insert({
+          recipient_user_id: trip.assigned_driver_id,
+          type: "trip_started",
+          title: "العميل جاهز للرجوع",
+          body: "رحلة الرجوع بدأت الآن. تحرك بالعميل إلى نقطة الرجوع المتفق عليها.",
+          payload: { trip_id: trip.id, return_status: "return_in_progress" },
+          related_trip_id: trip.id,
+        });
+      }
+
+      return NextResponse.json({ success: true, status: "trip_started", routeVersion: ROUTE_VERSION });
+    }
+
+    if (action === "customer_cancel_return") {
+      if (!isCustomer && auth.profile.role !== "admin") {
+        return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يلغوا الرجوع." }, { status: 403 });
+      }
+
+      if (trip.is_round_trip !== true) {
+        return NextResponse.json({ error: "المشوار الحالي ليس ذهاب وعودة." }, { status: 409 });
+      }
+
+      if (String(trip.status) === "completed" && String(trip.return_status) === "return_cancelled") {
+        return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
+      }
+
+      if (String(trip.status) !== "waiting_for_return") {
+        return NextResponse.json({ error: "لا يمكن إلغاء الرجوع إلا أثناء الانتظار في الوجهة." }, { status: 409 });
+      }
+
+      const nextMetadata = {
+        ...metadata,
+        return_status: "return_cancelled",
+        return_cancelled_at: now,
+      };
+
+      const { error: updateError } = await serviceClient
+        .from("trips")
+        .update({
+          status: "completed",
+          completed_at: now,
+          return_status: "return_cancelled",
+          return_cancelled_at: now,
+          updated_at: now,
+          metadata: nextMetadata,
+        })
+        .eq("id", trip.id);
+      if (updateError) throw updateError;
+
+      if (trip.assigned_driver_id) {
+        await serviceClient
+          .from("driver_profiles")
+          .update({
+            availability_status: "available",
+            last_seen_at: now,
+          })
+          .eq("id", trip.assigned_driver_id);
+      }
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: "completed",
+        changed_by: auth.profile.user.id,
+        note: "العميل ألغى رحلة الرجوع، وتم إغلاق المشوار بالكامل.",
+        metadata: {
+          round_trip: true,
+          return_status: "return_cancelled",
+        },
+      });
+      if (historyError) throw historyError;
+
+      return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
+    }
+
     if (action === "driver_complete_trip") {
       if (!isDriver) {
         return NextResponse.json({ error: "الكابتن فقط يقدر ينهي المشوار." }, { status: 403 });
@@ -339,12 +462,68 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ error: "لازم المشوار يكون بدأ أو الكابتن وصل الأول." }, { status: 409 });
       }
 
+      const isRoundTrip = trip.is_round_trip === true;
+      const returnStatus = String(trip.return_status || "not_applicable");
+
+      if (isRoundTrip && returnStatus == "outbound") {
+        const nextMetadata = {
+          ...metadata,
+          return_status: "waiting_for_return",
+          waiting_for_return_at: now,
+        };
+
+        const { error: updateError } = await serviceClient
+          .from("trips")
+          .update({
+            status: "waiting_for_return",
+            waiting_for_return_at: now,
+            return_status: "waiting_for_return",
+            updated_at: now,
+            metadata: nextMetadata,
+          })
+          .eq("id", trip.id);
+        if (updateError) throw updateError;
+
+        const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+          trip_id: trip.id,
+          status: "waiting_for_return",
+          changed_by: auth.profile.user.id,
+          note: "وصلتم لوجهة الذهاب. الرحلة الآن في انتظار تأكيد الرجوع من العميل.",
+          metadata: {
+            round_trip: true,
+            return_status: "waiting_for_return",
+            waiting_duration_minutes: trip.waiting_duration_minutes ?? null,
+          },
+        });
+        if (historyError) throw historyError;
+
+        await serviceClient.from("notifications").insert({
+          recipient_user_id: trip.customer_id,
+          type: "driver_arrived",
+          title: "وصلتم لوجهة الذهاب",
+          body: "دي رحلة ذهاب وعودة. لما تبقى جاهز، اضغط ابدأ الرجوع. ولو لسه، خليك على وضع الانتظار.",
+          payload: {
+            trip_id: trip.id,
+            round_trip: true,
+            return_status: "waiting_for_return",
+          },
+          related_trip_id: trip.id,
+        });
+
+        return NextResponse.json({ success: true, status: "waiting_for_return", routeVersion: ROUTE_VERSION });
+      }
+
       const { error: updateError } = await serviceClient
         .from("trips")
         .update({
           status: "completed",
           completed_at: now,
+          return_status: isRoundTrip ? "return_completed" : trip.return_status,
           updated_at: now,
+          metadata: {
+            ...metadata,
+            return_status: isRoundTrip ? "return_completed" : metadata["return_status"],
+          },
         })
         .eq("id", trip.id);
       if (updateError) throw updateError;
@@ -353,8 +532,7 @@ export async function POST(request: Request, context: Params) {
         await serviceClient
           .from("driver_profiles")
           .update({
-            availability_status: "online",
-            is_accepting_offers: true,
+            availability_status: "available",
             last_seen_at: now,
           })
           .eq("id", trip.assigned_driver_id);
@@ -364,7 +542,12 @@ export async function POST(request: Request, context: Params) {
         trip_id: trip.id,
         status: "completed",
         changed_by: auth.profile.user.id,
-        note: "الكابتن أنهى المشوار ووصل للوجهة.",
+        note: isRoundTrip
+          ? "الكابتن أنهى رحلة الرجوع واكتملت الرحلة بالكامل."
+          : "الكابتن أنهى المشوار ووصل للوجهة.",
+        metadata: isRoundTrip
+          ? { round_trip: true, return_status: "return_completed" }
+          : {},
       });
       if (historyError) throw historyError;
 
@@ -427,7 +610,7 @@ export async function POST(request: Request, context: Params) {
           trip: {
             ...trip,
             status: nextStatus,
-            estimated_price: null,
+            estimated_price: trip.estimated_price,
             metadata: nextMetadata,
           },
           triggeredByUserId: auth.profile.user.id,

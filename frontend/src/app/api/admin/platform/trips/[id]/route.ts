@@ -48,16 +48,16 @@ export async function PATCH(request: NextRequest, context: Context) {
                 return NextResponse.json({ error: "المشوار المطلوب مش موجود." }, { status: 404 });
             }
 
-            if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed", "cancelled"].includes(String(trip.status))) {
+            if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return", "completed", "cancelled"].includes(String(trip.status))) {
                 return NextResponse.json({ error: "المشوار خرج من مرحلة التوزيع، وما ينفعش يتبعت من جديد." }, { status: 400 });
             }
 
-            const rankedDrivers = await fetchEligibleDriversForTrip(supabase, {
+            const eligibility = await fetchEligibleDriversForTrip(supabase, {
                 trip_type: String(trip.trip_type),
                 metadata: (trip.metadata as Record<string, unknown> | null) || null,
             });
 
-            if (rankedDrivers.length === 0) {
+            if (eligibility.drivers.length === 0) {
                 return NextResponse.json({ error: "مفيش كباتن متاحين حاليًا بالمركبة المناسبة للمشوار ده." }, { status: 400 });
             }
 
@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                     ? Number((metadata.map_estimated_price as number | null) ?? 0) || null
                     : Number(trip.estimated_price);
             const broadcastPrice = price ?? fallbackMapEstimate;
-            const offersPayload = rankedDrivers.map((driver) => ({
+            const offersPayload = eligibility.drivers.map((driver) => ({
                 trip_id: id,
                 driver_id: driver.id,
                 vehicle_id: driver.vehicleId,
@@ -101,14 +101,14 @@ export async function PATCH(request: NextRequest, context: Context) {
                     offered_at: now,
                     updated_at: now,
                     estimated_price: broadcastPrice,
-                    offered_driver_count: rankedDrivers.length,
+                    offered_driver_count: eligibility.drivers.length,
                     metadata: {
                         ...metadata,
                         admin_selected_price: broadcastPrice,
                         admin_priced_at: now,
                         admin_priced_by: auth.profile.user.id,
                         latest_dispatch_mode: "admin_broadcast",
-                        latest_dispatch_driver_count: rankedDrivers.length,
+                        latest_dispatch_driver_count: eligibility.drivers.length,
                     },
                 })
                 .eq("id", id);
@@ -119,14 +119,14 @@ export async function PATCH(request: NextRequest, context: Context) {
                 trip_id: id,
                 status: "offered",
                 changed_by: auth.profile.user.id,
-                note: `تم تسعير المشوار وبعت العرض إلى ${rankedDrivers.length} كابتن مناسبين.`,
+                note: `تم تسعير المشوار وبعت العرض إلى ${eligibility.drivers.length} كابتن مناسبين.`,
                 metadata: {
-                    offered_driver_count: rankedDrivers.length,
+                    offered_driver_count: eligibility.drivers.length,
                     quoted_price: broadcastPrice,
                 },
             });
 
-            const notificationsPayload = rankedDrivers.map((driver) => ({
+            const notificationsPayload = eligibility.drivers.map((driver) => ({
                 recipient_user_id: driver.id,
                 type: "trip_offered",
                 title: "عرض مشوار جديد من الإدارة",
@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest, context: Context) {
             if (notificationsError) throw notificationsError;
 
             await Promise.all(
-                rankedDrivers.map((driver) =>
+                eligibility.drivers.map((driver) =>
                     sendPushToUserDevices(supabase, driver.id, {
                         title: "وصلك عرض مشوار جديد",
                         message: `مشوار من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")}. افتح التطبيق ولو العرض مناسب اقبله قبل غيرك.`,
@@ -159,13 +159,13 @@ export async function PATCH(request: NextRequest, context: Context) {
                     recipient_user_id: trip.customer_id,
                     type: "trip_offered",
                     title: "عرضنا رحلتك على الكباتن",
-                    body: `دلوقتي رحلتك اتبعت لـ ${rankedDrivers.length} كابتن مناسبين. أول ما حد يقبل هنبلّغك فورًا.`,
-                    payload: {
-                        trip_id: id,
-                        offered_driver_count: rankedDrivers.length,
-                        estimated_price: broadcastPrice,
-                        dispatch_mode: "admin_broadcast",
-                    },
+                        body: `دلوقتي رحلتك اتبعت لـ ${eligibility.drivers.length} كابتن مناسبين. أول ما حد يقبل هنبلّغك فورًا.`,
+                        payload: {
+                            trip_id: id,
+                            offered_driver_count: eligibility.drivers.length,
+                            estimated_price: broadcastPrice,
+                            dispatch_mode: "admin_broadcast",
+                        },
                     related_trip_id: id,
                 });
 
@@ -177,7 +177,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                 });
             }
 
-            return NextResponse.json({ success: true, offeredDriverCount: rankedDrivers.length, price: broadcastPrice });
+            return NextResponse.json({ success: true, offeredDriverCount: eligibility.drivers.length, price: broadcastPrice });
         }
 
         if (action === "assign_driver") {
