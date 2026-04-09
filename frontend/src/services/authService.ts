@@ -54,6 +54,12 @@ export const signOut = async () => {
     }
     if (typeof document !== 'undefined') {
         document.cookie = `sb-access-token=; path=/; max-age=0; SameSite=Lax;${window.location.protocol === 'https:' ? ' Secure' : ''}`;
+        document.cookie = `sb-refresh-token=; path=/; max-age=0; SameSite=Lax;${window.location.protocol === 'https:' ? ' Secure' : ''}`;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : null;
+        if (projectRef) {
+            document.cookie = `sb-${projectRef}-auth-token=; path=/; max-age=0; SameSite=Lax;${window.location.protocol === 'https:' ? ' Secure' : ''}`;
+        }
     }
     
     // Attempt to sign out on the server

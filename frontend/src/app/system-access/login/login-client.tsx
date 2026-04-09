@@ -35,6 +35,19 @@ export function LoginClient({
     if (session.refresh_token) {
       document.cookie = `sb-refresh-token=${encodeURIComponent(session.refresh_token)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax;${secure}`;
     }
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const projectRef = supabaseUrl
+      ? new URL(supabaseUrl).hostname.split(".")[0]
+      : null;
+    if (projectRef) {
+      const authPayload = encodeURIComponent(
+        JSON.stringify({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        }),
+      );
+      document.cookie = `sb-${projectRef}-auth-token=${authPayload}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax;${secure}`;
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
