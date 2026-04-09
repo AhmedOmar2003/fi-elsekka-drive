@@ -10,12 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import { supabase } from "@/lib/supabase";
 
 async function sendJson<T = Record<string, unknown>>(url: string, method: string, body: Record<string, unknown>) {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
     const response = await fetch(url, {
         method,
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify(body),
     });
 
@@ -29,9 +35,12 @@ async function sendJson<T = Record<string, unknown>>(url: string, method: string
 }
 
 async function sendFormData(url: string, body: FormData) {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
     const response = await fetch(url, {
         method: "POST",
         credentials: "include",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body,
     });
 

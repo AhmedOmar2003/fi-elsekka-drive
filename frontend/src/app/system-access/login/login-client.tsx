@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { getFirstAccessibleAdminPath } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { getUserProfile, signIn, signOut } from "@/services/authService";
+import type { Session } from "@supabase/supabase-js";
 
 type LoginClientProps = {
   emailPlaceholder: string;
@@ -26,6 +27,15 @@ export function LoginClient({
   useEffect(() => {
     signOut();
   }, []);
+
+  const persistSessionCookies = (session: Session | null | undefined) => {
+    if (typeof document === "undefined" || !session?.access_token) return;
+    const secure = window.location.protocol === "https:" ? " Secure;" : "";
+    document.cookie = `sb-access-token=${encodeURIComponent(session.access_token)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax;${secure}`;
+    if (session.refresh_token) {
+      document.cookie = `sb-refresh-token=${encodeURIComponent(session.refresh_token)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax;${secure}`;
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,11 +62,10 @@ export function LoginClient({
       return;
     }
 
-    const { data } = await supabase.auth.getSession();
-    if (data?.session?.access_token) {
-      document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax;${
-        window.location.protocol === "https:" ? " Secure" : ""
-      }`;
+    persistSessionCookies(signInData?.session);
+    if (!signInData?.session?.access_token) {
+      const { data } = await supabase.auth.getSession();
+      persistSessionCookies(data?.session);
     }
 
     const profile = signInData?.user?.id

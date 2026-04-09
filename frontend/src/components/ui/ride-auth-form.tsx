@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogIn, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import type { Session } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,14 +45,24 @@ export function AuthForm({
     return isCaptain ? "/captain/offers" : "/book";
   }, [isCaptain, redirectTo]);
 
+  const persistSessionCookies = (session: Session | null | undefined) => {
+    if (typeof document === "undefined") return;
+    if (session?.access_token) {
+      const secure = window.location.protocol === "https:" ? " Secure;" : "";
+      document.cookie = `sb-access-token=${encodeURIComponent(session.access_token)}; path=/; max-age=${
+        60 * 60 * 24 * 30
+      }; SameSite=Lax;${secure}`;
+      if (session.refresh_token) {
+        document.cookie = `sb-refresh-token=${encodeURIComponent(session.refresh_token)}; path=/; max-age=${
+          60 * 60 * 24 * 30
+        }; SameSite=Lax;${secure}`;
+      }
+    }
+  };
+
   const setSessionCookie = async () => {
     const { data } = await supabase.auth.getSession();
-    if (typeof document === "undefined") return;
-    if (data?.session?.access_token) {
-      document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${
-        60 * 60 * 24 * 30
-      }; SameSite=Lax;${window.location.protocol === "https:" ? " Secure" : ""}`;
-    }
+    persistSessionCookies(data?.session);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -82,7 +93,10 @@ export function AuthForm({
           throw loginResult.error;
         }
 
-        await setSessionCookie();
+        persistSessionCookies(loginResult.data.session);
+        if (!loginResult.data.session?.access_token) {
+          await setSessionCookie();
+        }
         toast.success(
           "الحساب اتفتح بنجاح."
         );
@@ -108,7 +122,10 @@ export function AuthForm({
         throw new Error("الحساب ده خاص بالكباتن. ادخل من رابط دخول الكباتن.");
       }
 
-      await setSessionCookie();
+      persistSessionCookies(result.data.session);
+      if (!result.data.session?.access_token) {
+        await setSessionCookie();
+      }
       toast.success("أهلاً بيك، تم تسجيل الدخول.");
       router.replace(successRedirect);
     } catch (error: any) {
