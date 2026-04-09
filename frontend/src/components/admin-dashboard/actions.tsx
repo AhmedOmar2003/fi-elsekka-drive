@@ -14,6 +14,10 @@ import type { TripStatus } from "@/lib/ride-backend-types";
 import { supabase } from "@/lib/supabase";
 import { getAllowedAdminManualTripStatuses, isTripStatus } from "@/lib/trip-state-machine";
 
+type SupportTicketStatus = "in_progress" | "waiting_user" | "resolved" | "closed";
+type NotificationAudience = "all" | "customers" | "drivers" | "admins";
+type CaptainVehicleType = "car" | "tuk_tuk";
+
 async function sendJson<T = Record<string, unknown>>(url: string, method: string, body: Record<string, unknown>) {
     const { data } = await supabase.auth.getSession();
     const accessToken = data.session?.access_token;
@@ -84,7 +88,7 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
     const router = useRouter();
     const normalizedCurrentStatus: TripStatus = isTripStatus(currentStatus) ? currentStatus : "pending";
     const allowedStatuses = getAllowedAdminManualTripStatuses(normalizedCurrentStatus);
-    const [status, setStatus] = useState(allowedStatuses[0] || normalizedCurrentStatus);
+    const [status, setStatus] = useState<TripStatus>(allowedStatuses[0] || normalizedCurrentStatus);
     const [note, setNote] = useState("");
     const [isPending, startTransition] = useTransition();
 
@@ -101,7 +105,16 @@ export function TripStatusForm({ tripId, currentStatus }: { tripId: string; curr
             ) : (
                 <>
                     <div className="flex flex-col gap-3 md:flex-row">
-                        <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
+                        <Select
+                            value={status}
+                            onChange={(event) => {
+                                const nextStatus = event.target.value;
+                                if (isTripStatus(nextStatus) && allowedStatuses.includes(nextStatus)) {
+                                    setStatus(nextStatus);
+                                }
+                            }}
+                            className="bg-white/5 text-white"
+                        >
                             {allowedStatuses.map((item) => (
                                 <option key={item} value={item}>
                                     {formatLabel(item)}
@@ -289,7 +302,7 @@ export function VehicleApprovalActions({ vehicleId }: { vehicleId: string }) {
 export function SupportReplyForm({ ticketId }: { ticketId: string }) {
     const router = useRouter();
     const [message, setMessage] = useState("");
-    const [status, setStatus] = useState("in_progress");
+    const [status, setStatus] = useState<SupportTicketStatus>("in_progress");
     const [isPending, startTransition] = useTransition();
 
     const handleSubmit = (event: FormEvent) => {
@@ -311,7 +324,11 @@ export function SupportReplyForm({ ticketId }: { ticketId: string }) {
                 placeholder="اكتب رد الدعم أو ملاحظة تشغيل داخلية"
             />
             <div className="flex flex-col gap-3 md:flex-row">
-                <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
+                <Select
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value as SupportTicketStatus)}
+                    className="bg-white/5 text-white"
+                >
                     <option value="in_progress">شغال عليها</option>
                     <option value="waiting_user">مستني العميل</option>
                     <option value="resolved">اتحلّت</option>
@@ -329,7 +346,7 @@ export function NotificationComposer() {
     const router = useRouter();
     const [title, setTitle] = useState("");
     const [body, setBody] = useState("");
-    const [audience, setAudience] = useState("all");
+    const [audience, setAudience] = useState<NotificationAudience>("all");
     const [startsAt, setStartsAt] = useState("");
     const [isPending, startTransition] = useTransition();
 
@@ -358,7 +375,11 @@ export function NotificationComposer() {
                 </div>
                 <div className="space-y-2">
                     <Label className="text-white/75">الفئة المستهدفة</Label>
-                    <Select value={audience} onChange={(event) => setAudience(event.target.value)} className="bg-white/5 text-white">
+                    <Select
+                        value={audience}
+                        onChange={(event) => setAudience(event.target.value as NotificationAudience)}
+                        className="bg-white/5 text-white"
+                    >
                         <option value="all">الكل</option>
                         <option value="customers">العملاء</option>
                         <option value="drivers">الكباتن</option>
@@ -392,7 +413,7 @@ export function CreateCaptainForm() {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
-    const [vehicleType, setVehicleType] = useState("car");
+    const [vehicleType, setVehicleType] = useState<CaptainVehicleType>("car");
     const [fullName, setFullName] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
@@ -558,7 +579,11 @@ export function CreateCaptainForm() {
                             <div className="mt-4 grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label className="text-white/75">نوع المركبة</Label>
-                                    <Select value={vehicleType} onChange={(event) => setVehicleType(event.target.value)} className="bg-white/5 text-white">
+                                    <Select
+                                        value={vehicleType}
+                                        onChange={(event) => setVehicleType(event.target.value as CaptainVehicleType)}
+                                        className="bg-white/5 text-white"
+                                    >
                                         <option value="car">عربية</option>
                                         <option value="tuk_tuk">توك توك</option>
                                     </Select>
