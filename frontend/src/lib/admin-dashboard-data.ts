@@ -2,6 +2,15 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 
+import type {
+    DispatchBoardData,
+    DispatchFleetDriverItem,
+    DispatchLiveTripItem,
+    DispatchLocationPoint,
+    DispatchQueueTripItem,
+    DispatchSlaState,
+} from "@/lib/admin-dispatch-types";
+
 type Json = Record<string, unknown>;
 
 export type DashboardStat = {
@@ -310,6 +319,118 @@ function daysAgoIso(days: number) {
 function cityFromAddress(value: string | null | undefined) {
     if (!value) return null;
     return value.split(",")[0]?.trim() || null;
+}
+
+const CITY_COORDINATES: Record<string, [number, number]> = {
+    cairo: [30.0444, 31.2357],
+    "new cairo": [30.03, 31.47],
+    giza: [30.0131, 31.2089],
+    alexandria: [31.2001, 29.9187],
+    mansoura: [31.0409, 31.3785],
+    tanta: [30.7865, 31.0004],
+    maadi: [29.9602, 31.2569],
+    mokattam: [30.0081, 31.3031],
+    nasr: [30.0561, 31.3302],
+    dokki: [30.0384, 31.2122],
+    heliopolis: [30.0965, 31.3307],
+    shoubra: [30.1241, 31.2443],
+    zagazig: [30.5877, 31.502],
+    portsaid: [31.2653, 32.3019],
+    suez: [29.9668, 32.5498],
+    ismailia: [30.5965, 32.2715],
+    asyut: [27.1809, 31.1837],
+    sohag: [26.5591, 31.6957],
+};
+
+function normalizeCityKey(value: string | null | undefined) {
+    if (!value) return null;
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replace(/مدينة /g, "")
+        .replace(/القاهرة الجديدة/g, "new cairo")
+        .replace(/القاهره الجديده/g, "new cairo")
+        .replace(/القاهرة/g, "cairo")
+        .replace(/القاهره/g, "cairo")
+        .replace(/الجيزة/g, "giza")
+        .replace(/الاسكندرية|الإسكندرية/g, "alexandria")
+        .replace(/المنصورة/g, "mansoura")
+        .replace(/طنطا/g, "tanta")
+        .replace(/المعادي/g, "maadi")
+        .replace(/المقطم/g, "mokattam")
+        .replace(/مدينة نصر/g, "nasr")
+        .replace(/الدقي/g, "dokki")
+        .replace(/مصر الجديدة/g, "heliopolis")
+        .replace(/شبرا/g, "shoubra")
+        .replace(/الزقازيق/g, "zagazig")
+        .replace(/بورسعيد/g, "portsaid")
+        .replace(/السويس/g, "suez")
+        .replace(/الإسماعيلية|الاسماعيلية/g, "ismailia")
+        .replace(/أسيوط|اسيوط/g, "asyut")
+        .replace(/سوهاج/g, "sohag");
+}
+
+function getCityHintLocation(city: string | null | undefined): DispatchLocationPoint | null {
+    const key = normalizeCityKey(city);
+    if (!key) return null;
+    const coords = CITY_COORDINATES[key];
+    if (!coords) return null;
+    return {
+        latitude: coords[0],
+        longitude: coords[1],
+        source: "city_hint",
+    };
+}
+
+function toFiniteNumber(value: unknown) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildPoint(latitude: unknown, longitude: unknown, source: DispatchLocationPoint["source"], updatedAt?: unknown): DispatchLocationPoint | null {
+    const lat = toFiniteNumber(latitude);
+    const lng = toFiniteNumber(longitude);
+    if (lat === null || lng === null) return null;
+    return {
+        latitude: lat,
+        longitude: lng,
+        source,
+        updatedAt: typeof updatedAt === "string" ? updatedAt : null,
+    };
+}
+
+function minutesSince(timestamp: string | null | undefined) {
+    if (!timestamp) return null;
+    const value = new Date(timestamp).getTime();
+    if (!Number.isFinite(value)) return null;
+    return Math.max(0, Math.round((Date.now() - value) / 60000));
+}
+
+function computeQueueSla(ageMinutes: number, awaitingAdminDispatch: boolean): { state: DispatchSlaState; label: string } {
+    if (awaitingAdminDispatch || ageMinutes >= 8) {
+        return { state: "breached", label: awaitingAdminDispatch ? "يحتاج تدخل تشغيلي" : "متأخر في التوزيع" };
+    }
+    if (ageMinutes >= 4) {
+        return { state: "warning", label: "تأخير يحتاج متابعة" };
+    }
+    return { state: "healthy", label: "داخل الزمن الطبيعي" };
+}
+
+function computeLiveSla(status: string, ageMinutes: number, captainEtaMinutes: number | null): { state: DispatchSlaState; label: string } {
+    if (status === "driver_arrived") {
+        return { state: "healthy", label: "الكابتن وصل لنقطة التحرك" };
+    }
+    if (status === "trip_started") {
+        return { state: "healthy", label: "المشوار شغال حاليًا" };
+    }
+    if (captainEtaMinutes !== null && captainEtaMinutes > 20) {
+        return { state: "warning", label: "ETA مرتفع لنقطة التحرك" };
+    }
+    if (ageMinutes >= 25) {
+        return { state: "breached", label: "الرحلة متأخرة تشغيليًا" };
+    }
+    return { state: "healthy", label: "الحركة مستقرة" };
 }
 
 async function safeCount(builder: PromiseLike<{ count: number | null; error: { message?: string } | null }>) {
@@ -778,19 +899,83 @@ export async function fetchVehiclesList() {
     }));
 }
 
-export async function fetchDispatchBoard() {
+export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
     const supabase = createAdminClient();
-    if (!supabase) return { activeTrips: [] as DispatchTripItem[], availableDrivers: [] as DispatchDriverItem[], assignableDrivers: [] as DispatchDriverItem[] };
+    if (!supabase) {
+        return {
+            generatedAt: new Date().toISOString(),
+            regionOptions: [],
+            metrics: {
+                queueTripsCount: 0,
+                liveTripsCount: 0,
+                onlineDriversCount: 0,
+                adminRescueCount: 0,
+                breachedTripsCount: 0,
+            },
+            queueTrips: [],
+            liveTrips: [],
+            availableDrivers: [],
+            assignableDrivers: [],
+        };
+    }
 
-    const [{ data: trips }, { data: drivers }, { data: vehicles }] = await Promise.all([
-        supabase.from("trips").select("id, customer_id, pickup_label, destination_label, trip_type, status, created_at").in("status", ["pending", "searching_driver", "offered"]).order("created_at", { ascending: false }).limit(20),
-        supabase.from("driver_profiles").select("id, availability_status, working_city, is_accepting_offers").eq("application_status", "approved").eq("verification_status", "approved").order("updated_at", { ascending: false }).limit(60),
-        supabase.from("vehicles").select("id, driver_id, vehicle_type, brand, model, is_primary").eq("is_active", true).eq("approval_status", "approved"),
+    const nowIso = new Date().toISOString();
+    const [
+        { data: queueTripsData },
+        { data: liveTripsData },
+        { data: drivers },
+    ] = await Promise.all([
+        supabase
+            .from("trips")
+            .select("id, customer_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, estimated_price, offered_driver_count, metadata")
+            .in("status", ["pending", "searching_driver", "offered"])
+            .order("created_at", { ascending: false })
+            .limit(40),
+        supabase
+            .from("trips")
+            .select("id, customer_id, assigned_driver_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, accepted_at, metadata")
+            .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started"])
+            .order("updated_at", { ascending: false })
+            .limit(50),
+        supabase
+            .from("driver_profiles")
+            .select("id, availability_status, working_city, working_area, is_accepting_offers, application_status, verification_status, last_seen_at")
+            .eq("application_status", "approved")
+            .eq("verification_status", "approved")
+            .order("updated_at", { ascending: false })
+            .limit(120),
     ]);
 
-    const profilesMap = await loadProfilesMap([...(trips || []).map((trip) => String(trip.customer_id)), ...(drivers || []).map((driver) => String(driver.id))]);
-    const primaryVehicleMap = new Map<string, { id: string; label: string }>();
+    const queueTripsRows = queueTripsData || [];
+    const liveTripsRows = liveTripsData || [];
+    const driverRows = drivers || [];
+    const driverIds = driverRows.map((driver) => String(driver.id)).filter(Boolean);
+    const [{ data: vehicles }, { data: openOffers }] = driverIds.length
+        ? await Promise.all([
+              supabase
+                  .from("vehicles")
+                  .select("id, driver_id, vehicle_type, brand, model, is_primary, is_active, approval_status")
+                  .in("driver_id", driverIds)
+                  .eq("is_active", true)
+                  .eq("approval_status", "approved"),
+              supabase
+                  .from("trip_offers")
+                  .select("trip_id, driver_id, offer_status, expires_at")
+                  .in("driver_id", driverIds)
+                  .eq("offer_status", "offered")
+                  .gt("expires_at", nowIso),
+          ])
+        : [{ data: [] }, { data: [] }];
 
+    const profileIds = [
+        ...queueTripsRows.map((trip) => String(trip.customer_id)),
+        ...liveTripsRows.map((trip) => String(trip.customer_id)),
+        ...liveTripsRows.map((trip) => String(trip.assigned_driver_id || "")),
+        ...driverRows.map((driver) => String(driver.id)),
+    ].filter(Boolean);
+    const profilesMap = await loadProfilesMap(profileIds);
+
+    const primaryVehicleMap = new Map<string, { id: string; label: string }>();
     for (const vehicle of vehicles || []) {
         if (vehicle.is_primary || !primaryVehicleMap.has(String(vehicle.driver_id))) {
             primaryVehicleMap.set(String(vehicle.driver_id), {
@@ -800,32 +985,164 @@ export async function fetchDispatchBoard() {
         }
     }
 
-    const normalizedDrivers = (drivers || [])
+    const openOfferCounts = new Map<string, number>();
+    for (const offer of openOffers || []) {
+        const driverId = String(offer.driver_id || "");
+        if (!driverId) continue;
+        openOfferCounts.set(driverId, (openOfferCounts.get(driverId) || 0) + 1);
+    }
+
+    const liveDriverLocationMap = new Map<string, DispatchLocationPoint | null>();
+    for (const trip of liveTripsRows) {
+        const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+        const rawDriverLocation =
+            metadata.driver_location && typeof metadata.driver_location === "object"
+                ? (metadata.driver_location as Record<string, unknown>)
+                : null;
+        const driverLocation = rawDriverLocation
+            ? buildPoint(rawDriverLocation.latitude, rawDriverLocation.longitude, "driver_gps", rawDriverLocation.updated_at)
+            : null;
+        if (trip.assigned_driver_id) {
+            liveDriverLocationMap.set(String(trip.assigned_driver_id), driverLocation);
+        }
+    }
+
+    const queueTrips: DispatchQueueTripItem[] = queueTripsRows.map((trip) => {
+        const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+        const ageMinutes = minutesSince(String(trip.created_at)) || 0;
+        const awaitingAdminDispatch = metadata.awaiting_admin_dispatch === true;
+        const fallbackReason = typeof metadata.marketplace_fallback_reason === "string" ? metadata.marketplace_fallback_reason : null;
+        const sla = computeQueueSla(ageMinutes, awaitingAdminDispatch);
+        const region =
+            (typeof metadata.pickup_city === "string" ? metadata.pickup_city : null) ||
+            cityFromAddress((trip.pickup_address as string | null) || (trip.pickup_label as string | null));
+
+        return {
+            id: String(trip.id),
+            customerName: String((profilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
+            pickup: String(trip.pickup_label || trip.pickup_address || "من"),
+            destination: String(trip.destination_label || trip.destination_address || "إلى"),
+            tripType: String(trip.trip_type),
+            status: String(trip.status),
+            createdAt: String(trip.created_at),
+            estimatedPrice: toFiniteNumber(trip.estimated_price),
+            offeredDriverCount: Number(trip.offered_driver_count || 0),
+            dispatchMode: typeof metadata.dispatch_mode === "string" ? metadata.dispatch_mode : null,
+            awaitingAdminDispatch,
+            fallbackReason,
+            ageMinutes,
+            slaState: sla.state,
+            slaLabel: sla.label,
+            region,
+            pickupLocation: buildPoint(trip.pickup_latitude, trip.pickup_longitude, "pickup"),
+            destinationLocation: buildPoint(trip.destination_latitude, trip.destination_longitude, "destination"),
+        };
+    });
+
+    const liveTrips: DispatchLiveTripItem[] = liveTripsRows.map((trip) => {
+        const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+        const ageMinutes = minutesSince(String(trip.accepted_at || trip.created_at)) || 0;
+        const captainEtaMinutes =
+            toFiniteNumber(metadata.driver_eta_minutes) ??
+            toFiniteNumber(metadata.captain_eta_minutes) ??
+            toFiniteNumber(metadata.arrival_eta_minutes);
+        const sla = computeLiveSla(String(trip.status), ageMinutes, captainEtaMinutes);
+        const region =
+            (typeof metadata.pickup_city === "string" ? metadata.pickup_city : null) ||
+            cityFromAddress((trip.pickup_address as string | null) || (trip.pickup_label as string | null));
+        const rawDriverLocation =
+            metadata.driver_location && typeof metadata.driver_location === "object"
+                ? (metadata.driver_location as Record<string, unknown>)
+                : null;
+
+        return {
+            id: String(trip.id),
+            customerName: String((profilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
+            driverId: trip.assigned_driver_id ? String(trip.assigned_driver_id) : null,
+            driverName: trip.assigned_driver_id
+                ? String((profilesMap.get(String(trip.assigned_driver_id))?.full_name as string) || "كابتن")
+                : null,
+            driverVehicleLabel: trip.assigned_driver_id ? (primaryVehicleMap.get(String(trip.assigned_driver_id))?.label || null) : null,
+            tripType: String(trip.trip_type),
+            status: String(trip.status),
+            createdAt: String(trip.created_at),
+            acceptedAt: (trip.accepted_at as string | null) || null,
+            captainEtaMinutes,
+            ageMinutes,
+            slaState: sla.state,
+            slaLabel: sla.label,
+            region,
+            pickup: String(trip.pickup_label || trip.pickup_address || "من"),
+            destination: String(trip.destination_label || trip.destination_address || "إلى"),
+            pickupLocation: buildPoint(trip.pickup_latitude, trip.pickup_longitude, "pickup"),
+            destinationLocation: buildPoint(trip.destination_latitude, trip.destination_longitude, "destination"),
+            driverLocation: rawDriverLocation
+                ? buildPoint(rawDriverLocation.latitude, rawDriverLocation.longitude, "driver_gps", rawDriverLocation.updated_at)
+                : null,
+        };
+    });
+
+    const driversWithActiveTrips = new Set(
+        liveTripsRows
+            .map((trip) => trip.assigned_driver_id)
+            .filter(Boolean)
+            .map((driverId) => String(driverId))
+    );
+
+    const normalizedDrivers: DispatchFleetDriverItem[] = driverRows
         .filter((driver) => {
             const profile = profilesMap.get(String(driver.id));
             return (profile?.account_status as string | undefined) !== "suspended" && primaryVehicleMap.has(String(driver.id));
         })
-        .map((driver) => ({
-            id: String(driver.id),
-            fullName: String((profilesMap.get(String(driver.id))?.full_name as string) || "كابتن"),
-            availabilityStatus: String(driver.availability_status),
-            city: String(driver.working_city || "غير محدد"),
-            vehicleId: primaryVehicleMap.get(String(driver.id))?.id || null,
-            vehicleLabel: primaryVehicleMap.get(String(driver.id))?.label || null,
-            isAcceptingOffers: Boolean(driver.is_accepting_offers),
-        }));
+        .map((driver) => {
+            const location = liveDriverLocationMap.get(String(driver.id)) || getCityHintLocation(driver.working_city as string | null);
+            return {
+                id: String(driver.id),
+                fullName: String((profilesMap.get(String(driver.id))?.full_name as string) || "كابتن"),
+                availabilityStatus: String(driver.availability_status),
+                city: String(driver.working_city || "غير محدد"),
+                area: (driver.working_area as string | null) || null,
+                vehicleId: primaryVehicleMap.get(String(driver.id))?.id || null,
+                vehicleLabel: primaryVehicleMap.get(String(driver.id))?.label || null,
+                isAcceptingOffers: Boolean(driver.is_accepting_offers),
+                hasActiveTrip: driversWithActiveTrips.has(String(driver.id)),
+                hasOpenOffer: (openOfferCounts.get(String(driver.id)) || 0) > 0,
+                lastSeenAt: (driver.last_seen_at as string | null) || null,
+                locationLabel: location?.source === "city_hint" ? `تقديري من ${String(driver.working_city || "المدينة")}` : "موقع حي",
+                location,
+            };
+        });
+
+    const availableDrivers = normalizedDrivers.filter(
+        (driver) =>
+            driver.availabilityStatus === "online" &&
+            driver.isAcceptingOffers &&
+            !driver.hasActiveTrip
+    );
+
+    const regionOptions = Array.from(
+        new Set(
+            [
+                ...queueTrips.map((trip) => trip.region),
+                ...liveTrips.map((trip) => trip.region),
+                ...normalizedDrivers.map((driver) => driver.city),
+            ].filter((value): value is string => Boolean(value && value.trim()))
+        )
+    ).sort((left, right) => left.localeCompare(right, "ar"));
 
     return {
-        activeTrips: (trips || []).map((trip) => ({
-            id: String(trip.id),
-            customerName: String((profilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
-            pickup: String(trip.pickup_label || "من"),
-            destination: String(trip.destination_label || "إلى"),
-            tripType: String(trip.trip_type),
-            status: String(trip.status),
-            createdAt: String(trip.created_at),
-        })),
-        availableDrivers: normalizedDrivers.filter((driver) => driver.availabilityStatus === "online" && driver.isAcceptingOffers),
+        generatedAt: new Date().toISOString(),
+        regionOptions,
+        metrics: {
+            queueTripsCount: queueTrips.length,
+            liveTripsCount: liveTrips.length,
+            onlineDriversCount: normalizedDrivers.filter((driver) => driver.availabilityStatus === "online").length,
+            adminRescueCount: queueTrips.filter((trip) => trip.awaitingAdminDispatch).length,
+            breachedTripsCount: [...queueTrips, ...liveTrips].filter((trip) => trip.slaState === "breached").length,
+        },
+        queueTrips,
+        liveTrips,
+        availableDrivers,
         assignableDrivers: normalizedDrivers,
     };
 }

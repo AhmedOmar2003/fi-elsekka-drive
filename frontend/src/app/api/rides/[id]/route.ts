@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createRideServiceClient, requireRideUser } from "@/lib/ride-server-auth";
+import { ensureMarketplaceDispatchProgress } from "@/lib/ride-dispatch-server";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,25 +39,60 @@ export async function GET(request: Request, context: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+    if (
+      !trip.assigned_driver_id &&
+      auth.profile.user.id &&
+      metadata.customer_price_confirmed === true &&
+      ["searching_driver", "offered"].includes(String(trip.status))
+    ) {
+      await ensureMarketplaceDispatchProgress(serviceClient, {
+        trip: {
+          id: String(trip.id),
+          customer_id: String(trip.customer_id),
+          trip_type: String(trip.trip_type),
+          status: String(trip.status),
+          pickup_label: (trip.pickup_label as string | null) ?? null,
+          destination_label: (trip.destination_label as string | null) ?? null,
+          estimated_price:
+            trip.estimated_price === null ? null : Number(trip.estimated_price),
+          metadata,
+          assigned_driver_id: trip.assigned_driver_id as string | null,
+        },
+        triggeredByUserId: auth.profile.user.id,
+      });
+    }
+
+    const { data: refreshedTrip, error: refreshedTripError } = await serviceClient
+      .from("trips")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (refreshedTripError) throw refreshedTripError;
+    if (!refreshedTrip) {
+      return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+    }
+
     const [customerResult, driverResult, vehicleResult, timelineResult, reviewResult] =
       await Promise.all([
         serviceClient
           .from("profiles")
           .select("id, full_name, email, phone")
-          .eq("id", trip.customer_id)
+          .eq("id", refreshedTrip.customer_id)
           .maybeSingle(),
-        trip.assigned_driver_id
+        refreshedTrip.assigned_driver_id
           ? serviceClient
               .from("profiles")
               .select("id, full_name, phone")
-              .eq("id", trip.assigned_driver_id)
+              .eq("id", refreshedTrip.assigned_driver_id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
-        trip.assigned_vehicle_id
+        refreshedTrip.assigned_vehicle_id
           ? serviceClient
               .from("vehicles")
               .select("id, vehicle_type, brand, model, color, plate_number")
-              .eq("id", trip.assigned_vehicle_id)
+              .eq("id", refreshedTrip.assigned_vehicle_id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
         serviceClient
@@ -72,7 +108,7 @@ export async function GET(request: Request, context: Params) {
       ]);
 
     return NextResponse.json({
-      trip,
+      trip: refreshedTrip,
       customer: customerResult.data,
       driver: driverResult.data,
       vehicle: vehicleResult.data,

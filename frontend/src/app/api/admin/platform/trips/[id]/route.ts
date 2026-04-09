@@ -3,98 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-guard";
 import { createAdminPlatformClient } from "@/lib/admin-platform-server";
 import { hasPermission } from "@/lib/permissions";
+import { fetchEligibleDriversForTrip } from "@/lib/ride-dispatch-server";
 import { canAdminManuallyTransitionTrip, getAllowedAdminManualTripStatuses, isTripStatus } from "@/lib/trip-state-machine";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Context = { params: Promise<{ id: string }> };
-
-type DriverCandidate = {
-    id: string;
-    fullName: string;
-    workingCity: string | null;
-    workingArea: string | null;
-    vehicleId: string | null;
-    vehicleType: "car" | "tuk_tuk" | "mini_bus" | null;
-    vehicleLabel: string | null;
-    score: number;
-};
-
-function normalizePreferredVehicleType(value: unknown, tripType: string) {
-    if (tripType === "airport_ride") return "car";
-    return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "any";
-}
-
-async function fetchEligibleDriversForTrip(
-    supabase: NonNullable<ReturnType<typeof createAdminPlatformClient>>,
-    trip: { trip_type: string; metadata: Record<string, unknown> | null }
-): Promise<DriverCandidate[]> {
-    const preferredVehicleType = normalizePreferredVehicleType(trip.metadata?.preferred_vehicle_type, String(trip.trip_type));
-    const pickupCity = typeof trip.metadata?.pickup_city === "string" ? trip.metadata.pickup_city : null;
-    const pickupArea = typeof trip.metadata?.pickup_area === "string" ? trip.metadata.pickup_area : null;
-
-    const { data: driverProfiles, error: driversError } = await supabase
-        .from("driver_profiles")
-        .select("id, working_city, working_area, availability_status, is_accepting_offers, application_status, verification_status")
-        .eq("availability_status", "online")
-        .eq("is_accepting_offers", true)
-        .eq("application_status", "approved")
-        .eq("verification_status", "approved");
-
-    if (driversError) throw driversError;
-
-    const driverIds = (driverProfiles || []).map((driver) => String(driver.id));
-    if (driverIds.length === 0) return [];
-
-    const [{ data: profiles, error: profilesError }, { data: vehicles, error: vehiclesError }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, account_status").in("id", driverIds),
-        supabase
-            .from("vehicles")
-            .select("id, driver_id, vehicle_type, approval_status, is_primary, is_active, brand, model")
-            .in("driver_id", driverIds)
-            .eq("approval_status", "approved")
-            .eq("is_primary", true)
-            .eq("is_active", true),
-    ]);
-
-    if (profilesError) throw profilesError;
-    if (vehiclesError) throw vehiclesError;
-
-    const activeProfiles = new Map(
-        (profiles || [])
-            .filter((profile) => profile.account_status === "active")
-            .map((profile) => [String(profile.id), String(profile.full_name || "كابتن")])
-    );
-
-    const primaryVehicleByDriver = new Map(
-        (vehicles || []).map((vehicle) => [String(vehicle.driver_id), vehicle])
-    );
-
-    return (driverProfiles || [])
-        .filter((driver) => activeProfiles.has(String(driver.id)))
-        .map((driver) => {
-            const vehicle = primaryVehicleByDriver.get(String(driver.id));
-            const cityScore = pickupCity && driver.working_city && String(driver.working_city).toLowerCase().includes(String(pickupCity).toLowerCase()) ? 2 : 0;
-            const areaScore = pickupArea && driver.working_area && String(driver.working_area).toLowerCase().includes(String(pickupArea).toLowerCase()) ? 1 : 0;
-
-            return {
-                id: String(driver.id),
-                fullName: activeProfiles.get(String(driver.id)) || "كابتن",
-                workingCity: driver.working_city as string | null,
-                workingArea: driver.working_area as string | null,
-                vehicleId: vehicle ? String(vehicle.id) : null,
-                vehicleType: vehicle ? (String(vehicle.vehicle_type) as "car" | "tuk_tuk" | "mini_bus") : null,
-                vehicleLabel: vehicle ? `${String(vehicle.brand)} ${String(vehicle.model)} · ${String(vehicle.vehicle_type)}` : null,
-                score: cityScore + areaScore,
-            } satisfies DriverCandidate;
-        })
-        .filter((driver) => {
-            if (!driver.vehicleId || !driver.vehicleType) return false;
-            if (preferredVehicleType === "any") return true;
-            return driver.vehicleType === preferredVehicleType;
-        })
-        .sort((left, right) => right.score - left.score)
-        .slice(0, 12);
-}
 
 export async function PATCH(request: NextRequest, context: Context) {
     const auth = await requireAdminApi(request);

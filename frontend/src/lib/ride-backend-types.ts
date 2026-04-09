@@ -1,6 +1,6 @@
 export type UserRole = 'customer' | 'driver' | 'admin';
 export type AccountStatus = 'active' | 'pending' | 'suspended' | 'disabled';
-export type VehicleType = 'car' | 'tuk_tuk';
+export type VehicleType = 'car' | 'tuk_tuk' | 'mini_bus';
 export type TripType = 'airport_ride' | 'normal_ride';
 export type TripStatus =
     | 'pending'

@@ -4,6 +4,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
+import { ensureMarketplaceDispatchProgress } from "@/lib/ride-dispatch-server";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Params = { params: Promise<{ id: string }> };
@@ -152,6 +153,7 @@ export async function POST(request: Request, context: Params) {
         awaiting_admin_dispatch: false,
         customer_price_confirmed: true,
         customer_price_confirmed_at: now,
+        dispatch_mode: "instant_marketplace",
       };
 
       const { error: updateError } = await serviceClient
@@ -168,41 +170,34 @@ export async function POST(request: Request, context: Params) {
         trip_id: trip.id,
         status: nextStatus,
         changed_by: auth.profile.user.id,
-        note: "العميل وافق على السعر النهائي، والرحلة أصبحت جاهزة لتوزيع الإدارة.",
+        note: "العميل وافق على السعر النهائي، وتم تحويل الرحلة إلى التوزيع التلقائي.",
         metadata: {
           admin_selected_price: metadata["admin_selected_price"] ?? null,
+          dispatch_mode: "instant_marketplace",
         },
       });
       if (historyError) throw historyError;
 
-      const { data: admins } = await serviceClient
-        .from("profiles")
-        .select("id")
-        .eq("role", "admin")
-        .eq("account_status", "active")
-        .limit(100);
+      const dispatchResult = await ensureMarketplaceDispatchProgress(
+        serviceClient,
+        {
+          trip: {
+            ...trip,
+            status: nextStatus,
+            estimated_price: null,
+            metadata: nextMetadata,
+          },
+          triggeredByUserId: auth.profile.user.id,
+        }
+      );
 
-      const adminNotifications = (admins || []).map((admin) => ({
-        recipient_user_id: admin.id,
-        type: "admin_message",
-        title: "العميل وافق على السعر",
-        body: "العميل أكد السعر النهائي، والرحلة الآن جاهزة لبدء توزيعها على الكباتن.",
-        payload: {
-          trip_id: trip.id,
-          action: "customer_confirm_price",
-          admin_selected_price: metadata["admin_selected_price"] ?? null,
-        },
-        related_trip_id: trip.id,
-      }));
-
-      if (adminNotifications.length > 0) {
-        const { error: notificationError } = await serviceClient
-          .from("notifications")
-          .insert(adminNotifications);
-        if (notificationError) throw notificationError;
-      }
-
-      return NextResponse.json({ success: true, status: nextStatus, routeVersion: ROUTE_VERSION });
+      return NextResponse.json({
+        success: true,
+        status: dispatchResult.status,
+        offeredDriverCount: dispatchResult.offeredDriverCount,
+        fallbackToAdmin: dispatchResult.fallbackToAdmin,
+        routeVersion: ROUTE_VERSION,
+      });
     }
 
     if (action === "customer_cancel_trip") {
@@ -400,6 +395,7 @@ export async function POST(request: Request, context: Params) {
         awaiting_admin_dispatch: false,
         customer_price_confirmed: true,
         customer_price_confirmed_at: now,
+        dispatch_mode: "instant_marketplace",
       };
 
       const { error: updateError } = await serviceClient
@@ -420,13 +416,29 @@ export async function POST(request: Request, context: Params) {
         metadata: {
           admin_selected_price: metadata["admin_selected_price"] ?? null,
           requested_action: requestedAction || null,
+          dispatch_mode: "instant_marketplace",
         },
       });
       if (historyError) throw historyError;
 
+      const dispatchResult = await ensureMarketplaceDispatchProgress(
+        serviceClient,
+        {
+          trip: {
+            ...trip,
+            status: nextStatus,
+            estimated_price: null,
+            metadata: nextMetadata,
+          },
+          triggeredByUserId: auth.profile.user.id,
+        }
+      );
+
       return NextResponse.json({
         success: true,
-        status: nextStatus,
+        status: dispatchResult.status,
+        offeredDriverCount: dispatchResult.offeredDriverCount,
+        fallbackToAdmin: dispatchResult.fallbackToAdmin,
         normalizedAction: "customer_confirm_price",
         routeVersion: ROUTE_VERSION,
       });

@@ -5,6 +5,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
+import { dispatchTripToMarketplace } from "@/lib/ride-dispatch-server";
 
 function normalizeVehicleType(value: unknown) {
   return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "car";
@@ -88,9 +89,9 @@ export async function POST(request: Request) {
     const { error: tripMetaError } = await serviceClient
       .from("trips")
       .update({
-        estimated_price: null,
+        estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
         search_started_at: now,
-        status: "pending",
+        status: "searching_driver",
         metadata: {
           route_distance_km: estimate.distanceKm,
           route_duration_minutes: estimate.durationMinutes,
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
           suggested_price_min: estimate.minPrice,
           suggested_price_max: estimate.maxPrice,
           map_estimated_price: estimatedPrice,
+          admin_selected_price: estimatedPrice > 0 ? estimatedPrice : null,
           preferred_vehicle_type: preferredVehicleType,
           pickup_city: estimate.pickup.city,
           destination_city: estimate.destination.city,
@@ -105,8 +107,10 @@ export async function POST(request: Request) {
           destination_area: estimate.destination.area,
           airport_departure_time: tripType === "airport_ride" ? body.departureTime || null : null,
           airport_departure_label: tripType === "airport_ride" ? body.departureTimeLabel || null : null,
-          dispatch_mode: "admin_dispatch_only",
-          awaiting_admin_dispatch: true,
+          dispatch_mode: "instant_marketplace",
+          awaiting_admin_dispatch: false,
+          customer_price_confirmed: true,
+          customer_price_confirmed_at: now,
         },
       })
       .eq("id", tripId);
@@ -115,52 +119,23 @@ export async function POST(request: Request) {
 
     await serviceClient.from("trip_status_history").insert({
       trip_id: tripId,
-      status: "pending",
+      status: "searching_driver",
       changed_by: auth.profile.user.id,
-      note: "العميل أرسل الطلب والخط السير اتحدد. الطلب دلوقتي في انتظار تسعير وإسناد الإدارة.",
+      note: "العميل أرسل الطلب، وتم تسعيره تلقائيًا وتجهيزه للتوزيع الفوري على الكباتن.",
       metadata: {
         distance_km: estimate.distanceKm,
         duration_minutes: estimate.durationMinutes,
         preferred_vehicle_type: preferredVehicleType,
+        dispatch_mode: "instant_marketplace",
+        auto_priced_price: estimatedPrice > 0 ? estimatedPrice : null,
       },
     });
-
-    const { data: admins, error: adminsError } = await serviceClient
-      .from("profiles")
-      .select("id")
-      .eq("role", "admin")
-      .eq("account_status", "active");
-
-    if (adminsError) throw adminsError;
-
-    const adminNotifications = (admins || []).map((admin) => ({
-      recipient_user_id: admin.id,
-      type: "admin_message",
-      title: "طلب مشوار جديد جاهز للتوزيع",
-      body: `مشوار من ${estimate.pickup.label} إلى ${estimate.destination.label}. حدّد السعر النهائي وأسنده للكباتن.`,
-      payload: {
-        trip_id: tripId,
-        pickup_label: estimate.pickup.label,
-        destination_label: estimate.destination.label,
-        trip_type: tripType,
-        preferred_vehicle_type: preferredVehicleType,
-        suggested_price: estimatedPrice,
-      },
-      related_trip_id: tripId,
-    }));
-
-    if (adminNotifications.length > 0) {
-      const { error: adminsNotifyError } = await serviceClient
-        .from("notifications")
-        .insert(adminNotifications);
-      if (adminsNotifyError) throw adminsNotifyError;
-    }
 
     await serviceClient.from("notifications").insert({
       recipient_user_id: auth.profile.user.id,
       type: "trip_created",
       title: "استلمنا طلب مشوارك",
-      body: "تم تحديد المسافة والمدة، والطلب الآن عند الإدارة لتسعيره وإسناده لكابتن مناسب.",
+      body: "تم تحديد المسافة والسعر التلقائي، وبدأنا فورًا نبحث لك عن أقرب كابتن مناسب.",
       payload: {
         trip_id: tripId,
         estimated_price: estimatedPrice,
@@ -170,11 +145,19 @@ export async function POST(request: Request) {
       related_trip_id: tripId,
     });
 
+    const dispatchResult = await dispatchTripToMarketplace(serviceClient, {
+      tripId,
+      triggeredByUserId: auth.profile.user.id,
+      explicitPrice: estimatedPrice > 0 ? estimatedPrice : null,
+      source: "trip_request",
+    });
+
     return NextResponse.json({
       success: true,
       tripId,
-      status: "pending",
-      offeredDriverCount: 0,
+      status: dispatchResult.status,
+      offeredDriverCount: dispatchResult.offeredDriverCount,
+      fallbackToAdmin: dispatchResult.fallbackToAdmin,
     });
   } catch (error: any) {
     return NextResponse.json(

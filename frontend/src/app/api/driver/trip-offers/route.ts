@@ -22,6 +22,19 @@ export async function GET(request: Request) {
   }
 
   try {
+    const nowIso = new Date().toISOString();
+    await serviceClient
+      .from("trip_offers")
+      .update({
+        offer_status: "timed_out",
+        responded_at: nowIso,
+        updated_at: nowIso,
+        rejection_reason: "انتهت مهلة مراجعة العرض.",
+      })
+      .eq("driver_id", auth.profile.user.id)
+      .eq("offer_status", "offered")
+      .lte("expires_at", nowIso);
+
     const { data: offers, error } = await serviceClient
       .from("trip_offers")
       .select("*")
@@ -81,6 +94,10 @@ export async function GET(request: Request) {
         const trip = offer.trip;
         if (!trip) return false;
         if (trip.status === "cancelled") return false;
+        const expiresAt = offer.expiresAt ? new Date(String(offer.expiresAt)).getTime() : Number.NaN;
+        if (offer.offerStatus === "offered" && Number.isFinite(expiresAt) && expiresAt <= now) {
+          return false;
+        }
         if (offer.offerStatus === "offered" && trip.status === "completed") {
           return false;
         }
