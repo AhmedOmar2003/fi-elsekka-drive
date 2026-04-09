@@ -14,6 +14,7 @@ import { optimizeImageForUpload } from "@/lib/image-upload";
 async function sendJson<T = Record<string, unknown>>(url: string, method: string, body: Record<string, unknown>) {
     const response = await fetch(url, {
         method,
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
@@ -30,6 +31,7 @@ async function sendJson<T = Record<string, unknown>>(url: string, method: string
 async function sendFormData(url: string, body: FormData) {
     const response = await fetch(url, {
         method: "POST",
+        credentials: "include",
         body,
     });
 
