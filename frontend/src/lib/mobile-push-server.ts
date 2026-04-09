@@ -6,6 +6,8 @@ type MobilePushPayload = {
   topic?: string;
 };
 
+const fiElsekkaMobileChannelId = "fi_elsekka_rides_v2";
+
 type MobilePushTokenRecord = {
   id: string;
   token: string;
@@ -42,6 +44,7 @@ function buildFunctionPayload(
         ? payload.title
         : `في السكة | ${payload.title}`,
       body: payload.message,
+      sound: "default",
     },
     data: {
       link,
@@ -51,6 +54,9 @@ function buildFunctionPayload(
         : `في السكة | ${payload.title}`,
       body: payload.message,
       topic: payload.topic || "fi_elsekka_mobile",
+      sound: "default",
+      channelId: fiElsekkaMobileChannelId,
+      android_channel_id: fiElsekkaMobileChannelId,
       requireInteraction: String(payload.requireInteraction ?? true),
     },
   };

@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import type { TripStatus } from "@/lib/ride-backend-types";
 import { supabase } from "@/lib/supabase";
+import { getAllowedAdminManualTripStatuses, isTripStatus } from "@/lib/trip-state-machine";
 
 async function sendJson<T = Record<string, unknown>>(url: string, method: string, body: Record<string, unknown>) {
     const { data } = await supabase.auth.getSession();
@@ -80,32 +82,59 @@ async function uploadCaptainDocument(url: string, documentType: string, file: Fi
 
 export function TripStatusForm({ tripId, currentStatus }: { tripId: string; currentStatus: string }) {
     const router = useRouter();
-    const [status, setStatus] = useState(currentStatus);
+    const normalizedCurrentStatus: TripStatus = isTripStatus(currentStatus) ? currentStatus : "pending";
+    const allowedStatuses = getAllowedAdminManualTripStatuses(normalizedCurrentStatus);
+    const [status, setStatus] = useState(allowedStatuses[0] || normalizedCurrentStatus);
+    const [note, setNote] = useState("");
     const [isPending, startTransition] = useTransition();
 
     return (
         <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
             <Label className="text-white/75">غيّر حالة المشوار</Label>
-            <div className="flex flex-col gap-3 md:flex-row">
-                <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
-                    {["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed", "cancelled"].map((item) => (
-                        <option key={item} value={item}>
-                            {formatLabel(item)}
-                        </option>
-                    ))}
-                </Select>
-                <Button
-                    isLoading={isPending}
-                    onClick={() =>
-                        startTransition(async () => {
-                            await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", { action: "update_status", status });
-                            router.refresh();
-                        })
-                    }
-                >
-                    حفظ الحالة
-                </Button>
-            </div>
+            <p className="text-sm text-white/45">
+                الحالة الحالية: <span className="font-bold text-white/75">{formatLabel(normalizedCurrentStatus)}</span>
+            </p>
+            {allowedStatuses.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/55">
+                    الحالة الحالية نهائية، لذلك لا توجد انتقالات يدوية إضافية متاحة من لوحة الإدارة.
+                </div>
+            ) : (
+                <>
+                    <div className="flex flex-col gap-3 md:flex-row">
+                        <Select value={status} onChange={(event) => setStatus(event.target.value)} className="bg-white/5 text-white">
+                            {allowedStatuses.map((item) => (
+                                <option key={item} value={item}>
+                                    {formatLabel(item)}
+                                </option>
+                            ))}
+                        </Select>
+                        <Button
+                            isLoading={isPending}
+                            onClick={() =>
+                                startTransition(async () => {
+                                    await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                                        action: "update_status",
+                                        status,
+                                        note,
+                                    });
+                                    router.refresh();
+                                })
+                            }
+                        >
+                            حفظ الحالة
+                        </Button>
+                    </div>
+                    <Input
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder="سبب التغيير اليدوي في حالة المشوار"
+                        className="bg-white/5 text-white"
+                    />
+                    <p className="text-xs text-white/40">
+                        التغييرات اليدوية أصبحت مقيدة بالانتقالات الطبيعية فقط، مع تسجيل سبب التدخل في سجل المشوار.
+                    </p>
+                </>
+            )}
         </div>
     );
 }

@@ -31,6 +31,12 @@ export async function POST(request: Request, context: Params) {
     const { offerId } = await context.params;
     const body = await request.json();
     const action = body.action === "reject" ? "reject" : "accept";
+    const activeTripStatuses = new Set([
+      "accepted",
+      "driver_on_the_way",
+      "driver_arrived",
+      "trip_started",
+    ]);
     const etaMinutes =
       action === "accept"
         ? Math.min(180, Math.max(1, Number(body.etaMinutes || 15)))
@@ -49,7 +55,9 @@ export async function POST(request: Request, context: Params) {
 
     const { data: trip, error: tripError } = await serviceClient
       .from("trips")
-      .select("id, customer_id, pickup_label, destination_label, metadata, status")
+      .select(
+        "id, customer_id, pickup_label, destination_label, metadata, status, assigned_driver_id"
+      )
       .eq("id", offer.trip_id)
       .maybeSingle();
 
@@ -59,6 +67,32 @@ export async function POST(request: Request, context: Params) {
     }
     if (trip.status === "cancelled") {
       return NextResponse.json({ error: "المشوار ده اتلغى خلاص." }, { status: 409 });
+    }
+    if (action === "accept") {
+      const assignedDriverId = String(trip.assigned_driver_id || "");
+      const currentStatus = String(trip.status || "");
+      if (
+        assignedDriverId === auth.profile.user.id &&
+        activeTripStatuses.has(currentStatus)
+      ) {
+        return NextResponse.json({
+          success: true,
+          offerId,
+          tripId: trip.id,
+          alreadyAnswered: true,
+          tripStatus: currentStatus,
+        });
+      }
+      if (
+        assignedDriverId &&
+        assignedDriverId !== auth.profile.user.id &&
+        activeTripStatuses.has(currentStatus)
+      ) {
+        return NextResponse.json(
+          { error: "تم إسناد الرحلة بالفعل إلى كابتن آخر." },
+          { status: 409 }
+        );
+      }
     }
     if (
       offer.offer_status === "offered" &&
@@ -74,7 +108,37 @@ export async function POST(request: Request, context: Params) {
       p_rejection_reason: action === "reject" ? body.rejectionReason || null : null,
     });
 
-    if (error) throw error;
+    if (error) {
+      const normalizedError = String(error.message || "").toLowerCase();
+      if (normalizedError.includes("already answered")) {
+        const { data: refreshedTrip, error: refreshedTripError } = await serviceClient
+          .from("trips")
+          .select("id, status, assigned_driver_id")
+          .eq("id", offer.trip_id)
+          .maybeSingle();
+        if (refreshedTripError) throw refreshedTripError;
+        const assignedDriverId = String(refreshedTrip?.assigned_driver_id || "");
+        const currentStatus = String(refreshedTrip?.status || "");
+        if (
+          action === "accept" &&
+          assignedDriverId === auth.profile.user.id &&
+          activeTripStatuses.has(currentStatus)
+        ) {
+          return NextResponse.json({
+            success: true,
+            offerId,
+            tripId: refreshedTrip?.id ?? offer.trip_id,
+            alreadyAnswered: true,
+            tripStatus: currentStatus,
+          });
+        }
+        return NextResponse.json(
+          { error: "تم الرد على العرض بالفعل أو تم إسناد الرحلة لكابتن آخر." },
+          { status: 409 }
+        );
+      }
+      throw error;
+    }
 
     if (action === "accept") {
       const now = new Date().toISOString();
@@ -141,7 +205,7 @@ export async function POST(request: Request, context: Params) {
       });
     }
 
-    return NextResponse.json({ success: true, offerId: data });
+    return NextResponse.json({ success: true, offerId: data, tripId: trip.id });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || "تعذر تحديث رد الكابتن على العرض." },

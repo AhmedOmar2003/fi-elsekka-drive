@@ -1,4 +1,8 @@
 import { calculateRideFare } from "@/lib/ride-pricing";
+import {
+  findNearestCommunityPlace,
+  searchCommunityPlaces,
+} from "@/lib/community-places-server";
 
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_REVERSE_BASE_URL = "https://nominatim.openstreetmap.org/reverse";
@@ -25,6 +29,8 @@ export type GeocodedLocation = {
   longitude: number;
   city: string | null;
   area: string | null;
+  source?: string;
+  usageCount?: number;
 };
 
 export type RideEstimateResult = {
@@ -87,6 +93,8 @@ function normalizeGoogleGeocodeResult(result: any, fallbackQuery: string): Geoco
     longitude: Number(location.lng),
     city,
     area,
+    source: "google_places",
+    usageCount: 0,
   };
 }
 
@@ -268,6 +276,8 @@ async function searchLocationsWithGoogleTextSearch(
         longitude: Number(result.geometry.location.lng),
         city,
         area,
+        source: "google_text",
+        usageCount: 0,
       } satisfies GeocodedLocation;
     });
 
@@ -397,6 +407,8 @@ async function searchLocationsWithOsm(
         longitude: Number(match.lon),
         city,
         area,
+        source: "osm_search",
+        usageCount: 0,
       } satisfies GeocodedLocation;
     });
 }
@@ -445,7 +457,230 @@ async function reverseGeocodeWithOsm(
     longitude: Number(match.lon),
     city,
     area,
+    source: "osm_reverse",
+    usageCount: 0,
   };
+}
+
+function normalizeText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ")
+    .replace(/أ|إ|آ/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/kh/g, "5")
+    .replace(/gh/g, "8")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function phoneticKey(value: string) {
+  const normalized = normalizeText(value);
+  const arabicMap: Record<string, string> = {
+    ا: "a",
+    ب: "b",
+    ت: "t",
+    ث: "s",
+    ج: "g",
+    ح: "h",
+    خ: "5",
+    د: "d",
+    ذ: "z",
+    ر: "r",
+    ز: "z",
+    س: "s",
+    ش: "sh",
+    ص: "s",
+    ض: "d",
+    ط: "t",
+    ظ: "z",
+    ع: "a",
+    غ: "8",
+    ف: "f",
+    ق: "q",
+    ك: "k",
+    ل: "l",
+    م: "m",
+    ن: "n",
+    ه: "h",
+    و: "w",
+    ي: "i",
+  };
+
+  let mapped = "";
+  for (const char of normalized) {
+    if (char === " ") continue;
+    mapped += arabicMap[char] ?? char;
+  }
+
+  return mapped
+    .replace(/[aeiouyw]/g, "")
+    .replace(/(.)\1+/g, "$1");
+}
+
+function haversineDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) {
+  const earthRadiusKm = 6371;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLon / 2) ** 2 *
+      Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2));
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function isLowQualityLocation(location: GeocodedLocation | null | undefined) {
+  if (!location) return true;
+  const label = normalizeText(location.label || "");
+  const address = normalizeText(location.address || "");
+  if (!label || !address) return true;
+  const lowQualityTokens = [
+    "unnamed road",
+    "طريق غير مسمى",
+    "طريق بدون اسم",
+    "نقطه من الخريطه",
+    "مكان محفوظ على الخريطه",
+  ];
+  return lowQualityTokens.some(
+    (token) => label.includes(token) || address.includes(token)
+  );
+}
+
+function dedupeLocations(locations: GeocodedLocation[]) {
+  const merged: GeocodedLocation[] = [];
+
+  for (const item of locations) {
+    const existingIndex = merged.findIndex((candidate) => {
+      const distanceKm = haversineDistanceKm(
+        candidate.latitude,
+        candidate.longitude,
+        item.latitude,
+        item.longitude
+      );
+      if (distanceKm > 0.12) {
+        return false;
+      }
+      const a = phoneticKey(candidate.label);
+      const b = phoneticKey(item.label);
+      return a === b || a.includes(b) || b.includes(a);
+    });
+
+    if (existingIndex === -1) {
+      merged.push(item);
+      continue;
+    }
+
+    const existing = merged[existingIndex];
+    const existingUsage = Number(existing.usageCount || 0);
+    const incomingUsage = Number(item.usageCount || 0);
+    const shouldReplace =
+      incomingUsage > existingUsage ||
+      (item.source === "shared_community" && existing.source !== "shared_community") ||
+      (item.address?.length || 0) > (existing.address?.length || 0);
+
+    merged[existingIndex] = shouldReplace
+      ? {
+          ...item,
+          usageCount: Math.max(existingUsage, incomingUsage),
+        }
+      : {
+          ...existing,
+          usageCount: Math.max(existingUsage, incomingUsage),
+        };
+  }
+
+  return merged;
+}
+
+function rankLocations(
+  query: string,
+  locations: GeocodedLocation[],
+  nearLatitude?: number,
+  nearLongitude?: number
+) {
+  const normalizedQuery = normalizeText(query);
+  const phoneticQuery = phoneticKey(query);
+
+  const sourceWeight = (source?: string) => {
+    switch (source) {
+      case "shared_community":
+        return 340;
+      case "user_created":
+        return 360;
+      case "google_places":
+        return 280;
+      case "google_text":
+        return 250;
+      case "osm_search":
+        return 210;
+      default:
+        return 180;
+    }
+  };
+
+  const scored = locations.map((location) => {
+    const label = normalizeText(location.label);
+    const address = normalizeText(location.address);
+    const city = normalizeText(location.city || "");
+    const area = normalizeText(location.area || "");
+    const haystack = `${label} ${address} ${city} ${area}`.trim();
+    const phoneticHaystack = phoneticKey(haystack);
+    const distanceKm =
+      Number.isFinite(nearLatitude) && Number.isFinite(nearLongitude)
+        ? haversineDistanceKm(
+            nearLatitude!,
+            nearLongitude!,
+            location.latitude,
+            location.longitude
+          )
+        : Number.POSITIVE_INFINITY;
+
+    let score = sourceWeight(location.source);
+    if (label === normalizedQuery) {
+      score += 220;
+    } else if (label.startsWith(normalizedQuery)) {
+      score += 170;
+    } else if (haystack.includes(normalizedQuery)) {
+      score += 130;
+    }
+
+    if (phoneticQuery) {
+      if (phoneticKey(label) === phoneticQuery) {
+        score += 160;
+      } else if (phoneticHaystack.includes(phoneticQuery)) {
+        score += 100;
+      }
+    }
+
+    score += Math.min(Number(location.usageCount || 0) * 14, 140);
+    if (Number.isFinite(distanceKm)) {
+      score -= Math.min(Math.round(distanceKm * 10), 140);
+    }
+
+    return { location, score, distanceKm };
+  });
+
+  scored.sort((a, b) => {
+    const scoreDiff = b.score - a.score;
+    if (scoreDiff !== 0) return scoreDiff;
+    const usageDiff = Number(b.location.usageCount || 0) - Number(a.location.usageCount || 0);
+    if (usageDiff !== 0) return usageDiff;
+    return a.distanceKm - b.distanceKm;
+  });
+
+  return scored.map((item) => item.location);
 }
 
 async function getRouteDistanceAndDurationWithOsm(
@@ -478,25 +713,37 @@ async function getRouteDistanceAndDurationWithOsm(
 export async function searchLocations(
   query: string,
   limit = 5,
-  sessionToken?: string
+  sessionToken?: string,
+  nearLatitude?: number,
+  nearLongitude?: number
 ): Promise<GeocodedLocation[]> {
+  const communityResults = await searchCommunityPlaces(query, {
+    limit: Math.max(limit, 6),
+    nearLatitude,
+    nearLongitude,
+  });
+
+  let remoteResults: GeocodedLocation[] = [];
   if (GOOGLE_MAPS_API_KEY) {
     try {
-      return await searchLocationsWithGoogle(query, limit, sessionToken);
+      remoteResults = await searchLocationsWithGoogle(query, limit, sessionToken);
     } catch {
       try {
-        return await searchLocationsWithGoogleGeocode(query, limit);
+        remoteResults = await searchLocationsWithGoogleGeocode(query, limit);
       } catch {
         try {
-          return await searchLocationsWithGoogleTextSearch(query, limit);
+          remoteResults = await searchLocationsWithGoogleTextSearch(query, limit);
         } catch {
-          return await searchLocationsWithOsm(query, limit);
+          remoteResults = await searchLocationsWithOsm(query, limit);
         }
       }
     }
+  } else {
+    remoteResults = await searchLocationsWithOsm(query, limit);
   }
 
-  return await searchLocationsWithOsm(query, limit);
+  const merged = dedupeLocations([...communityResults, ...remoteResults]);
+  return rankLocations(query, merged, nearLatitude, nearLongitude).slice(0, limit);
 }
 
 async function geocodePlace(query: string): Promise<GeocodedLocation> {
@@ -561,13 +808,37 @@ export async function reverseGeocodeCoordinates(
   latitude: number,
   longitude: number
 ): Promise<GeocodedLocation> {
+  let resolved: GeocodedLocation;
   if (GOOGLE_MAPS_API_KEY) {
     try {
-      return await reverseGeocodeWithGoogle(latitude, longitude);
+      resolved = await reverseGeocodeWithGoogle(latitude, longitude);
     } catch {
-      return await reverseGeocodeWithOsm(latitude, longitude);
+      resolved = await reverseGeocodeWithOsm(latitude, longitude);
     }
+  } else {
+    resolved = await reverseGeocodeWithOsm(latitude, longitude);
   }
 
-  return await reverseGeocodeWithOsm(latitude, longitude);
+  if (!isLowQualityLocation(resolved)) {
+    return resolved;
+  }
+
+  const nearest = await findNearestCommunityPlace(latitude, longitude, {
+    radiusMeters: 500,
+  });
+
+  if (!nearest) {
+    return resolved;
+  }
+
+  return {
+    label: `قريب من ${nearest.label}`,
+    address: nearest.address || `قريب من ${nearest.label}`,
+    latitude,
+    longitude,
+    city: nearest.city,
+    area: nearest.area,
+    source: "shared_community",
+    usageCount: nearest.usageCount || 0,
+  };
 }

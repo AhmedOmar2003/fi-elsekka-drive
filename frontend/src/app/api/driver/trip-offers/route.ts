@@ -84,13 +84,6 @@ export async function GET(request: Request) {
         if (offer.offerStatus === "offered" && trip.status === "completed") {
           return false;
         }
-        if (
-          offer.offerStatus === "offered" &&
-          offer.expiresAt &&
-          new Date(offer.expiresAt).getTime() <= now
-        ) {
-          return false;
-        }
         return true;
       });
 

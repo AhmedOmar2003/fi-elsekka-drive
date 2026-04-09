@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-guard";
 import { createAdminPlatformClient } from "@/lib/admin-platform-server";
 import { hasPermission } from "@/lib/permissions";
+import { canAdminManuallyTransitionTrip, getAllowedAdminManualTripStatuses, isTripStatus } from "@/lib/trip-state-machine";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Context = { params: Promise<{ id: string }> };
@@ -404,33 +405,77 @@ export async function PATCH(request: NextRequest, context: Context) {
         }
 
         if (action === "update_status") {
-            const status = String(body.status || "");
-            if (!status) {
+            const requestedStatus = String(body.status || "");
+            const note = String(body.note || "").trim();
+            if (!requestedStatus) {
                 return NextResponse.json({ error: "status is required" }, { status: 400 });
+            }
+            if (!isTripStatus(requestedStatus)) {
+                return NextResponse.json({ error: "حالة الرحلة المطلوبة غير معروفة." }, { status: 400 });
+            }
+
+            const { data: trip, error: tripError } = await supabase
+                .from("trips")
+                .select("id, status")
+                .eq("id", id)
+                .single();
+
+            if (tripError || !trip) {
+                return NextResponse.json({ error: "المشوار المطلوب مش موجود." }, { status: 404 });
+            }
+
+            const currentStatus = String(trip.status || "");
+            if (!isTripStatus(currentStatus)) {
+                return NextResponse.json({ error: "الحالة الحالية للمشوار غير مدعومة." }, { status: 409 });
+            }
+
+            if (!canAdminManuallyTransitionTrip(currentStatus, requestedStatus)) {
+                return NextResponse.json(
+                    {
+                        error: "الانتقال اليدوي المطلوب غير مسموح من الحالة الحالية.",
+                        currentStatus,
+                        allowedStatuses: getAllowedAdminManualTripStatuses(currentStatus),
+                    },
+                    { status: 409 }
+                );
+            }
+
+            if (currentStatus === requestedStatus) {
+                return NextResponse.json({ success: true, status: currentStatus, noop: true });
             }
 
             const now = new Date().toISOString();
             const updates: Record<string, unknown> = {
-                status,
+                status: requestedStatus,
                 updated_at: now,
             };
 
-            if (status === "completed") updates.completed_at = now;
-            if (status === "driver_on_the_way") updates.driver_on_the_way_at = now;
-            if (status === "driver_arrived") updates.driver_arrived_at = now;
-            if (status === "trip_started") updates.trip_started_at = now;
+            if (requestedStatus === "completed") updates.completed_at = now;
+            if (requestedStatus === "driver_on_the_way") updates.driver_on_the_way_at = now;
+            if (requestedStatus === "driver_arrived") updates.driver_arrived_at = now;
+            if (requestedStatus === "trip_started") updates.trip_started_at = now;
+            if (requestedStatus === "cancelled") {
+                updates.cancelled_at = now;
+                updates.cancelled_by = auth.profile.user.id;
+                updates.cancellation_reason = note || "Manual admin cancellation";
+            }
 
             const { error } = await supabase.from("trips").update(updates).eq("id", id);
             if (error) throw error;
 
             await supabase.from("trip_status_history").insert({
                 trip_id: id,
-                status,
+                status: requestedStatus,
                 changed_by: auth.profile.user.id,
-                note: "Admin updated trip status from dashboard",
+                note: note || `Admin changed trip status manually from ${currentStatus} to ${requestedStatus}.`,
+                metadata: {
+                    action: "admin_manual_status_override",
+                    from_status: currentStatus,
+                    to_status: requestedStatus,
+                },
             });
 
-            return NextResponse.json({ success: true });
+            return NextResponse.json({ success: true, status: requestedStatus });
         }
 
         if (action === "cancel_trip") {
