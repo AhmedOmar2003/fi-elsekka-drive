@@ -8,6 +8,7 @@ import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Params = { params: Promise<{ id: string }> };
 
+const ROUTE_VERSION = "trip-status-v3-2026-04-09";
 const ALREADY_DONE_STATUSES = new Set(["driver_arrived", "trip_started", "completed"]);
 const CONFIRM_PRICE_ALIASES = new Set([
   "customer_confirm_price",
@@ -79,7 +80,7 @@ export async function POST(request: Request, context: Params) {
       }
 
       if (ALREADY_DONE_STATUSES.has(String(trip.status))) {
-        return NextResponse.json({ success: true, status: trip.status });
+        return NextResponse.json({ success: true, status: trip.status, routeVersion: ROUTE_VERSION });
       }
 
       if (!["accepted", "driver_on_the_way", "offered"].includes(String(trip.status))) {
@@ -120,7 +121,7 @@ export async function POST(request: Request, context: Params) {
         });
       }
 
-      return NextResponse.json({ success: true, status: "driver_arrived" });
+      return NextResponse.json({ success: true, status: "driver_arrived", routeVersion: ROUTE_VERSION });
     }
 
     const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
@@ -142,7 +143,7 @@ export async function POST(request: Request, context: Params) {
       }
 
       if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "completed"].includes(String(trip.status))) {
-        return NextResponse.json({ success: true, status: trip.status });
+        return NextResponse.json({ success: true, status: trip.status, routeVersion: ROUTE_VERSION });
       }
 
       const nextStatus = String(trip.status) == "offered" ? "offered" : "searching_driver";
@@ -201,7 +202,7 @@ export async function POST(request: Request, context: Params) {
         if (notificationError) throw notificationError;
       }
 
-      return NextResponse.json({ success: true, status: nextStatus });
+      return NextResponse.json({ success: true, status: nextStatus, routeVersion: ROUTE_VERSION });
     }
 
     if (action === "customer_cancel_trip") {
@@ -220,7 +221,7 @@ export async function POST(request: Request, context: Params) {
 
       if (cancelError) throw cancelError;
 
-      return NextResponse.json({ success: true, status: "cancelled" });
+      return NextResponse.json({ success: true, status: "cancelled", routeVersion: ROUTE_VERSION });
     }
 
     if (action === "customer_report_driver_delay") {
@@ -274,7 +275,12 @@ export async function POST(request: Request, context: Params) {
         });
       }
 
-      return NextResponse.json({ success: true, status: trip.status, notifiedAdmins: adminNotifications.length });
+      return NextResponse.json({
+        success: true,
+        status: trip.status,
+        notifiedAdmins: adminNotifications.length,
+        routeVersion: ROUTE_VERSION,
+      });
     }
 
     if (action === "driver_start_trip") {
@@ -283,7 +289,7 @@ export async function POST(request: Request, context: Params) {
       }
 
       if (String(trip.status) === "trip_started" || String(trip.status) === "completed") {
-        return NextResponse.json({ success: true, status: trip.status });
+        return NextResponse.json({ success: true, status: trip.status, routeVersion: ROUTE_VERSION });
       }
       if (String(trip.status) !== "driver_arrived") {
         return NextResponse.json({ error: "لازم الكابتن يكون وصل الأول." }, { status: 409 });
@@ -323,7 +329,7 @@ export async function POST(request: Request, context: Params) {
         topic: "trip-started",
       });
 
-      return NextResponse.json({ success: true, status: "trip_started" });
+      return NextResponse.json({ success: true, status: "trip_started", routeVersion: ROUTE_VERSION });
     }
 
     if (action === "driver_complete_trip") {
@@ -332,7 +338,7 @@ export async function POST(request: Request, context: Params) {
       }
 
       if (String(trip.status) === "completed") {
-        return NextResponse.json({ success: true, status: "completed" });
+        return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
       }
       if (!["trip_started", "driver_arrived"].includes(String(trip.status))) {
         return NextResponse.json({ error: "لازم المشوار يكون بدأ أو الكابتن وصل الأول." }, { status: 409 });
@@ -384,7 +390,7 @@ export async function POST(request: Request, context: Params) {
         topic: "trip-completed",
       });
 
-      return NextResponse.json({ success: true, status: "completed" });
+      return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
     }
 
     if (isCustomer && hasQuotedPrice && ["pending", "searching_driver", "offered"].includes(String(trip.status))) {
@@ -418,13 +424,21 @@ export async function POST(request: Request, context: Params) {
       });
       if (historyError) throw historyError;
 
-      return NextResponse.json({ success: true, status: nextStatus, normalizedAction: "customer_confirm_price" });
+      return NextResponse.json({
+        success: true,
+        status: nextStatus,
+        normalizedAction: "customer_confirm_price",
+        routeVersion: ROUTE_VERSION,
+      });
     }
 
-    return NextResponse.json({ error: "العملية المطلوبة غير مدعومة.", action: requestedAction || null }, { status: 400 });
+    return NextResponse.json(
+      { error: "العملية المطلوبة غير مدعومة.", action: requestedAction || null, routeVersion: ROUTE_VERSION },
+      { status: 400 }
+    );
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || "تعذر تحديث حالة المشوار." },
+      { error: error?.message || "تعذر تحديث حالة المشوار.", routeVersion: ROUTE_VERSION },
       { status: 500 }
     );
   }
