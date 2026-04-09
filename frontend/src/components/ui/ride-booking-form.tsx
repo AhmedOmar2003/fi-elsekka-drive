@@ -53,6 +53,27 @@ type AutocompleteField = Exclude<MapField, null> | null;
 
 const DEFAULT_CENTER: [number, number] = [30.0444, 31.2357];
 
+function TukTukIcon({ className = "h-12 w-12" }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <path
+        fill="#20AD83"
+        d="M21.33 12.71a.25.25 0 0 1-.13-.14l-1.81-5a.24.24 0 0 1 0-.23a.21.21 0 0 1 .21-.1l1.56.07h.05a1 1 0 0 0 1-1a1 1 0 0 0-.95-1l-2.41-.12a.26.26 0 0 1-.17-.19l-.29-.57a1 1 0 0 0-1.78 0l-.22.43a.25.25 0 0 1-.24.14l-15.1-.7a1 1 0 1 0-.1 2H1a.24.24 0 0 1 .24.25v9a2.26 2.26 0 0 0 1 1.85a.27.27 0 0 0 .23 0a.25.25 0 0 0 .16-.16a3 3 0 0 1 5.83.32a.25.25 0 0 0 .25.22h8.86a.24.24 0 0 1 .24.2a2.49 2.49 0 0 0 4.9 0a.24.24 0 0 1 .24-.2H23a1 1 0 0 0 1-1a4.47 4.47 0 0 0-2.67-4.07m-13.08.34a.25.25 0 0 1-.25.25H7a.25.25 0 0 1-.25-.25A1.75 1.75 0 0 0 5 11.3H4a.25.25 0 0 1-.25-.25V6.7a.27.27 0 0 1 .08-.19a.23.23 0 0 1 .17-.06l4 .19a.25.25 0 0 1 .24.25Zm10.2-3.26l-1.52 1.52a3.54 3.54 0 0 0-.93 1.78a.25.25 0 0 1-.24.21h-1.03a.24.24 0 0 1-.23-.18l-1.3-3.89a1 1 0 0 0-1.9.63l1 3.11a.25.25 0 0 1 0 .22a.23.23 0 0 1-.2.11h-1.6a.25.25 0 0 1-.25-.25V7a.27.27 0 0 1 .08-.19a.23.23 0 0 1 .18-.06l7 .34a.25.25 0 0 1 .22.17l.8 2.25a.25.25 0 0 1-.08.28"
+      />
+      <path
+        fill="#20AD83"
+        d="M3.5 18.05a2 2 0 1 0 4 0a2 2 0 1 0-4 0"
+      />
+    </svg>
+  );
+}
+
 export function BookingForm() {
   const router = useRouter();
   const [pickup, setPickup] = useState("");
@@ -739,7 +760,9 @@ export function BookingForm() {
                         : "border-white/5 bg-surface-container-low hover:bg-surface-container"
                     }`}
                   >
-                    <span className="text-[48px] drop-shadow-2xl translate-x-1">🛺</span>
+                    <div className="translate-x-1 drop-shadow-2xl">
+                      <TukTukIcon className="h-12 w-12" />
+                    </div>
                     <div className="flex flex-col items-start w-full gap-1 flex-1 justify-end">
                       <span className="text-sm font-black text-white">تكتك</span>
                       {estimate && <span className="text-xs font-bold text-primary">{Math.max(10, estimate.minPrice * 0.7).toFixed()} ج.م</span>}

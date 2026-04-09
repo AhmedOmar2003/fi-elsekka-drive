@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  createRideAuthedClient,
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
@@ -9,6 +8,92 @@ import { dispatchTripToMarketplace } from "@/lib/ride-dispatch-server";
 
 function normalizeVehicleType(value: unknown) {
   return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "car";
+}
+
+type CreateTripRecordInput = {
+  customerId: string;
+  tripType: "normal_ride" | "airport_ride";
+  estimate: any;
+  tripBody: any;
+  luggageCount: number;
+  passengerCount: number;
+  isRoundTrip: boolean;
+  waitingDurationMinutes: number | null;
+};
+
+async function createTripRecord(
+  serviceClient: NonNullable<ReturnType<typeof createRideServiceClient>>,
+  input: CreateTripRecordInput
+) {
+  const {
+    customerId,
+    tripType,
+    estimate,
+    tripBody,
+    luggageCount,
+    passengerCount,
+    isRoundTrip,
+    waitingDurationMinutes,
+  } = input;
+
+  const returnDestinationLabel = isRoundTrip
+    ? tripBody.returnDestinationLabel || estimate.pickup.label || null
+    : null;
+  const returnDestinationAddress = isRoundTrip
+    ? tripBody.returnDestinationAddress || estimate.pickup.address || null
+    : null;
+  const returnDestinationLatitude = isRoundTrip
+    ? Number(tripBody.returnDestinationLatitude ?? estimate.pickup.latitude)
+    : null;
+  const returnDestinationLongitude = isRoundTrip
+    ? Number(tripBody.returnDestinationLongitude ?? estimate.pickup.longitude)
+    : null;
+
+  const { data, error } = await serviceClient
+    .from("trips")
+    .insert({
+      customer_id: customerId,
+      trip_type: tripType,
+      status: "pending",
+      pickup_label: estimate.pickup.label,
+      pickup_address: estimate.pickup.address,
+      pickup_latitude: estimate.pickup.latitude,
+      pickup_longitude: estimate.pickup.longitude,
+      destination_label: estimate.destination.label,
+      destination_address: estimate.destination.address,
+      destination_latitude: estimate.destination.latitude,
+      destination_longitude: estimate.destination.longitude,
+      airport_name: tripType === "airport_ride" ? tripBody.airportName || estimate.destination.label || null : null,
+      airport_terminal: tripType === "airport_ride" ? tripBody.airportTerminal || null : null,
+      airport_ride_mode: tripType === "airport_ride" ? tripBody.airportRideMode || null : null,
+      flight_number: tripType === "airport_ride" ? tripBody.flightNumber || null : null,
+      flight_time: tripType === "airport_ride" && tripBody.flightTime ? tripBody.flightTime : null,
+      luggage_count: luggageCount,
+      passenger_count: passengerCount,
+      rider_notes: tripBody.notes || null,
+      is_round_trip: isRoundTrip,
+      waiting_duration_minutes: isRoundTrip ? waitingDurationMinutes : null,
+      return_status: isRoundTrip ? "outbound" : "not_applicable",
+      return_pickup_label: isRoundTrip ? estimate.destination.label : null,
+      return_pickup_address: isRoundTrip ? estimate.destination.address : null,
+      return_pickup_latitude: isRoundTrip ? estimate.destination.latitude : null,
+      return_pickup_longitude: isRoundTrip ? estimate.destination.longitude : null,
+      return_destination_label: returnDestinationLabel,
+      return_destination_address: returnDestinationAddress,
+      return_destination_latitude: returnDestinationLatitude,
+      return_destination_longitude: returnDestinationLongitude,
+      metadata: isRoundTrip
+        ? {
+            round_trip: true,
+            return_status: "outbound",
+            waiting_duration_minutes: waitingDurationMinutes ?? 0,
+          }
+        : {},
+    })
+    .select("id")
+    .single();
+
+  return { tripId: data?.id as string | undefined, error };
 }
 
 export async function POST(request: Request) {
@@ -22,10 +107,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const authedClient = createRideAuthedClient(auth.token);
   const serviceClient = createRideServiceClient();
 
-  if (!authedClient || !serviceClient) {
+  if (!serviceClient) {
     return NextResponse.json(
       { error: "Server misconfiguration: Supabase credentials are missing." },
       { status: 500 }
@@ -60,34 +144,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: tripId, error: tripError } = await authedClient.rpc(
-      "create_trip_request_v2",
-      {
-        p_trip_type: tripType,
-        p_pickup_label: estimate.pickup.label,
-        p_pickup_address: estimate.pickup.address,
-        p_destination_label: estimate.destination.label,
-        p_destination_address: estimate.destination.address,
-        p_pickup_latitude: estimate.pickup.latitude,
-        p_pickup_longitude: estimate.pickup.longitude,
-        p_destination_latitude: estimate.destination.latitude,
-        p_destination_longitude: estimate.destination.longitude,
-        p_airport_name: tripType === "airport_ride" ? body.airportName || estimate.destination.label || null : null,
-        p_airport_terminal: tripType === "airport_ride" ? body.airportTerminal || null : null,
-        p_airport_ride_mode: tripType === "airport_ride" ? body.airportRideMode || null : null,
-        p_flight_number: tripType === "airport_ride" ? body.flightNumber || null : null,
-        p_flight_time: tripType === "airport_ride" && body.flightTime ? body.flightTime : null,
-        p_luggage_count: luggageCount,
-        p_passenger_count: passengerCount,
-        p_rider_notes: body.notes || null,
-        p_is_round_trip: isRoundTrip,
-        p_waiting_duration_minutes: waitingDurationMinutes,
-        p_return_destination_label: isRoundTrip ? body.returnDestinationLabel || null : null,
-        p_return_destination_address: isRoundTrip ? body.returnDestinationAddress || null : null,
-        p_return_destination_latitude: isRoundTrip ? Number(body.returnDestinationLatitude ?? NaN) || null : null,
-        p_return_destination_longitude: isRoundTrip ? Number(body.returnDestinationLongitude ?? NaN) || null : null,
-      }
-    );
+    const { tripId, error: tripError } = await createTripRecord(serviceClient, {
+      customerId: auth.profile.user.id,
+      tripType,
+      estimate,
+      tripBody: body,
+      luggageCount,
+      passengerCount,
+      isRoundTrip,
+      waitingDurationMinutes,
+    });
 
     if (tripError || !tripId) {
       throw tripError || new Error("تعذر إنشاء المشوار.");
