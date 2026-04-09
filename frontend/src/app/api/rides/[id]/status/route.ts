@@ -105,8 +105,13 @@ export async function POST(request: Request, context: Params) {
       }
 
       const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+      const adminSelectedPrice = metadata["admin_selected_price"];
       const hasQuotedPrice =
-        Number((metadata["admin_selected_price"] as number?) ?? 0) > 0;
+        Number(
+          typeof adminSelectedPrice === "number" || typeof adminSelectedPrice === "string"
+            ? adminSelectedPrice
+            : 0
+        ) > 0;
 
       if (!hasQuotedPrice) {
         return NextResponse.json({ error: "لسه مفيش سعر نهائي من الإدارة لتأكيده." }, { status: 409 });
