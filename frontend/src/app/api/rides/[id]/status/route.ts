@@ -9,6 +9,25 @@ import { sendPushToUserDevices } from "@/lib/user-push-server";
 type Params = { params: Promise<{ id: string }> };
 
 const ALREADY_DONE_STATUSES = new Set(["driver_arrived", "trip_started", "completed"]);
+const CONFIRM_PRICE_ALIASES = new Set([
+  "customer_confirm_price",
+  "confirmed",
+  "confirm",
+  "confirm_price",
+  "approve",
+  "approve_price",
+  "approve_quote",
+  "customer_approved_quote",
+  "price_confirmed",
+]);
+const CANCEL_TRIP_ALIASES = new Set([
+  "customer_cancel_trip",
+  "cancelled",
+  "cancel",
+  "cancel_trip",
+  "trip_cancelled",
+  "customer_cancel",
+]);
 
 export async function POST(request: Request, context: Params) {
   const auth = await requireRideUser(request);
@@ -25,13 +44,12 @@ export async function POST(request: Request, context: Params) {
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const requestedAction = String(body.action || "").trim();
-    const action =
-      requestedAction === "confirmed"
-        ? "customer_confirm_price"
-        : requestedAction === "cancelled"
-          ? "customer_cancel_trip"
-          : requestedAction;
+    const requestedAction = String(body.action || body.status || body.intent || "").trim().toLowerCase();
+    const action = CONFIRM_PRICE_ALIASES.has(requestedAction)
+      ? "customer_confirm_price"
+      : CANCEL_TRIP_ALIASES.has(requestedAction)
+        ? "customer_cancel_trip"
+        : requestedAction;
     const now = new Date().toISOString();
 
     const { data: trip, error: tripError } = await serviceClient
@@ -105,19 +123,19 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "driver_arrived" });
     }
 
+    const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+    const adminSelectedPrice = metadata["admin_selected_price"];
+    const hasQuotedPrice =
+      Number(
+        typeof adminSelectedPrice === "number" || typeof adminSelectedPrice === "string"
+          ? adminSelectedPrice
+          : 0
+      ) > 0;
+
     if (action === "customer_confirm_price") {
       if (!isCustomer && auth.profile.role !== "admin") {
         return NextResponse.json({ error: "العميل أو الإدارة فقط يقدروا يؤكدوا السعر." }, { status: 403 });
       }
-
-      const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
-      const adminSelectedPrice = metadata["admin_selected_price"];
-      const hasQuotedPrice =
-        Number(
-          typeof adminSelectedPrice === "number" || typeof adminSelectedPrice === "string"
-            ? adminSelectedPrice
-            : 0
-        ) > 0;
 
       if (!hasQuotedPrice) {
         return NextResponse.json({ error: "لسه مفيش سعر نهائي من الإدارة لتأكيده." }, { status: 409 });
@@ -369,7 +387,41 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "completed" });
     }
 
-    return NextResponse.json({ error: "العملية المطلوبة غير مدعومة." }, { status: 400 });
+    if (isCustomer && hasQuotedPrice && ["pending", "searching_driver", "offered"].includes(String(trip.status))) {
+      const nextStatus = String(trip.status) == "offered" ? "offered" : "searching_driver";
+      const nextMetadata = {
+        ...metadata,
+        awaiting_admin_dispatch: false,
+        customer_price_confirmed: true,
+        customer_price_confirmed_at: now,
+      };
+
+      const { error: updateError } = await serviceClient
+        .from("trips")
+        .update({
+          status: nextStatus,
+          updated_at: now,
+          metadata: nextMetadata,
+        })
+        .eq("id", trip.id);
+      if (updateError) throw updateError;
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: nextStatus,
+        changed_by: auth.profile.user.id,
+        note: `تم تأكيد السعر من العميل عبر مسار متوافق (${requestedAction || "unknown_action"}).`,
+        metadata: {
+          admin_selected_price: metadata["admin_selected_price"] ?? null,
+          requested_action: requestedAction || null,
+        },
+      });
+      if (historyError) throw historyError;
+
+      return NextResponse.json({ success: true, status: nextStatus, normalizedAction: "customer_confirm_price" });
+    }
+
+    return NextResponse.json({ error: "العملية المطلوبة غير مدعومة.", action: requestedAction || null }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || "تعذر تحديث حالة المشوار." },
