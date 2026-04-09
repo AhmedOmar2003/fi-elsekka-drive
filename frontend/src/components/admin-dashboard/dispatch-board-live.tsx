@@ -2,10 +2,10 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { MapPinned, Radar, RefreshCw, ShieldAlert, Users } from "lucide-react";
 
 import { TripDispatchForm } from "@/components/admin-dashboard/actions";
-import { DispatchFleetMap } from "@/components/admin-dashboard/dispatch-fleet-map";
 import { FilterBar, MetricPanel, SectionCard, StatusBadge, formatLabel } from "@/components/admin-dashboard/primitives";
 import { supabase } from "@/lib/supabase";
 import type { DispatchBoardData, DispatchFleetDriverItem, DispatchLiveTripItem, DispatchQueueTripItem, DispatchSlaState } from "@/lib/admin-dispatch-types";
@@ -13,6 +13,21 @@ import type { DispatchBoardData, DispatchFleetDriverItem, DispatchLiveTripItem, 
 type DispatchBoardLiveProps = {
     initialBoard: DispatchBoardData;
 };
+
+const DispatchFleetMap = dynamic(
+    () => import("@/components/admin-dashboard/dispatch-fleet-map").then((module) => module.DispatchFleetMap),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="flex h-[38rem] items-center justify-center rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(20,148,111,0.12),transparent_45%)] text-center">
+                <div>
+                    <p className="text-lg font-black text-white">جارٍ تحميل خريطة التوزيع</p>
+                    <p className="mt-2 text-sm leading-7 text-white/50">بنجهز رؤية الأسطول والرحلات الحية بدون تعطيل build السيرفر.</p>
+                </div>
+            </div>
+        ),
+    }
+);
 
 function slaClasses(state: DispatchSlaState) {
     switch (state) {
