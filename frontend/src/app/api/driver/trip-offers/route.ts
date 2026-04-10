@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         ? await serviceClient
             .from("trips")
             .select(
-              "id, customer_id, trip_type, status, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, passenger_count, luggage_count, estimated_price, created_at"
+              "id, customer_id, trip_type, status, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, passenger_count, luggage_count, estimated_price, created_at, metadata"
             )
             .in("id", tripIds)
         : { data: [] as any[] };
@@ -81,6 +81,14 @@ export async function GET(request: Request) {
           offerStatus: offer.offer_status,
           offeredAt: offer.offered_at,
           expiresAt: offer.expires_at,
+          dispatchMode:
+            (typeof offer?.metadata?.dispatch_mode === "string"
+              ? String(offer.metadata.dispatch_mode)
+              : typeof trip?.metadata?.latest_dispatch_mode === "string"
+                ? String(trip.metadata.latest_dispatch_mode)
+                : offer?.offered_by_admin_id
+                  ? "admin_direct_offer"
+                  : "marketplace_auto_dispatch"),
           trip: trip
             ? {
                 ...trip,

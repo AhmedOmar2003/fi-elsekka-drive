@@ -15,6 +15,8 @@ type EligibleDriverRecord = {
     vehicleId: string;
 };
 
+const DIRECT_DRIVER_RESPONSE_WINDOW_SECONDS = 60;
+
 async function fetchEligibleDriversForAdminAssignment(supabase: ReturnType<typeof createAdminPlatformClient>) {
     if (!supabase) return [] as EligibleDriverRecord[];
 
@@ -220,7 +222,9 @@ export async function PATCH(request: NextRequest, context: Context) {
             }
 
             const now = new Date().toISOString();
-            const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+            const expiresAt = new Date(
+                Date.now() + DIRECT_DRIVER_RESPONSE_WINDOW_SECONDS * 1000
+            ).toISOString();
             const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
             if (metadata.customer_price_confirmed !== true) {
                 return NextResponse.json({ error: "لازم العميل يؤكد السعر الأول قبل تعيين كابتن." }, { status: 409 });
@@ -289,7 +293,17 @@ export async function PATCH(request: NextRequest, context: Context) {
             }
 
             if ((openOffers || []).length > 0) {
-                return NextResponse.json({ error: "الكابتن لديه عرض آخر مفتوح الآن.", conflictReason: "open_offer" }, { status: 409 });
+                await supabase
+                    .from("trip_offers")
+                    .update({
+                        offer_status: "cancelled",
+                        responded_at: now,
+                        updated_at: now,
+                        rejection_reason: "تم إغلاق العرض السابق لأن الإدارة أسندت عرضًا مباشرًا أعلى أولوية",
+                    })
+                    .eq("driver_id", driverId)
+                    .eq("offer_status", "offered")
+                    .neq("trip_id", id);
             }
 
             if (String(primaryVehicle.approval_status || "") !== "approved" || primaryVehicle.is_active !== true) {
@@ -300,6 +314,16 @@ export async function PATCH(request: NextRequest, context: Context) {
             if (!vehicleId) {
                 return NextResponse.json({ error: "تعذر تحديد مركبة الكابتن للإسناد." }, { status: 409 });
             }
+
+            await supabase
+                .from("driver_profiles")
+                .update({
+                    availability_status: "available",
+                    is_accepting_offers: true,
+                    last_seen_at: now,
+                    updated_at: now,
+                })
+                .eq("id", driverId);
 
             await supabase
                 .from("trip_offers")
@@ -327,6 +351,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                 metadata: {
                     ...metadata,
                     dispatch_mode: "admin_direct_offer",
+                    response_window_seconds: DIRECT_DRIVER_RESPONSE_WINDOW_SECONDS,
                     broadcast_price: price ?? (metadata.map_estimated_price as number | null) ?? null,
                 },
             }, { onConflict: "trip_id,driver_id" });
@@ -359,10 +384,11 @@ export async function PATCH(request: NextRequest, context: Context) {
                 trip_id: id,
                 status: "offered",
                 changed_by: auth.profile.user.id,
-                note: "تم إرسال عرض حصري للكابتن من لوحة التشغيل وينتظر موافقته.",
+                note: `تم إرسال عرض حصري للكابتن من لوحة التشغيل بمهلة ${DIRECT_DRIVER_RESPONSE_WINDOW_SECONDS} ثانية للقبول أو الرفض.`,
                 metadata: {
                     quoted_price: price ?? ((metadata.map_estimated_price as number | null) ?? null),
                     direct_driver_id: driverId,
+                    response_window_seconds: DIRECT_DRIVER_RESPONSE_WINDOW_SECONDS,
                 },
             });
 
