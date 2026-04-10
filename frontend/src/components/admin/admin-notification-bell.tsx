@@ -51,7 +51,7 @@ function normalizeRealtimeNotification(raw: Record<string, unknown>, fallbackUse
 }
 
 export function AdminNotificationBell() {
-  const { user, session } = useAuth();
+  const { user, profile, session } = useAuth();
   const router = useRouter();
   const [notifications, setNotifications] = React.useState<AppNotification[]>([]);
   const [isOpen, setIsOpen] = React.useState(false);
@@ -60,6 +60,7 @@ export function AdminNotificationBell() {
   const [isSubscribingPush, setIsSubscribingPush] = React.useState(false);
   const [isClearingNotifications, setIsClearingNotifications] = React.useState(false);
   const popoverRef = React.useRef<HTMLDivElement>(null);
+  const recipientId = user?.id || profile?.id || null;
 
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
@@ -102,7 +103,7 @@ export function AdminNotificationBell() {
 
   const subscribeToPhoneNotifications = React.useCallback(
     async (interactive: boolean) => {
-      if (typeof window === "undefined" || !user) return false;
+      if (typeof window === "undefined" || !recipientId) return false;
       if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.isSecureContext || !publicVapidKey) {
         setPushSetupState("unsupported");
         return false;
@@ -153,40 +154,43 @@ export function AdminNotificationBell() {
         setIsSubscribingPush(false);
       }
     },
-    [syncPushSubscription, user]
+    [recipientId, syncPushSubscription]
   );
 
   const loadNotifications = React.useCallback(async () => {
-    if (!user) return;
-    const data = await fetchUserNotifications(user.id, 30);
+    if (!recipientId) {
+      setIsLoading(false);
+      return;
+    }
+    const data = await fetchUserNotifications(recipientId, 30);
     setNotifications(data);
     setIsLoading(false);
-  }, [user]);
+  }, [recipientId]);
 
   React.useEffect(() => {
     void loadNotifications();
   }, [loadNotifications]);
 
   React.useEffect(() => {
-    if (!user) return;
+    if (!recipientId) return;
     void subscribeToPhoneNotifications(false);
-  }, [subscribeToPhoneNotifications, user]);
+  }, [recipientId, subscribeToPhoneNotifications]);
 
   React.useEffect(() => {
-    if (!user) return;
+    if (!recipientId) return;
 
     const channel = supabase
-      .channel(`admin-dashboard-notifications-${user.id}`)
+      .channel(`admin-dashboard-notifications-${recipientId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `recipient_user_id=eq.${user.id}`,
+          filter: `recipient_user_id=eq.${recipientId}`,
         },
         (payload) => {
-          const notification = normalizeRealtimeNotification(payload.new as Record<string, unknown>, user.id);
+          const notification = normalizeRealtimeNotification(payload.new as Record<string, unknown>, recipientId);
           setNotifications((prev) => mergeNotificationIntoList(prev, notification));
           playNotificationSound();
           void showInstantDeviceNotification({
@@ -206,10 +210,10 @@ export function AdminNotificationBell() {
           event: "UPDATE",
           schema: "public",
           table: "notifications",
-          filter: `recipient_user_id=eq.${user.id}`,
+          filter: `recipient_user_id=eq.${recipientId}`,
         },
         (payload) => {
-          const updated = normalizeRealtimeNotification(payload.new as Record<string, unknown>, user.id);
+          const updated = normalizeRealtimeNotification(payload.new as Record<string, unknown>, recipientId);
           setNotifications((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
         }
       )
@@ -218,7 +222,7 @@ export function AdminNotificationBell() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [playNotificationSound, user]);
+  }, [playNotificationSound, recipientId]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -229,18 +233,18 @@ export function AdminNotificationBell() {
 
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      if (user && unreadCount > 0) {
-        void markAllNotificationsAsRead(user.id);
+      if (recipientId && unreadCount > 0) {
+        void markAllNotificationsAsRead(recipientId);
         setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
       }
     }
 
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, unreadCount, user]);
+  }, [isOpen, unreadCount, recipientId]);
 
   const openNotification = async (notification: AppNotification) => {
-    if (user && !notification.is_read) {
-      await markNotificationAsRead(notification.id, user.id);
+    if (recipientId && !notification.is_read) {
+      await markNotificationAsRead(notification.id, recipientId);
       setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)));
     }
     setIsOpen(false);
@@ -248,20 +252,20 @@ export function AdminNotificationBell() {
   };
 
   const clearAllNotifications = async () => {
-    if (!user || notifications.length === 0 || isClearingNotifications) return;
+    if (!recipientId || notifications.length === 0 || isClearingNotifications) return;
 
     setIsClearingNotifications(true);
     const previous = notifications;
     setNotifications([]);
-    emitNotificationsSync({ type: "delete-all", userId: user.id });
+    emitNotificationsSync({ type: "delete-all", userId: recipientId });
 
-    const ok = await deleteAllNotifications(user.id);
+    const ok = await deleteAllNotifications(recipientId);
     if (ok) {
       toast.success("تم مسح كل الإشعارات");
     } else {
       setNotifications(previous);
       for (const notification of previous) {
-        emitNotificationsSync({ type: "upsert", userId: user.id, notification });
+        emitNotificationsSync({ type: "upsert", userId: recipientId, notification });
       }
       toast.error("مش قادرين نمسح الإشعارات دلوقتي");
     }
@@ -269,16 +273,16 @@ export function AdminNotificationBell() {
     setIsClearingNotifications(false);
   };
 
-  if (!user) return null;
-
   return (
     <div className="relative" ref={popoverRef}>
       <button
+        type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="relative rounded-xl p-2 text-gray-400 transition-colors hover:bg-surface-hover hover:text-foreground"
+        disabled={!recipientId}
+        className="relative rounded-xl p-2 text-white/80 transition-colors hover:bg-surface-hover hover:text-white disabled:cursor-default disabled:opacity-70"
         aria-label="إشعارات لوحة التحكم"
       >
-        <Bell className="h-4.5 w-4.5" />
+        <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
