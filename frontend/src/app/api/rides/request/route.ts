@@ -4,7 +4,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
-import { dispatchTripToMarketplace } from "@/lib/ride-dispatch-server";
+import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 function normalizeVehicleType(value: unknown) {
   return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "car";
@@ -165,17 +165,17 @@ export async function POST(request: Request) {
     const { error: tripMetaError } = await serviceClient
       .from("trips")
       .update({
-        estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
-        search_started_at: now,
-        status: "searching_driver",
+        estimated_price: null,
+        search_started_at: null,
+        status: "pending",
         metadata: {
           route_distance_km: estimate.distanceKm,
           route_duration_minutes: estimate.durationMinutes,
           route_points: Array.isArray(estimate.routePoints) ? estimate.routePoints : [],
           suggested_price_min: estimate.minPrice,
           suggested_price_max: estimate.maxPrice,
-          map_estimated_price: estimatedPrice,
-          admin_selected_price: estimatedPrice > 0 ? estimatedPrice : null,
+          map_estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
+          admin_selected_price: null,
           preferred_vehicle_type: preferredVehicleType,
           pickup_city: estimate.pickup.city,
           destination_city: estimate.destination.city,
@@ -186,10 +186,11 @@ export async function POST(request: Request) {
           is_round_trip: isRoundTrip,
           waiting_duration_minutes: waitingDurationMinutes,
           return_status: isRoundTrip ? 'outbound' : 'not_applicable',
-          dispatch_mode: "instant_marketplace",
+          dispatch_mode: "awaiting_admin_pricing",
+          awaiting_admin_pricing: true,
           awaiting_admin_dispatch: false,
-          customer_price_confirmed: true,
-          customer_price_confirmed_at: now,
+          customer_price_confirmed: false,
+          customer_price_confirmed_at: null,
         },
       })
       .eq("id", tripId);
@@ -198,15 +199,15 @@ export async function POST(request: Request) {
 
     await serviceClient.from("trip_status_history").insert({
       trip_id: tripId,
-      status: "searching_driver",
+      status: "pending",
       changed_by: auth.profile.user.id,
-      note: "العميل أرسل الطلب، وتم تسعيره تلقائيًا وتجهيزه للتوزيع الفوري على الكباتن.",
+      note: "العميل أرسل الطلب، والرحلة الآن في انتظار تسعير الإدارة.",
       metadata: {
         distance_km: estimate.distanceKm,
         duration_minutes: estimate.durationMinutes,
         preferred_vehicle_type: preferredVehicleType,
-        dispatch_mode: "instant_marketplace",
-        auto_priced_price: estimatedPrice > 0 ? estimatedPrice : null,
+        dispatch_mode: "awaiting_admin_pricing",
+        map_estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
         is_round_trip: isRoundTrip,
         waiting_duration_minutes: waitingDurationMinutes,
       },
@@ -216,10 +217,10 @@ export async function POST(request: Request) {
       recipient_user_id: auth.profile.user.id,
       type: "trip_created",
       title: "استلمنا طلب مشوارك",
-      body: "تم تحديد المسافة والسعر التلقائي، وبدأنا فورًا نبحث لك عن أقرب كابتن مناسب.",
+      body: "تم استلام طلبك، والإدارة ستحدد السعر النهائي قبل تعيين الكابتن.",
       payload: {
         trip_id: tripId,
-        estimated_price: estimatedPrice,
+        estimated_price: null,
         route_distance_km: estimate.distanceKm,
         route_duration_minutes: estimate.durationMinutes,
         is_round_trip: isRoundTrip,
@@ -227,19 +228,46 @@ export async function POST(request: Request) {
       related_trip_id: tripId,
     });
 
-    const dispatchResult = await dispatchTripToMarketplace(serviceClient, {
-      tripId,
-      triggeredByUserId: auth.profile.user.id,
-      explicitPrice: estimatedPrice > 0 ? estimatedPrice : null,
-      source: "trip_request",
-    });
+    const { data: admins } = await serviceClient
+      .from("profiles")
+      .select("id")
+      .eq("role", "admin")
+      .eq("account_status", "active")
+      .limit(100);
+
+    const adminNotifications = (admins || []).map((admin) => ({
+      recipient_user_id: admin.id,
+      type: "admin_message",
+      title: "طلب مشوار جديد يحتاج تسعير",
+      body: `طلب جديد من ${estimate.pickup.label} إلى ${estimate.destination.label} في انتظار تحديد السعر من الإدارة.`,
+      payload: {
+        trip_id: tripId,
+        action: "price_trip_request",
+        map_estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
+      },
+      related_trip_id: tripId,
+    }));
+
+    if (adminNotifications.length > 0) {
+      await serviceClient.from("notifications").insert(adminNotifications);
+      await Promise.all(
+        adminNotifications.map((notification) =>
+          sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
+            title: "طلب مشوار جديد يحتاج تسعير",
+            message: "يوجد طلب جديد في انتظار تحديد السعر النهائي من الإدارة.",
+            link: "/admin/trips",
+            topic: "admin-price-trip-request",
+          })
+        )
+      );
+    }
 
     return NextResponse.json({
       success: true,
       tripId,
-      status: dispatchResult.status,
-      offeredDriverCount: dispatchResult.offeredDriverCount,
-      fallbackToAdmin: dispatchResult.fallbackToAdmin,
+      status: "pending",
+      offeredDriverCount: 0,
+      fallbackToAdmin: false,
     });
   } catch (error: any) {
     return NextResponse.json(

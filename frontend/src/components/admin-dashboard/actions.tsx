@@ -178,7 +178,7 @@ export function TripDispatchForm({
             <Label className="text-white/75">إجراء التوزيع</Label>
             <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
                 <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
-                    <option value="dispatch_offer">تسعير ثم بث للكباتن</option>
+                    <option value="dispatch_offer">حدد السعر للعميل</option>
                     <option value="assign_driver">اسناد مباشر لكابتن</option>
                 </Select>
                 <Input
@@ -193,7 +193,7 @@ export function TripDispatchForm({
 
             <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-sm text-white/80">
                 السعر التقديري من الخريطة: <span className="font-black text-primary">{mapEstimatedPrice ? `${mapEstimatedPrice} ج.م` : "غير متاح"}</span>.
-                السعر اللي هتكتبه هنا هو السعر النهائي اللي هيظهر للعميل والكابتن بعد التسعير.
+                السعر اللي هتكتبه هنا هو السعر النهائي الذي سيصل للعميل أولًا، وبعد تأكيده يمكن تعيين كابتن مناسب.
             </div>
 
             {isDirectAssign ? (
@@ -211,14 +211,14 @@ export function TripDispatchForm({
             ) : (
                 <div className="rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-3 text-sm text-white/70">
                     {hasBroadcastDrivers
-                        ? `العرض هيتبعت تلقائيًا إلى ${broadcastDrivers.length} كباتن متاحين بالمركبة المناسبة، وأول كابتن يقبله هيتسند له المشوار.`
-                        : "مفيش كباتن أونلاين وجاهزين حاليًا لاستقبال بث المشوار ده."}
+                        ? "بعد ما العميل يؤكد السعر، ارجع من هنا وعيّن كابتن مناسب أو استخدم الإسناد المباشر."
+                        : "ابدأ أولًا بتحديد السعر النهائي للعميل، ثم انتظر تأكيده قبل تعيين الكابتن."}
                 </div>
             )}
 
             <Button
                 isLoading={isPending}
-                disabled={(!hasBroadcastDrivers && !isDirectAssign) || (!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && !driverId)}
+                disabled={(!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && !driverId)}
                 onClick={() =>
                     startTransition(async () => {
                         await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
@@ -227,14 +227,14 @@ export function TripDispatchForm({
                             vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
                             price: price.trim() || null,
                         });
-                        toast.success(isDirectAssign ? "تم الإسناد المباشر بنجاح." : "تم تسعير المشوار وإرساله للكباتن المتاحين.");
+                        toast.success(isDirectAssign ? "تم الإسناد المباشر بنجاح." : "تم تحديد السعر وإرساله للعميل.");
                         router.refresh();
                     })
                 }
             >
-                {isDirectAssign ? "اسند للكابتن" : "سعّر وابعت للكباتن"}
+                {isDirectAssign ? "اسند للكابتن" : "إرسال السعر للعميل"}
             </Button>
-            {!hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">البث التلقائي يحتاج كباتن أونلاين ومفعلين استقبال العروض.</p> : null}
+            {!hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">يمكن تحديد السعر حتى لو لا يوجد كباتن متاحون الآن.</p> : null}
             {!hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج على الأقل كابتن معتمد ومركبة أساسية جاهزة.</p> : null}
         </div>
     );

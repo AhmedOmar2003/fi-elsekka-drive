@@ -4,7 +4,6 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
-import { ensureMarketplaceDispatchProgress } from "@/lib/ride-dispatch-server";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Params = { params: Promise<{ id: string }> };
@@ -148,13 +147,14 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ success: true, status: trip.status, routeVersion: ROUTE_VERSION });
       }
 
-      const nextStatus = String(trip.status) == "offered" ? "offered" : "searching_driver";
+      const nextStatus = "searching_driver";
       const nextMetadata = {
         ...metadata,
-        awaiting_admin_dispatch: false,
+        awaiting_admin_pricing: false,
+        awaiting_admin_dispatch: true,
         customer_price_confirmed: true,
         customer_price_confirmed_at: now,
-        dispatch_mode: "instant_marketplace",
+        dispatch_mode: "admin_assignment_pending",
       };
 
       const { error: updateError } = await serviceClient
@@ -171,32 +171,66 @@ export async function POST(request: Request, context: Params) {
         trip_id: trip.id,
         status: nextStatus,
         changed_by: auth.profile.user.id,
-        note: "العميل وافق على السعر النهائي، وتم تحويل الرحلة إلى التوزيع التلقائي.",
+        note: "العميل وافق على السعر النهائي، والرحلة الآن في انتظار تعيين كابتن من الإدارة.",
         metadata: {
           admin_selected_price: metadata["admin_selected_price"] ?? null,
-          dispatch_mode: "instant_marketplace",
+          dispatch_mode: "admin_assignment_pending",
         },
       });
       if (historyError) throw historyError;
 
-      const dispatchResult = await ensureMarketplaceDispatchProgress(
-        serviceClient,
-        {
-          trip: {
-            ...trip,
-            status: nextStatus,
-            estimated_price: trip.estimated_price,
-            metadata: nextMetadata,
-          },
-          triggeredByUserId: auth.profile.user.id,
-        }
-      );
+      const { data: admins } = await serviceClient
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("account_status", "active")
+        .limit(100);
+
+      const adminNotifications = (admins || []).map((admin) => ({
+        recipient_user_id: admin.id,
+        type: "admin_message",
+        title: "العميل أكد السعر",
+        body: "العميل وافق على السعر النهائي. عيّن كابتن مناسب للرحلة الآن.",
+        payload: {
+          trip_id: trip.id,
+          action: "assign_driver_after_price_confirmation",
+          admin_selected_price: metadata["admin_selected_price"] ?? null,
+        },
+        related_trip_id: trip.id,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const { error: notificationError } = await serviceClient
+          .from("notifications")
+          .insert(adminNotifications);
+        if (notificationError) throw notificationError;
+
+        await Promise.all(
+          adminNotifications.map((notification) =>
+            sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
+              title: "العميل أكد السعر",
+              message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
+              link: "/admin/trips",
+              topic: "admin-customer-price-confirmed",
+            })
+          )
+        );
+      }
+
+      await serviceClient.from("notifications").insert({
+        recipient_user_id: trip.customer_id,
+        type: "trip_offered",
+        title: "تم تأكيد السعر",
+        body: "تم تأكيد السعر النهائي، والإدارة تراجع الآن تعيين كابتن مناسب لرحلتك.",
+        payload: { trip_id: trip.id },
+        related_trip_id: trip.id,
+      });
 
       return NextResponse.json({
         success: true,
-        status: dispatchResult.status,
-        offeredDriverCount: dispatchResult.offeredDriverCount,
-        fallbackToAdmin: dispatchResult.fallbackToAdmin,
+        status: nextStatus,
+        offeredDriverCount: 0,
+        fallbackToAdmin: false,
         routeVersion: ROUTE_VERSION,
       });
     }
@@ -572,13 +606,14 @@ export async function POST(request: Request, context: Params) {
     }
 
     if (isCustomer && hasQuotedPrice && ["pending", "searching_driver", "offered"].includes(String(trip.status))) {
-      const nextStatus = String(trip.status) == "offered" ? "offered" : "searching_driver";
+      const nextStatus = "searching_driver";
       const nextMetadata = {
         ...metadata,
-        awaiting_admin_dispatch: false,
+        awaiting_admin_pricing: false,
+        awaiting_admin_dispatch: true,
         customer_price_confirmed: true,
         customer_price_confirmed_at: now,
-        dispatch_mode: "instant_marketplace",
+        dispatch_mode: "admin_assignment_pending",
       };
 
       const { error: updateError } = await serviceClient
@@ -599,29 +634,54 @@ export async function POST(request: Request, context: Params) {
         metadata: {
           admin_selected_price: metadata["admin_selected_price"] ?? null,
           requested_action: requestedAction || null,
-          dispatch_mode: "instant_marketplace",
+          dispatch_mode: "admin_assignment_pending",
         },
       });
       if (historyError) throw historyError;
 
-      const dispatchResult = await ensureMarketplaceDispatchProgress(
-        serviceClient,
-        {
-          trip: {
-            ...trip,
-            status: nextStatus,
-            estimated_price: trip.estimated_price,
-            metadata: nextMetadata,
-          },
-          triggeredByUserId: auth.profile.user.id,
-        }
-      );
+      const { data: admins } = await serviceClient
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("account_status", "active")
+        .limit(100);
+
+      const adminNotifications = (admins || []).map((admin) => ({
+        recipient_user_id: admin.id,
+        type: "admin_message",
+        title: "العميل أكد السعر",
+        body: "العميل وافق على السعر النهائي. عيّن كابتن مناسب للرحلة الآن.",
+        payload: {
+          trip_id: trip.id,
+          action: "assign_driver_after_price_confirmation",
+          admin_selected_price: metadata["admin_selected_price"] ?? null,
+        },
+        related_trip_id: trip.id,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const { error: notificationError } = await serviceClient
+          .from("notifications")
+          .insert(adminNotifications);
+        if (notificationError) throw notificationError;
+
+        await Promise.all(
+          adminNotifications.map((notification) =>
+            sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
+              title: "العميل أكد السعر",
+              message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
+              link: "/admin/trips",
+              topic: "admin-customer-price-confirmed",
+            })
+          )
+        );
+      }
 
       return NextResponse.json({
         success: true,
-        status: dispatchResult.status,
-        offeredDriverCount: dispatchResult.offeredDriverCount,
-        fallbackToAdmin: dispatchResult.fallbackToAdmin,
+        status: nextStatus,
+        offeredDriverCount: 0,
+        fallbackToAdmin: false,
         normalizedAction: "customer_confirm_price",
         routeVersion: ROUTE_VERSION,
       });

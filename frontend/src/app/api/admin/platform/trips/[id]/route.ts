@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-guard";
 import { createAdminPlatformClient } from "@/lib/admin-platform-server";
 import { hasPermission } from "@/lib/permissions";
-import { fetchEligibleDriversForTrip } from "@/lib/ride-dispatch-server";
 import { canAdminManuallyTransitionTrip, getAllowedAdminManualTripStatuses, isTripStatus } from "@/lib/trip-state-machine";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
@@ -35,7 +34,7 @@ export async function PATCH(request: NextRequest, context: Context) {
         if (action === "dispatch_offer") {
             const price = body.price === null || body.price === undefined || body.price === "" ? null : Number(body.price);
             if (price !== null && (!Number.isFinite(price) || price <= 0)) {
-                return NextResponse.json({ error: "حدد سعر صحيح قبل إرسال العرض للكباتن." }, { status: 400 });
+                return NextResponse.json({ error: "حدد سعر صحيح قبل إرسال السعر للعميل." }, { status: 400 });
             }
 
             const { data: trip, error: tripError } = await supabase
@@ -49,66 +48,34 @@ export async function PATCH(request: NextRequest, context: Context) {
             }
 
             if (["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return", "completed", "cancelled"].includes(String(trip.status))) {
-                return NextResponse.json({ error: "المشوار خرج من مرحلة التوزيع، وما ينفعش يتبعت من جديد." }, { status: 400 });
-            }
-
-            const eligibility = await fetchEligibleDriversForTrip(supabase, {
-                trip_type: String(trip.trip_type),
-                metadata: (trip.metadata as Record<string, unknown> | null) || null,
-            });
-
-            if (eligibility.drivers.length === 0) {
-                return NextResponse.json({ error: "مفيش كباتن متاحين حاليًا بالمركبة المناسبة للمشوار ده." }, { status: 400 });
+                return NextResponse.json({ error: "المشوار خرج من مرحلة التسعير/التعيين، وما ينفعش يتعدل من هنا." }, { status: 400 });
             }
 
             const now = new Date().toISOString();
-            const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
             const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
-            const fallbackMapEstimate =
+            const quotedPrice = price ?? (
                 trip.estimated_price === null
                     ? Number((metadata.map_estimated_price as number | null) ?? 0) || null
-                    : Number(trip.estimated_price);
-            const broadcastPrice = price ?? fallbackMapEstimate;
-            const offersPayload = eligibility.drivers.map((driver) => ({
-                trip_id: id,
-                driver_id: driver.id,
-                vehicle_id: driver.vehicleId,
-                offered_by_admin_id: auth.profile.user.id,
-                offer_status: "offered",
-                offered_at: now,
-                responded_at: null,
-                rejection_reason: null,
-                expires_at: expiresAt,
-                metadata: {
-                    ...metadata,
-                    dispatch_mode: "admin_broadcast",
-                    broadcast_price: broadcastPrice,
-                    matched_score: driver.score,
-                },
-                updated_at: now,
-            }));
-
-            const { error: offersError } = await supabase
-                .from("trip_offers")
-                .upsert(offersPayload, { onConflict: "trip_id,driver_id" });
-
-            if (offersError) throw offersError;
+                    : Number(trip.estimated_price)
+            );
 
             const { error: tripUpdateError } = await supabase
                 .from("trips")
                 .update({
-                    status: "offered",
-                    offered_at: now,
+                    status: "pending",
                     updated_at: now,
-                    estimated_price: broadcastPrice,
-                    offered_driver_count: eligibility.drivers.length,
+                    estimated_price: null,
+                    offered_driver_count: 0,
                     metadata: {
                         ...metadata,
-                        admin_selected_price: broadcastPrice,
+                        admin_selected_price: quotedPrice,
                         admin_priced_at: now,
                         admin_priced_by: auth.profile.user.id,
-                        latest_dispatch_mode: "admin_broadcast",
-                        latest_dispatch_driver_count: eligibility.drivers.length,
+                        awaiting_admin_pricing: false,
+                        awaiting_admin_dispatch: false,
+                        customer_price_confirmed: false,
+                        customer_price_confirmed_at: null,
+                        latest_dispatch_mode: "awaiting_customer_price_confirmation",
                     },
                 })
                 .eq("id", id);
@@ -117,67 +84,37 @@ export async function PATCH(request: NextRequest, context: Context) {
 
             await supabase.from("trip_status_history").insert({
                 trip_id: id,
-                status: "offered",
+                status: "pending",
                 changed_by: auth.profile.user.id,
-                note: `تم تسعير المشوار وبعت العرض إلى ${eligibility.drivers.length} كابتن مناسبين.`,
+                note: "تم تحديد السعر النهائي وإرساله للعميل في انتظار تأكيده.",
                 metadata: {
-                    offered_driver_count: eligibility.drivers.length,
-                    quoted_price: broadcastPrice,
+                    quoted_price: quotedPrice,
                 },
             });
-
-            const notificationsPayload = eligibility.drivers.map((driver) => ({
-                recipient_user_id: driver.id,
-                type: "trip_offered",
-                title: "عرض مشوار جديد من الإدارة",
-                body: `مشوار من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")}. السعر المحدد: ${broadcastPrice ? `${broadcastPrice} ج.م` : "سيظهر داخل الطلب"}.`,
-                payload: {
-                    trip_id: id,
-                    estimated_price: broadcastPrice,
-                    dispatch_mode: "admin_broadcast",
-                },
-                related_trip_id: id,
-            }));
-
-            const { error: notificationsError } = await supabase.from("notifications").insert(notificationsPayload);
-            if (notificationsError) throw notificationsError;
-
-            await Promise.all(
-                eligibility.drivers.map((driver) =>
-                    sendPushToUserDevices(supabase, driver.id, {
-                        title: "وصلك عرض مشوار جديد",
-                        message: `مشوار من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")}. افتح التطبيق ولو العرض مناسب اقبله قبل غيرك.`,
-                        link: "/captain/offers",
-                        requireInteraction: true,
-                        topic: "admin-broadcast-offer",
-                    })
-                )
-            );
 
             if (trip.customer_id) {
                 await supabase.from("notifications").insert({
                     recipient_user_id: trip.customer_id,
                     type: "trip_offered",
-                    title: "عرضنا رحلتك على الكباتن",
-                        body: `دلوقتي رحلتك اتبعت لـ ${eligibility.drivers.length} كابتن مناسبين. أول ما حد يقبل هنبلّغك فورًا.`,
+                    title: "تم تحديد السعر النهائي",
+                        body: `الإدارة حدّدت سعر الرحلة${quotedPrice ? `: ${quotedPrice} ج.م` : ""}. أكّد السعر لو مناسب أو الغِ الطلب.`,
                         payload: {
                             trip_id: id,
-                            offered_driver_count: eligibility.drivers.length,
-                            estimated_price: broadcastPrice,
-                            dispatch_mode: "admin_broadcast",
+                            estimated_price: quotedPrice,
+                            dispatch_mode: "awaiting_customer_price_confirmation",
                         },
                     related_trip_id: id,
                 });
 
                 await sendPushToUserDevices(supabase, trip.customer_id, {
-                    title: "عرضنا رحلتك على الكباتن",
-                    message: "رحلتك اتبعت للكباتن المناسبين، وأول ما كابتن يقبل هنبلغك فورًا.",
+                    title: "تم تحديد السعر النهائي",
+                    message: "الإدارة حدّدت السعر النهائي. افتح التطبيق وأكّد السعر أو الغِ الطلب.",
                     link: "/trip/live",
-                    topic: "customer-trip-offered",
+                    topic: "customer-price-quoted",
                 });
             }
 
-            return NextResponse.json({ success: true, offeredDriverCount: eligibility.drivers.length, price: broadcastPrice });
+            return NextResponse.json({ success: true, offeredDriverCount: 0, price: quotedPrice });
         }
 
         if (action === "assign_driver") {
@@ -204,6 +141,9 @@ export async function PATCH(request: NextRequest, context: Context) {
             const now = new Date().toISOString();
             const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
             const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+            if (metadata.customer_price_confirmed !== true) {
+                return NextResponse.json({ error: "لازم العميل يؤكد السعر الأول قبل تعيين كابتن." }, { status: 409 });
+            }
 
             await supabase
                 .from("trip_offers")
