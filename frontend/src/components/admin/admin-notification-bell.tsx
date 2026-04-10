@@ -60,6 +60,8 @@ export function AdminNotificationBell() {
   const [isSubscribingPush, setIsSubscribingPush] = React.useState(false);
   const [isClearingNotifications, setIsClearingNotifications] = React.useState(false);
   const popoverRef = React.useRef<HTMLDivElement>(null);
+  const knownNotificationIdsRef = React.useRef<Set<string>>(new Set());
+  const hasCompletedInitialLoadRef = React.useRef(false);
   const recipientId = user?.id || profile?.id || null;
 
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
@@ -157,19 +159,50 @@ export function AdminNotificationBell() {
     [recipientId, syncPushSubscription]
   );
 
+  const surfaceIncomingNotifications = React.useCallback((items: AppNotification[]) => {
+    if (!items.length) return;
+    playNotificationSound();
+    for (const notification of items.slice(0, 3)) {
+      void showInstantDeviceNotification({
+        title: notification.title,
+        body: notification.message,
+        url: notification.link || "/admin/notifications",
+        tag: `${notification.link || "/admin/notifications"}::${notification.title}`,
+      });
+      toast.success(notification.title, {
+        description: notification.message,
+      });
+    }
+  }, [playNotificationSound]);
+
   const loadNotifications = React.useCallback(async () => {
     if (!recipientId) {
       setIsLoading(false);
       return;
     }
     const data = await fetchUserNotifications(recipientId, 30);
+    const previousIds = knownNotificationIdsRef.current;
+    const incoming = data.filter((item) => !previousIds.has(item.id));
+    knownNotificationIdsRef.current = new Set(data.map((item) => item.id));
     setNotifications(data);
     setIsLoading(false);
-  }, [recipientId]);
+    if (hasCompletedInitialLoadRef.current && incoming.length > 0) {
+      surfaceIncomingNotifications(incoming);
+    }
+    hasCompletedInitialLoadRef.current = true;
+  }, [recipientId, surfaceIncomingNotifications]);
 
   React.useEffect(() => {
     void loadNotifications();
   }, [loadNotifications]);
+
+  React.useEffect(() => {
+    if (!recipientId) return;
+    const timer = window.setInterval(() => {
+      void loadNotifications();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [recipientId, loadNotifications]);
 
   React.useEffect(() => {
     if (!recipientId) return;
@@ -192,16 +225,8 @@ export function AdminNotificationBell() {
         (payload) => {
           const notification = normalizeRealtimeNotification(payload.new as Record<string, unknown>, recipientId);
           setNotifications((prev) => mergeNotificationIntoList(prev, notification));
-          playNotificationSound();
-          void showInstantDeviceNotification({
-            title: notification.title,
-            body: notification.message,
-            url: notification.link || "/admin/notifications",
-            tag: `${notification.link || "/admin/notifications"}::${notification.title}`,
-          });
-          toast.success(notification.title, {
-            description: notification.message,
-          });
+          knownNotificationIdsRef.current.add(notification.id);
+          surfaceIncomingNotifications([notification]);
         }
       )
       .on(
@@ -222,7 +247,7 @@ export function AdminNotificationBell() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [playNotificationSound, recipientId]);
+  }, [recipientId, surfaceIncomingNotifications]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
