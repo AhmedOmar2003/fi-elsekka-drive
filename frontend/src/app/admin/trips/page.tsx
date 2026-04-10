@@ -28,15 +28,15 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
 
     return (
         <div className="space-y-6">
-            <SectionCard title="إدارة المشاوير" subtitle="كل الطلبات بتيجي هنا الأول، وبعدها الإدارة تحدد السعر النهائي وتعمل بث للكباتن أو إسناد مباشر">
+            <SectionCard title="إدارة المشاوير" subtitle="3 خطوات فقط: حدد السعر، انتظر تأكيد العميل، ثم عيّن الكابتن">
                 <div className="grid gap-4 md:grid-cols-3">
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
                         <p className="text-xs text-white/45">طلبات في انتظار الإدارة</p>
                         <p className="mt-2 text-2xl font-black text-white">{pendingTrips.length}</p>
-                        <p className="mt-2 text-sm text-white/60">دي المشاوير اللي لسه محتاجة تسعير نهائي ثم بث أو إسناد للكباتن.</p>
+                        <p className="mt-2 text-sm text-white/60">دي الطلبات التي تحتاج تسعيرًا أو متابعة سريعة.</p>
                     </div>
                     <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/5 p-4 md:col-span-2">
-                        <p className="text-sm font-black text-white">جاهز للتسعير والإسناد</p>
+                        <p className="text-sm font-black text-white">طلبات تحتاج إجراء الآن</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                             {pendingTrips.slice(0, 4).map((trip) => (
                                 <Link key={trip.id} href={`/admin/trips/${trip.id}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10">

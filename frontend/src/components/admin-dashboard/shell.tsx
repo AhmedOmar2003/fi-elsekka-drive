@@ -19,6 +19,7 @@ import {
     X,
 } from "lucide-react";
 
+import { AdminNotificationBell } from "@/components/admin/admin-notification-bell";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasFullAdminAccess, hasPermission } from "@/lib/permissions";
@@ -152,6 +153,9 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                             <div className="flex items-center gap-3">
                                 <div className="hidden rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm text-primary md:block">
                                     جاهزين للتوزيع اللحظي
+                                </div>
+                                <div className="flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-1.5">
+                                    <AdminNotificationBell />
                                 </div>
                                 <div className="flex h-11 min-w-[11rem] items-center justify-end rounded-2xl border border-white/10 bg-white/5 px-4 text-right">
                                     <div>

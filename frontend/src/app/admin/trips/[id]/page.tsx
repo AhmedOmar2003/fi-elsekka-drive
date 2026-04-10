@@ -33,6 +33,26 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                 <MetricPanel label="السعر النهائي" value={detail.trip.adminSelectedPrice ? `${detail.trip.adminSelectedPrice} ج.م` : "لسه ما اتحددش"} />
             </section>
 
+            <SectionCard title="خطوات التشغيل" subtitle="التسلسل البسيط لهذه الرحلة">
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+                        <p className="text-xs tracking-[0.2em] text-white/40">1</p>
+                        <p className="mt-3 text-sm font-black">حدد السعر النهائي</p>
+                        <p className="mt-2 text-sm text-white/55">بعد إرسال الطلب تظهر الرحلة هنا بانتظار التسعير.</p>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+                        <p className="text-xs tracking-[0.2em] text-white/40">2</p>
+                        <p className="mt-3 text-sm font-black">انتظر تأكيد العميل</p>
+                        <p className="mt-2 text-sm text-white/55">أول ما العميل يؤكد السعر، يصلك إشعار فورًا.</p>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+                        <p className="text-xs tracking-[0.2em] text-white/40">3</p>
+                        <p className="mt-3 text-sm font-black">عيّن كابتن مناسب</p>
+                        <p className="mt-2 text-sm text-white/55">بعد التأكيد، افتح التعيين المباشر وحدد الكابتن المناسب.</p>
+                    </div>
+                </div>
+            </SectionCard>
+
             <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <SectionCard title="ملخص المشوار" subtitle="الخط الأساسي وبيانات الراكب">
                     <div className="grid gap-4 md:grid-cols-2">

@@ -8,6 +8,9 @@ export interface AppNotification {
     link?: string;
     is_read: boolean;
     created_at: string;
+    type?: string;
+    payload?: Record<string, unknown> | null;
+    related_trip_id?: string | null;
 }
 
 const DUPLICATE_NOTIFICATION_WINDOW_MS = 10000;
@@ -68,6 +71,54 @@ export const mergeNotificationIntoList = (notifications: AppNotification[], noti
     return dedupeNotifications([notification, ...notifications]);
 };
 
+type RawNotificationRecord = {
+    id: string;
+    recipient_user_id?: string | null;
+    user_id?: string | null;
+    title?: string | null;
+    body?: string | null;
+    message?: string | null;
+    link?: string | null;
+    is_read?: boolean | null;
+    created_at?: string | null;
+    type?: string | null;
+    payload?: Record<string, unknown> | null;
+    related_trip_id?: string | null;
+};
+
+const deriveNotificationLink = (record: RawNotificationRecord) => {
+    const payload = (record.payload || {}) as Record<string, unknown>;
+    const directLink = String(record.link || payload.link || payload.url || "").trim();
+    if (directLink) {
+        return directLink;
+    }
+
+    const tripId = String(record.related_trip_id || payload.trip_id || "").trim();
+    if (tripId) {
+        return `/admin/trips/${tripId}`;
+    }
+
+    const ticketId = String(payload.ticket_id || "").trim();
+    if (ticketId) {
+        return `/admin/support/${ticketId}`;
+    }
+
+    return '/admin/notifications';
+};
+
+const normalizeNotification = (record: RawNotificationRecord): AppNotification => ({
+    id: String(record.id),
+    user_id: String(record.recipient_user_id || record.user_id || ''),
+    title: String(record.title || 'إشعار جديد'),
+    message: String(record.body || record.message || ''),
+    link: deriveNotificationLink(record),
+    is_read: Boolean(record.is_read),
+    created_at: String(record.created_at || new Date().toISOString()),
+    type: record.type || undefined,
+    payload: (record.payload as Record<string, unknown> | null) || null,
+    related_trip_id: record.related_trip_id || null,
+});
+
 /**
  * Fetches the most recent notifications for the logged-in user.
  */
@@ -76,8 +127,8 @@ export const fetchUserNotifications = async (userId: string, limit = 20): Promis
 
     const { data, error } = await supabase
         .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
+        .select('id, recipient_user_id, title, body, link, is_read, created_at, type, payload, related_trip_id')
+        .eq('recipient_user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -86,7 +137,7 @@ export const fetchUserNotifications = async (userId: string, limit = 20): Promis
         return [];
     }
 
-    return dedupeNotifications(data as AppNotification[]);
+    return dedupeNotifications(((data || []) as RawNotificationRecord[]).map(normalizeNotification));
 };
 
 /**
@@ -99,7 +150,7 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
         .from('notifications')
         .select('id')
         .eq('id', notificationId)
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .limit(1);
 
     if (existingError) {
@@ -115,7 +166,7 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
         .from('notifications')
         .update({ is_read: true })
         .eq('id', notificationId)
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .select('id');
 
     if (error) {
@@ -141,7 +192,7 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
     const { data: unreadRows, error: unreadError } = await supabase
         .from('notifications')
         .select('id')
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .eq('is_read', false);
 
     if (unreadError) {
@@ -156,7 +207,7 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<boolea
     const { data, error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .eq('is_read', false)
         .select('id');
 
@@ -184,7 +235,7 @@ export const deleteNotification = async (notificationId: string, userId: string)
         .from('notifications')
         .select('id')
         .eq('id', notificationId)
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .limit(1);
 
     if (existingError) {
@@ -200,7 +251,7 @@ export const deleteNotification = async (notificationId: string, userId: string)
         .from('notifications')
         .delete()
         .eq('id', notificationId)
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .select('id');
 
     if (error) {
@@ -226,7 +277,7 @@ export const deleteAllNotifications = async (userId: string): Promise<boolean> =
     const { data: existingRows, error: existingError } = await supabase
         .from('notifications')
         .select('id')
-        .eq('user_id', userId);
+        .eq('recipient_user_id', userId);
 
     if (existingError) {
         logNotificationMutationFailure('delete-all.lookup', { userId, error: existingError.message || existingError });
@@ -240,7 +291,7 @@ export const deleteAllNotifications = async (userId: string): Promise<boolean> =
     const { data, error } = await supabase
         .from('notifications')
         .delete()
-        .eq('user_id', userId)
+        .eq('recipient_user_id', userId)
         .select('id');
 
     if (error) {
@@ -264,7 +315,12 @@ export const createNotification = async (payload: Omit<AppNotification, 'id' | '
     const { error } = await supabase
         .from('notifications')
         .insert([{
-            ...payload,
+            recipient_user_id: payload.user_id,
+            title: payload.title,
+            body: payload.message,
+            link: payload.link || null,
+            payload: payload.payload || null,
+            related_trip_id: payload.related_trip_id || null,
             is_read: false
         }]);
 

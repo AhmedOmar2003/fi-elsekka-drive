@@ -28,6 +28,28 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+function normalizeRealtimeNotification(raw: Record<string, unknown>, fallbackUserId: string): AppNotification {
+  const payload = (raw.payload as Record<string, unknown> | null) || null;
+  const tripId = String(raw.related_trip_id || payload?.trip_id || "").trim();
+  const ticketId = String(payload?.ticket_id || "").trim();
+  const derivedLink =
+    String(raw.link || payload?.link || payload?.url || "").trim() ||
+    (tripId ? `/admin/trips/${tripId}` : ticketId ? `/admin/support/${ticketId}` : "/admin/notifications");
+
+  return {
+    id: String(raw.id || ""),
+    user_id: String(raw.recipient_user_id || raw.user_id || fallbackUserId),
+    title: String(raw.title || "إشعار جديد"),
+    message: String(raw.body || raw.message || ""),
+    link: derivedLink,
+    is_read: Boolean(raw.is_read),
+    created_at: String(raw.created_at || new Date().toISOString()),
+    type: typeof raw.type === "string" ? raw.type : undefined,
+    payload,
+    related_trip_id: tripId || null,
+  };
+}
+
 export function AdminNotificationBell() {
   const { user, session } = useAuth();
   const router = useRouter();
@@ -161,17 +183,17 @@ export function AdminNotificationBell() {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${user.id}`,
+          filter: `recipient_user_id=eq.${user.id}`,
         },
         (payload) => {
-          const notification = payload.new as AppNotification;
+          const notification = normalizeRealtimeNotification(payload.new as Record<string, unknown>, user.id);
           setNotifications((prev) => mergeNotificationIntoList(prev, notification));
           playNotificationSound();
           void showInstantDeviceNotification({
             title: notification.title,
             body: notification.message,
-            url: notification.link || "/admin/orders",
-            tag: `${notification.link || "/admin/orders"}::${notification.title}`,
+            url: notification.link || "/admin/notifications",
+            tag: `${notification.link || "/admin/notifications"}::${notification.title}`,
           });
           toast.success(notification.title, {
             description: notification.message,
@@ -184,10 +206,10 @@ export function AdminNotificationBell() {
           event: "UPDATE",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${user.id}`,
+          filter: `recipient_user_id=eq.${user.id}`,
         },
         (payload) => {
-          const updated = payload.new as AppNotification;
+          const updated = normalizeRealtimeNotification(payload.new as Record<string, unknown>, user.id);
           setNotifications((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
         }
       )
@@ -222,7 +244,7 @@ export function AdminNotificationBell() {
       setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)));
     }
     setIsOpen(false);
-    router.push(notification.link || "/admin/orders");
+    router.push(notification.link || "/admin/notifications");
   };
 
   const clearAllNotifications = async () => {
@@ -270,7 +292,7 @@ export function AdminNotificationBell() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black text-foreground">إشعارات لوحة التحكم</h3>
-                <p className="mt-1 text-[11px] text-gray-500">طلبات جديدة وتحديثات التسليم المهمة</p>
+                <p className="mt-1 text-[11px] text-gray-500">طلبات جديدة، تأكيدات سعر، وتعيين الكباتن</p>
               </div>
               {notifications.length > 0 && (
                 <button
@@ -301,7 +323,7 @@ export function AdminNotificationBell() {
                   <div>
                     <p className="text-xs font-black text-foreground">فعّل إشعارات الهاتف</p>
                     <p className="mt-1 text-[10px] leading-5 text-gray-500">
-                      علشان أول ما يدخل طلب جديد أو يوصل طلب، الإشعار يوصلك فورًا على الجهاز.
+                      علشان أول ما يدخل طلب جديد أو العميل يؤكد السعر، الإشعار يوصلك فورًا على الجهاز.
                     </p>
                   </div>
                   <button
@@ -323,7 +345,7 @@ export function AdminNotificationBell() {
               <div className="flex flex-col items-center gap-2 py-10 text-gray-600">
                 <CheckCircle2 className="h-8 w-8 opacity-30" />
                 <p className="text-xs">لا توجد إشعارات بعد</p>
-                <p className="text-[10px] text-gray-700">أول ما يدخل طلب جديد أو يتم تسليم طلب هتلاقيه هنا.</p>
+                <p className="text-[10px] text-gray-700">هتلاقي هنا الطلبات الجديدة وتأكيدات السعر وكل ما يحتاج تدخل سريع.</p>
               </div>
             ) : (
               notifications.map((notification) => (
@@ -353,11 +375,11 @@ export function AdminNotificationBell() {
             <button
               onClick={() => {
                 setIsOpen(false);
-                router.push("/admin/orders");
+                router.push("/admin/notifications");
               }}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary/10 px-4 py-3 text-sm font-bold text-primary transition-colors hover:bg-primary/15"
             >
-              افتح لوحة الطلبات
+              افتح كل الإشعارات
               <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
