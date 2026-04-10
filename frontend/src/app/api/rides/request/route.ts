@@ -7,6 +7,9 @@ import {
 import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
+const DEFAULT_WAITING_PRICE_PER_MINUTE = Number(process.env.WAITING_PRICE_PER_MINUTE || 2);
+const DEFAULT_WAITING_FREE_MINUTES = Number(process.env.WAITING_FREE_MINUTES || 5);
+
 function normalizeVehicleType(value: unknown) {
   return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "car";
 }
@@ -20,6 +23,7 @@ type CreateTripRecordInput = {
   passengerCount: number;
   isRoundTrip: boolean;
   waitingDurationMinutes: number | null;
+  waitingEnabled: boolean;
 };
 
 async function createTripRecord(
@@ -35,6 +39,7 @@ async function createTripRecord(
     passengerCount,
     isRoundTrip,
     waitingDurationMinutes,
+    waitingEnabled,
   } = input;
 
   const returnDestinationLabel = isRoundTrip
@@ -88,8 +93,27 @@ async function createTripRecord(
             round_trip: true,
             return_status: "outbound",
             waiting_duration_minutes: waitingDurationMinutes ?? 0,
+            waiting_enabled: waitingEnabled,
+            waiting_price_per_minute: DEFAULT_WAITING_PRICE_PER_MINUTE,
+            waiting_free_minutes: DEFAULT_WAITING_FREE_MINUTES,
+            waiting_active: false,
+            waiting_start_time: null,
+            waiting_total_seconds: 0,
+            waiting_chargeable_seconds: 0,
+            waiting_cost: 0,
+            final_price: null,
           }
-        : {},
+        : {
+            waiting_enabled: waitingEnabled,
+            waiting_price_per_minute: DEFAULT_WAITING_PRICE_PER_MINUTE,
+            waiting_free_minutes: DEFAULT_WAITING_FREE_MINUTES,
+            waiting_active: false,
+            waiting_start_time: null,
+            waiting_total_seconds: 0,
+            waiting_chargeable_seconds: 0,
+            waiting_cost: 0,
+            final_price: null,
+          },
     })
     .select("id")
     .single();
@@ -127,6 +151,7 @@ export async function POST(request: Request) {
     const waitingDurationMinutes = isRoundTrip
       ? Math.min(720, Math.max(0, Number(body.waitingDurationMinutes || 0)))
       : null;
+    const waitingEnabled = body.waitingEnabled === true;
     const preferredVehicleType =
       tripType === "airport_ride" ? "car" : normalizeVehicleType(body.preferredVehicleType);
     const estimate = body.estimate;
@@ -154,6 +179,7 @@ export async function POST(request: Request) {
       passengerCount,
       isRoundTrip,
       waitingDurationMinutes,
+      waitingEnabled,
     });
 
     if (tripError || !tripId) {
@@ -186,6 +212,15 @@ export async function POST(request: Request) {
           airport_departure_label: tripType === "airport_ride" ? body.departureTimeLabel || null : null,
           is_round_trip: isRoundTrip,
           waiting_duration_minutes: waitingDurationMinutes,
+          waiting_enabled: waitingEnabled,
+          waiting_price_per_minute: DEFAULT_WAITING_PRICE_PER_MINUTE,
+          waiting_free_minutes: DEFAULT_WAITING_FREE_MINUTES,
+          waiting_active: false,
+          waiting_start_time: null,
+          waiting_total_seconds: 0,
+          waiting_chargeable_seconds: 0,
+          waiting_cost: 0,
+          final_price: null,
           return_status: isRoundTrip ? 'outbound' : 'not_applicable',
           dispatch_mode: "awaiting_admin_pricing",
           awaiting_admin_pricing: true,
@@ -211,7 +246,10 @@ export async function POST(request: Request) {
         map_estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
         is_round_trip: isRoundTrip,
         waiting_duration_minutes: waitingDurationMinutes,
-      },
+        waiting_enabled: waitingEnabled,
+        waiting_price_per_minute: DEFAULT_WAITING_PRICE_PER_MINUTE,
+        waiting_free_minutes: DEFAULT_WAITING_FREE_MINUTES,
+        },
     });
 
     await serviceClient.from("notifications").insert({

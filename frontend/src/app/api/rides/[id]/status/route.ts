@@ -8,10 +8,13 @@ import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-t
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Params = { params: Promise<{ id: string }> };
+type TripMetadata = Record<string, unknown>;
 
 const ROUTE_VERSION = "trip-status-v3-2026-04-09";
 const ALREADY_DONE_STATUSES = new Set(["driver_arrived", "trip_started", "waiting_for_return", "completed"]);
 const NON_CANCELLABLE_CUSTOMER_STATUSES = new Set(["trip_started", "completed"]);
+const DEFAULT_WAITING_PRICE_PER_MINUTE = Number(process.env.WAITING_PRICE_PER_MINUTE || 2);
+const DEFAULT_WAITING_FREE_MINUTES = Number(process.env.WAITING_FREE_MINUTES || 5);
 const CONFIRM_PRICE_ALIASES = new Set([
   "customer_confirm_price",
   "confirmed",
@@ -31,6 +34,128 @@ const CANCEL_TRIP_ALIASES = new Set([
   "trip_cancelled",
   "customer_cancel",
 ]);
+const START_WAITING_ALIASES = new Set([
+  "driver_start_waiting",
+  "start_waiting",
+  "begin_waiting",
+]);
+const END_WAITING_ALIASES = new Set([
+  "driver_end_waiting",
+  "end_waiting",
+  "stop_waiting",
+]);
+
+function asPositiveNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function asNonNegativeInt(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.floor(parsed);
+}
+
+function asIsoDate(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function roundMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(2));
+}
+
+function waitingConfig(metadata: TripMetadata) {
+  const waitingPricePerMinute = Math.max(
+    0.1,
+    Number(
+      asPositiveNumber(metadata["waiting_price_per_minute"]) ??
+        DEFAULT_WAITING_PRICE_PER_MINUTE
+    )
+  );
+  const waitingFreeMinutes = Math.max(
+    0,
+    asNonNegativeInt(
+      metadata["waiting_free_minutes"],
+      Math.max(0, DEFAULT_WAITING_FREE_MINUTES)
+    )
+  );
+
+  return {
+    waitingEnabled: metadata["waiting_enabled"] === true,
+    waitingPricePerMinute,
+    waitingFreeMinutes,
+  };
+}
+
+function resolveBaseTripPrice(
+  estimatedPrice: unknown,
+  metadata: TripMetadata
+): number | null {
+  const explicitBase =
+    asPositiveNumber(metadata["base_price"]) ??
+    asPositiveNumber(metadata["admin_selected_price"]) ??
+    asPositiveNumber(estimatedPrice) ??
+    asPositiveNumber(metadata["map_estimated_price"]);
+  return explicitBase;
+}
+
+function closeWaitingSession(
+  metadata: TripMetadata,
+  nowIso: string,
+  estimatedPrice: unknown
+) {
+  const nowDate = new Date(nowIso);
+  const config = waitingConfig(metadata);
+  let waitingTotalSeconds = asNonNegativeInt(metadata["waiting_total_seconds"], 0);
+
+  const waitingActive = metadata["waiting_active"] === true;
+  const waitingStartDate = asIsoDate(metadata["waiting_start_time"]);
+  if (waitingActive && waitingStartDate != null) {
+    const elapsed = Math.max(
+      0,
+      Math.floor((nowDate.getTime() - waitingStartDate.getTime()) / 1000)
+    );
+    waitingTotalSeconds += elapsed;
+  }
+
+  const waitingChargeableSeconds = Math.max(
+    0,
+    waitingTotalSeconds - config.waitingFreeMinutes * 60
+  );
+  const waitingCost = roundMoney(
+    (waitingChargeableSeconds / 60) * config.waitingPricePerMinute
+  );
+  const basePrice = resolveBaseTripPrice(estimatedPrice, metadata);
+  const finalPrice =
+    basePrice == null ? null : roundMoney(basePrice + waitingCost);
+
+  const nextMetadata: TripMetadata = {
+    ...metadata,
+    waiting_enabled: config.waitingEnabled,
+    waiting_price_per_minute: config.waitingPricePerMinute,
+    waiting_free_minutes: config.waitingFreeMinutes,
+    waiting_active: false,
+    waiting_start_time: null,
+    waiting_last_ended_at: nowIso,
+    waiting_total_seconds: waitingTotalSeconds,
+    waiting_chargeable_seconds: waitingChargeableSeconds,
+    waiting_cost: waitingCost,
+    base_price: basePrice,
+    final_price: finalPrice,
+  };
+
+  return {
+    nextMetadata,
+    waitingTotalSeconds,
+    waitingChargeableSeconds,
+    waitingCost,
+    finalPrice,
+  };
+}
 
 export async function POST(request: Request, context: Params) {
   const auth = await requireRideUser(request);
@@ -52,6 +177,10 @@ export async function POST(request: Request, context: Params) {
       ? "customer_confirm_price"
       : CANCEL_TRIP_ALIASES.has(requestedAction)
         ? "customer_cancel_trip"
+        : START_WAITING_ALIASES.has(requestedAction)
+          ? "driver_start_waiting"
+          : END_WAITING_ALIASES.has(requestedAction)
+            ? "driver_end_waiting"
         : requestedAction;
     const now = new Date().toISOString();
 
@@ -126,7 +255,9 @@ export async function POST(request: Request, context: Params) {
       return NextResponse.json({ success: true, status: "driver_arrived", routeVersion: ROUTE_VERSION });
     }
 
-    const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+    const metadata: TripMetadata = ((trip.metadata as TripMetadata | null) || {});
+    const waitingOptions = waitingConfig(metadata);
+    const basePrice = resolveBaseTripPrice(trip.estimated_price, metadata);
     const adminSelectedPrice = metadata["admin_selected_price"];
     const hasQuotedPrice =
       Number(
@@ -156,6 +287,8 @@ export async function POST(request: Request, context: Params) {
         customer_price_confirmed: true,
         customer_price_confirmed_at: now,
         dispatch_mode: "admin_assignment_pending",
+        base_price: basePrice,
+        final_price: basePrice,
       };
 
       const { error: updateError } = await serviceClient
@@ -376,6 +509,157 @@ export async function POST(request: Request, context: Params) {
       });
     }
 
+    if (action === "driver_start_waiting") {
+      if (!isDriver) {
+        return NextResponse.json({ error: "الكابتن فقط يقدر يبدأ الانتظار." }, { status: 403 });
+      }
+      if (!waitingOptions.waitingEnabled) {
+        return NextResponse.json({ error: "الانتظار غير مفعل في هذه الرحلة." }, { status: 409 });
+      }
+
+      const canStartWaiting =
+        String(trip.status) === "trip_started" ||
+        (String(trip.status) === "waiting_for_return" && trip.is_round_trip === true);
+      if (!canStartWaiting) {
+        return NextResponse.json({ error: "لا يمكن بدء الانتظار في الحالة الحالية." }, { status: 409 });
+      }
+
+      if (metadata["waiting_active"] === true) {
+        return NextResponse.json({ success: true, status: trip.status, waitingActive: true, routeVersion: ROUTE_VERSION });
+      }
+
+      const nextMetadata: TripMetadata = {
+        ...metadata,
+        waiting_enabled: true,
+        waiting_price_per_minute: waitingOptions.waitingPricePerMinute,
+        waiting_free_minutes: waitingOptions.waitingFreeMinutes,
+        waiting_active: true,
+        waiting_start_time: now,
+        waiting_last_started_at: now,
+        base_price: basePrice,
+      };
+
+      const { error: updateError } = await serviceClient
+        .from("trips")
+        .update({
+          metadata: nextMetadata,
+          updated_at: now,
+        })
+        .eq("id", trip.id);
+      if (updateError) throw updateError;
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: String(trip.status),
+        changed_by: auth.profile.user.id,
+        note: "الكابتن بدأ احتساب وقت الانتظار.",
+        metadata: {
+          waiting_active: true,
+          waiting_start_time: now,
+          waiting_price_per_minute: waitingOptions.waitingPricePerMinute,
+          waiting_free_minutes: waitingOptions.waitingFreeMinutes,
+        },
+      });
+      if (historyError) throw historyError;
+
+      await serviceClient.from("notifications").insert({
+        recipient_user_id: trip.customer_id,
+        type: "trip_offered",
+        title: "بدأ وقت الانتظار",
+        body: `تم تشغيل الانتظار. أول ${waitingOptions.waitingFreeMinutes} دقائق مجانًا ثم يتم الاحتساب بالدقيقة.`,
+        payload: {
+          trip_id: trip.id,
+          waiting_active: true,
+          waiting_start_time: now,
+          waiting_price_per_minute: waitingOptions.waitingPricePerMinute,
+          waiting_free_minutes: waitingOptions.waitingFreeMinutes,
+        },
+        related_trip_id: trip.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        status: trip.status,
+        waitingActive: true,
+        routeVersion: ROUTE_VERSION,
+      });
+    }
+
+    if (action === "driver_end_waiting") {
+      if (!isDriver) {
+        return NextResponse.json({ error: "الكابتن فقط يقدر ينهي الانتظار." }, { status: 403 });
+      }
+      if (!waitingOptions.waitingEnabled) {
+        return NextResponse.json({ error: "الانتظار غير مفعل في هذه الرحلة." }, { status: 409 });
+      }
+
+      if (metadata["waiting_active"] !== true) {
+        return NextResponse.json({
+          success: true,
+          status: trip.status,
+          waitingActive: false,
+          waitingCost: Number(metadata["waiting_cost"] || 0),
+          routeVersion: ROUTE_VERSION,
+        });
+      }
+
+      const closedWaiting = closeWaitingSession(metadata, now, trip.estimated_price);
+
+      const { error: updateError } = await serviceClient
+        .from("trips")
+        .update({
+          metadata: closedWaiting.nextMetadata,
+          estimated_price: closedWaiting.finalPrice ?? trip.estimated_price,
+          updated_at: now,
+        })
+        .eq("id", trip.id);
+      if (updateError) throw updateError;
+
+      const waitingMinutes = Number((closedWaiting.waitingTotalSeconds / 60).toFixed(1));
+      const chargeableMinutes = Number((closedWaiting.waitingChargeableSeconds / 60).toFixed(1));
+
+      const { error: historyError } = await serviceClient.from("trip_status_history").insert({
+        trip_id: trip.id,
+        status: String(trip.status),
+        changed_by: auth.profile.user.id,
+        note: "الكابتن أنهى الانتظار وتم تحديث التكلفة.",
+        metadata: {
+          waiting_active: false,
+          waiting_total_minutes: waitingMinutes,
+          waiting_chargeable_minutes: chargeableMinutes,
+          waiting_cost: closedWaiting.waitingCost,
+          final_price: closedWaiting.finalPrice,
+        },
+      });
+      if (historyError) throw historyError;
+
+      await serviceClient.from("notifications").insert({
+        recipient_user_id: trip.customer_id,
+        type: "trip_offered",
+        title: "تم إنهاء الانتظار",
+        body: `وقت الانتظار: ${waitingMinutes} دقيقة (المحتسب ${chargeableMinutes} دقيقة).`,
+        payload: {
+          trip_id: trip.id,
+          waiting_active: false,
+          waiting_total_seconds: closedWaiting.waitingTotalSeconds,
+          waiting_chargeable_seconds: closedWaiting.waitingChargeableSeconds,
+          waiting_cost: closedWaiting.waitingCost,
+          final_price: closedWaiting.finalPrice,
+        },
+        related_trip_id: trip.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        status: trip.status,
+        waitingActive: false,
+        waitingTotalSeconds: closedWaiting.waitingTotalSeconds,
+        waitingCost: closedWaiting.waitingCost,
+        finalPrice: closedWaiting.finalPrice,
+        routeVersion: ROUTE_VERSION,
+      });
+    }
+
     if (action === "driver_start_trip") {
       if (!isDriver) {
         return NextResponse.json({ error: "الكابتن فقط يقدر يبدأ المشوار." }, { status: 403 });
@@ -442,8 +726,13 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ error: "الرحلة ليست في مرحلة انتظار الرجوع." }, { status: 409 });
       }
 
+      const closedWaiting =
+        metadata["waiting_active"] === true
+          ? closeWaitingSession(metadata, now, trip.estimated_price)
+          : null;
+
       const nextMetadata = {
-        ...metadata,
+        ...(closedWaiting?.nextMetadata ?? metadata),
         return_status: "return_in_progress",
         return_started_at: now,
       };
@@ -454,6 +743,7 @@ export async function POST(request: Request, context: Params) {
           status: "trip_started",
           return_status: "return_in_progress",
           return_started_at: now,
+          estimated_price: closedWaiting?.finalPrice ?? trip.estimated_price,
           updated_at: now,
           metadata: nextMetadata,
         })
@@ -468,6 +758,8 @@ export async function POST(request: Request, context: Params) {
         metadata: {
           round_trip: true,
           return_status: "return_in_progress",
+          waiting_cost: closedWaiting?.waitingCost ?? metadata["waiting_cost"] ?? 0,
+          final_price: closedWaiting?.finalPrice ?? metadata["final_price"] ?? null,
         },
       });
       if (historyError) throw historyError;
@@ -503,8 +795,13 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ error: "لا يمكن إلغاء الرجوع إلا أثناء الانتظار في الوجهة." }, { status: 409 });
       }
 
+      const closedWaiting =
+        metadata["waiting_active"] === true
+          ? closeWaitingSession(metadata, now, trip.estimated_price)
+          : null;
+
       const nextMetadata = {
-        ...metadata,
+        ...(closedWaiting?.nextMetadata ?? metadata),
         return_status: "return_cancelled",
         return_cancelled_at: now,
       };
@@ -516,6 +813,7 @@ export async function POST(request: Request, context: Params) {
           completed_at: now,
           return_status: "return_cancelled",
           return_cancelled_at: now,
+          estimated_price: closedWaiting?.finalPrice ?? trip.estimated_price,
           updated_at: now,
           metadata: nextMetadata,
         })
@@ -540,6 +838,8 @@ export async function POST(request: Request, context: Params) {
         metadata: {
           round_trip: true,
           return_status: "return_cancelled",
+          waiting_cost: closedWaiting?.waitingCost ?? metadata["waiting_cost"] ?? 0,
+          final_price: closedWaiting?.finalPrice ?? metadata["final_price"] ?? null,
         },
       });
       if (historyError) throw historyError;
@@ -610,10 +910,14 @@ export async function POST(request: Request, context: Params) {
 
       const isRoundTrip = trip.is_round_trip === true;
       const returnStatus = String(trip.return_status || "not_applicable");
+      const closedWaiting =
+        metadata["waiting_active"] === true
+          ? closeWaitingSession(metadata, now, trip.estimated_price)
+          : null;
 
       if (isRoundTrip && returnStatus == "outbound") {
         const nextMetadata = {
-          ...metadata,
+          ...(closedWaiting?.nextMetadata ?? metadata),
           return_status: "waiting_for_return",
           waiting_for_return_at: now,
         };
@@ -624,6 +928,7 @@ export async function POST(request: Request, context: Params) {
             status: "waiting_for_return",
             waiting_for_return_at: now,
             return_status: "waiting_for_return",
+            estimated_price: closedWaiting?.finalPrice ?? trip.estimated_price,
             updated_at: now,
             metadata: nextMetadata,
           })
@@ -639,6 +944,8 @@ export async function POST(request: Request, context: Params) {
             round_trip: true,
             return_status: "waiting_for_return",
             waiting_duration_minutes: trip.waiting_duration_minutes ?? null,
+            waiting_cost: closedWaiting?.waitingCost ?? metadata["waiting_cost"] ?? 0,
+            final_price: closedWaiting?.finalPrice ?? metadata["final_price"] ?? null,
           },
         });
         if (historyError) throw historyError;
@@ -665,9 +972,10 @@ export async function POST(request: Request, context: Params) {
           status: "completed",
           completed_at: now,
           return_status: isRoundTrip ? "return_completed" : trip.return_status,
+          estimated_price: closedWaiting?.finalPrice ?? trip.estimated_price,
           updated_at: now,
           metadata: {
-            ...metadata,
+            ...(closedWaiting?.nextMetadata ?? metadata),
             return_status: isRoundTrip ? "return_completed" : metadata["return_status"],
           },
         })
@@ -692,7 +1000,12 @@ export async function POST(request: Request, context: Params) {
           ? "الكابتن أنهى رحلة الرجوع واكتملت الرحلة بالكامل."
           : "الكابتن أنهى المشوار ووصل للوجهة.",
         metadata: isRoundTrip
-          ? { round_trip: true, return_status: "return_completed" }
+          ? {
+              round_trip: true,
+              return_status: "return_completed",
+              waiting_cost: closedWaiting?.waitingCost ?? metadata["waiting_cost"] ?? 0,
+              final_price: closedWaiting?.finalPrice ?? metadata["final_price"] ?? null,
+            }
           : {},
       });
       if (historyError) throw historyError;
@@ -726,6 +1039,8 @@ export async function POST(request: Request, context: Params) {
         customer_price_confirmed: true,
         customer_price_confirmed_at: now,
         dispatch_mode: "admin_assignment_pending",
+        base_price: basePrice,
+        final_price: basePrice,
       };
 
       const { error: updateError } = await serviceClient

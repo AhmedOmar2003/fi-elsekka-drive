@@ -12,7 +12,7 @@ export default async function AdminOverviewPage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-3xl">
                         <p className="text-xs tracking-[0.35em] text-primary/75">مركز التشغيل</p>
-                        <h1 className="mt-3 text-3xl font-black md:text-4xl">لوحة تشغيل في السكة</h1>
+            <h1 className="mt-3 text-3xl font-black md:text-4xl">لوحة تشغيل وصلني</h1>
                         <p className="mt-3 text-sm leading-7 text-white/60 md:text-base">
                             لوحة داخلية لمتابعة المشاوير والكباتن والتوزيع والدعم وحالة الخدمة، متصممة لشغل يومي سريع يناسب طبيعة التشغيل في مصر.
                         </p>

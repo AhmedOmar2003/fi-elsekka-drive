@@ -36,13 +36,13 @@ const cairo = Cairo({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  let siteName = "في السكة مشاوير";
+  let siteName = "وصلني";
 
   try {
     const settings = await fetchPublicAppSettingsServer();
     siteName = settings.siteName || siteName;
   } catch {
-    siteName = "في السكة مشاوير";
+    siteName = "وصلني";
   }
 
   const tagline = "منصة مشاوير عربية للمطار والتنقل اليومي";
@@ -64,7 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Ride booking Egypt",
       "Arabic mobility platform",
     ],
-    applicationName: "في السكة مشاوير",
+    applicationName: "وصلني",
     manifest: "/manifest.json",
     category: "transportation",
     alternates: { canonical: "/" },
@@ -86,7 +86,7 @@ export async function generateMetadata(): Promise<Metadata> {
     appleWebApp: {
       capable: true,
       statusBarStyle: "default",
-      title: "في السكة مشاوير",
+      title: "وصلني",
     },
     icons: {
       icon: [

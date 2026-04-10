@@ -96,8 +96,8 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                                 <Shield className="h-6 w-6" />
                             </div>
                             <div>
-                                <p className="text-lg font-black">في السكة</p>
-                                <p className="text-xs text-white/60">لوحة تشغيل في السكة</p>
+                                <p className="text-lg font-black">وصلني</p>
+                                <p className="text-xs text-white/60">لوحة تشغيل وصلني</p>
                             </div>
                         </div>
                     </div>
@@ -146,7 +146,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                                     <Menu className="h-5 w-5" />
                                 </button>
                                 <div>
-                                    <p className="text-xs tracking-[0.3em] text-white/40">في السكة</p>
+                                    <p className="text-xs tracking-[0.3em] text-white/40">وصلني</p>
                                     <h1 className="text-xl font-black">{pageTitle}</h1>
                                 </div>
                             </div>
@@ -179,8 +179,8 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                     >
                         <div className="mb-6 flex items-center justify-between">
                             <div>
-                                <p className="text-lg font-black">في السكة</p>
-                                <p className="text-xs text-white/60">لوحة تشغيل في السكة</p>
+                                <p className="text-lg font-black">وصلني</p>
+                                <p className="text-xs text-white/60">لوحة تشغيل وصلني</p>
                             </div>
                             <button className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5" onClick={() => setIsOpen(false)}>
                                 <X className="h-4 w-4" />
