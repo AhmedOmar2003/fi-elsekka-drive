@@ -4,7 +4,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
-import { ADMIN_NOTIFICATION_ROLES } from "@/lib/admin-notification-recipients";
+import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Params = { params: Promise<{ id: string }> };
@@ -180,15 +180,10 @@ export async function POST(request: Request, context: Params) {
       });
       if (historyError) throw historyError;
 
-      const { data: admins } = await serviceClient
-        .from("profiles")
-        .select("id")
-        .in("role", [...ADMIN_NOTIFICATION_ROLES])
-        .eq("account_status", "active")
-        .limit(100);
+      const adminRecipientIds = await resolveAdminNotificationRecipientIds(serviceClient);
 
-      const adminNotifications = (admins || []).map((admin) => ({
-        recipient_user_id: admin.id,
+      const adminNotifications = adminRecipientIds.map((adminId) => ({
+        recipient_user_id: adminId,
         type: "admin_message",
         title: "العميل أكد السعر",
         body: "العميل وافق على السعر النهائي. عيّن كابتن مناسب للرحلة الآن.",
@@ -264,15 +259,10 @@ export async function POST(request: Request, context: Params) {
         return NextResponse.json({ error: "الحالة الحالية لا تسمح بتسجيل تأخير الكابتن." }, { status: 409 });
       }
 
-      const { data: admins } = await serviceClient
-        .from("profiles")
-        .select("id")
-        .in("role", [...ADMIN_NOTIFICATION_ROLES])
-        .eq("account_status", "active")
-        .limit(100);
+      const adminRecipientIds = await resolveAdminNotificationRecipientIds(serviceClient);
 
-      const adminNotifications = (admins || []).map((admin) => ({
-        recipient_user_id: admin.id,
+      const adminNotifications = adminRecipientIds.map((adminId) => ({
+        recipient_user_id: adminId,
         type: "admin_message",
         title: "العميل بلّغ إن الكابتن متأخر",
         body: "الوقت المتوقع انتهى والعميل أكد إن الكابتن لسه ما وصلش. راجع الرحلة وكلم الكابتن فورًا.",
@@ -640,15 +630,10 @@ export async function POST(request: Request, context: Params) {
       });
       if (historyError) throw historyError;
 
-      const { data: admins } = await serviceClient
-        .from("profiles")
-        .select("id")
-        .in("role", [...ADMIN_NOTIFICATION_ROLES])
-        .eq("account_status", "active")
-        .limit(100);
+      const adminRecipientIds = await resolveAdminNotificationRecipientIds(serviceClient);
 
-      const adminNotifications = (admins || []).map((admin) => ({
-        recipient_user_id: admin.id,
+      const adminNotifications = adminRecipientIds.map((adminId) => ({
+        recipient_user_id: adminId,
         type: "admin_message",
         title: "العميل أكد السعر",
         body: "العميل وافق على السعر النهائي. عيّن كابتن مناسب للرحلة الآن.",

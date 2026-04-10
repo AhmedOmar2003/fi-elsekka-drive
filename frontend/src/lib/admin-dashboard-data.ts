@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
-import { ADMIN_NOTIFICATION_ROLES } from "@/lib/admin-notification-recipients";
+import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 
 import type {
     DispatchBoardData,
@@ -1237,14 +1237,7 @@ export async function fetchAdminInboxNotifications() {
     const supabase = createAdminClient();
     if (!supabase) return [] as AdminInboxNotification[];
 
-    const { data: admins } = await supabase
-        .from("profiles")
-        .select("id")
-        .in("role", [...ADMIN_NOTIFICATION_ROLES])
-        .eq("account_status", "active")
-        .limit(100);
-
-    const adminIds = (admins || []).map((admin) => String(admin.id));
+    const adminIds = await resolveAdminNotificationRecipientIds(supabase);
     if (adminIds.length === 0) return [] as AdminInboxNotification[];
 
     const { data } = await supabase

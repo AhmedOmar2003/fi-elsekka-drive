@@ -4,7 +4,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
-import { ADMIN_NOTIFICATION_ROLES } from "@/lib/admin-notification-recipients";
+import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 function normalizeVehicleType(value: unknown) {
@@ -229,15 +229,10 @@ export async function POST(request: Request) {
       related_trip_id: tripId,
     });
 
-    const { data: admins } = await serviceClient
-      .from("profiles")
-      .select("id")
-      .in("role", [...ADMIN_NOTIFICATION_ROLES])
-      .eq("account_status", "active")
-      .limit(100);
+    const adminRecipientIds = await resolveAdminNotificationRecipientIds(serviceClient);
 
-    const adminNotifications = (admins || []).map((admin) => ({
-      recipient_user_id: admin.id,
+    const adminNotifications = adminRecipientIds.map((adminId) => ({
+      recipient_user_id: adminId,
       type: "admin_message",
       title: "طلب مشوار جديد يحتاج تسعير",
       body: `طلب جديد من ${estimate.pickup.label} إلى ${estimate.destination.label} في انتظار تحديد السعر من الإدارة.`,
