@@ -14,6 +14,7 @@ type DriverPushPayload = {
   message: string;
   link?: string;
   requireInteraction?: boolean;
+  topic?: string;
 };
 
 function buildDriverPushPayload(payload: DriverPushPayload) {
@@ -75,7 +76,7 @@ export async function sendPushToDriverDevices(
         await webpush.sendNotification(subscriptionRecord.subscription, pushPayload, {
           TTL: 30,
           urgency: 'high',
-          topic: 'driver-assignment'
+          topic: payload.topic || 'driver-assignment'
         });
       } catch (pushError: any) {
         if (pushError?.statusCode === 404 || pushError?.statusCode === 410) {

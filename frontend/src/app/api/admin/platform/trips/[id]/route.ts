@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminApi } from "@/lib/admin-guard";
 import { createAdminPlatformClient } from "@/lib/admin-platform-server";
+import { sendPushToDriverDevices } from "@/lib/driver-push-server";
 import { hasPermission } from "@/lib/permissions";
 import { canAdminManuallyTransitionTrip, getAllowedAdminManualTripStatuses, isTripStatus } from "@/lib/trip-state-machine";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
@@ -223,7 +224,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                 related_trip_id: id,
             });
 
-            await sendPushToUserDevices(supabase, driverId, {
+            await sendPushToDriverDevices(supabase, driverId, {
                 title: "الإدارة خصصت لك مشوار",
                 message: `مشوار من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")} في انتظار موافقتك الآن.`,
                 link: "/captain/offers",

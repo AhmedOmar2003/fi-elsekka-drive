@@ -210,7 +210,7 @@ export async function POST(request: Request, context: Params) {
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "العميل أكد السعر",
               message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
-              link: "/admin/trips",
+              link: `/admin/trips/${trip.id}`,
               topic: "admin-customer-price-confirmed",
             })
           )
@@ -670,7 +670,7 @@ export async function POST(request: Request, context: Params) {
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "العميل أكد السعر",
               message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
-              link: "/admin/trips",
+              link: `/admin/trips/${trip.id}`,
               topic: "admin-customer-price-confirmed",
             })
           )

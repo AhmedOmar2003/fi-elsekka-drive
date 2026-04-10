@@ -255,7 +255,7 @@ export async function POST(request: Request) {
           sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
             title: "طلب مشوار جديد يحتاج تسعير",
             message: "يوجد طلب جديد في انتظار تحديد السعر النهائي من الإدارة.",
-            link: "/admin/trips",
+            link: `/admin/trips/${tripId}`,
             topic: "admin-price-trip-request",
           })
         )
