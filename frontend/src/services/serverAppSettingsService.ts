@@ -1,4 +1,5 @@
 import 'server-only'
+import { unstable_cache } from 'next/cache'
 
 import { createClient } from '@supabase/supabase-js'
 import {
@@ -29,7 +30,7 @@ function normalizeServerSettings(data: Partial<AppSettings> | null | undefined):
   }
 }
 
-export async function fetchPublicAppSettingsServer(): Promise<AppSettings> {
+async function _fetchPublicAppSettingsServer(): Promise<AppSettings> {
   const supabase = getPublicServerSupabase()
 
   const withWhatsAppColumns = await supabase
@@ -91,3 +92,9 @@ export async function fetchPublicAppSettingsServer(): Promise<AppSettings> {
     maintenanceMode: data.maintenance_mode ?? DEFAULT_APP_SETTINGS.maintenanceMode,
   })
 }
+
+export const fetchPublicAppSettingsServer = unstable_cache(
+  _fetchPublicAppSettingsServer,
+  ['public_app_settings_server'],
+  { revalidate: 60 } // Cache locally to prevent static build connection overload
+)
