@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
+import { ADMIN_NOTIFICATION_ROLES } from "@/lib/admin-notification-recipients";
 
 import type {
     DispatchBoardData,
@@ -1239,7 +1240,7 @@ export async function fetchAdminInboxNotifications() {
     const { data: admins } = await supabase
         .from("profiles")
         .select("id")
-        .eq("role", "admin")
+        .in("role", [...ADMIN_NOTIFICATION_ROLES])
         .eq("account_status", "active")
         .limit(100);
 

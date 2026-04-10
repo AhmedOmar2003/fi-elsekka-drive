@@ -4,6 +4,7 @@ import {
   createRideServiceClient,
   requireRideUser,
 } from "@/lib/ride-server-auth";
+import { ADMIN_NOTIFICATION_ROLES } from "@/lib/admin-notification-recipients";
 import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Params = { params: Promise<{ id: string }> };
@@ -182,7 +183,7 @@ export async function POST(request: Request, context: Params) {
       const { data: admins } = await serviceClient
         .from("profiles")
         .select("id")
-        .eq("role", "admin")
+        .in("role", [...ADMIN_NOTIFICATION_ROLES])
         .eq("account_status", "active")
         .limit(100);
 
@@ -266,7 +267,7 @@ export async function POST(request: Request, context: Params) {
       const { data: admins } = await serviceClient
         .from("profiles")
         .select("id")
-        .eq("role", "admin")
+        .in("role", [...ADMIN_NOTIFICATION_ROLES])
         .eq("account_status", "active")
         .limit(100);
 
@@ -642,7 +643,7 @@ export async function POST(request: Request, context: Params) {
       const { data: admins } = await serviceClient
         .from("profiles")
         .select("id")
-        .eq("role", "admin")
+        .in("role", [...ADMIN_NOTIFICATION_ROLES])
         .eq("account_status", "active")
         .limit(100);
 

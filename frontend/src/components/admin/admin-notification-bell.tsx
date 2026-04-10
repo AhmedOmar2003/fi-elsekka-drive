@@ -7,19 +7,15 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   type AppNotification,
-  deleteAllNotifications,
   emitNotificationsSync,
-  fetchUserNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
   mergeNotificationIntoList,
 } from "@/services/notificationsService";
-import { supabase } from "@/lib/supabase";
 import { showInstantDeviceNotification } from "@/lib/device-notifications";
 
 const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_KEY || "";
 
 type PushSetupState = "checking" | "enabled" | "prompt" | "blocked" | "unsupported" | "error";
+type AdminNotificationsResponse = { notifications?: AppNotification[]; error?: string };
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -62,18 +58,111 @@ export function AdminNotificationBell() {
   const popoverRef = React.useRef<HTMLDivElement>(null);
   const knownNotificationIdsRef = React.useRef<Set<string>>(new Set());
   const hasCompletedInitialLoadRef = React.useRef(false);
+  const audioContextRef = React.useRef<AudioContext | null>(null);
   const recipientId = user?.id || profile?.id || null;
 
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
-  const playNotificationSound = React.useCallback(() => {
-    try {
-      const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-      audio.volume = 0.5;
-      audio.play().catch(() => {});
-    } catch {
-      // ignore
+  const ensureAudioContext = React.useCallback(async () => {
+    if (typeof window === "undefined") return null;
+    const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return null;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextCtor();
     }
+
+    if (audioContextRef.current.state === "suspended") {
+      try {
+        await audioContextRef.current.resume();
+      } catch {
+        return null;
+      }
+    }
+
+    return audioContextRef.current;
+  }, []);
+
+  const playNotificationSound = React.useCallback(() => {
+    void ensureAudioContext().then((context) => {
+      if (!context) return;
+
+      const now = context.currentTime;
+      const sequence = [
+        { at: 0, frequency: 880, duration: 0.11 },
+        { at: 0.16, frequency: 1175, duration: 0.14 },
+      ];
+
+      for (const tone of sequence) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(tone.frequency, now + tone.at);
+
+        gain.gain.setValueAtTime(0.0001, now + tone.at);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + tone.at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.duration);
+
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now + tone.at);
+        oscillator.stop(now + tone.at + tone.duration);
+      }
+    });
+  }, [ensureAudioContext]);
+
+  const fetchAdminNotifications = React.useCallback(async (limit = 30): Promise<AppNotification[]> => {
+    const response = await fetch(`/api/admin/platform/notifications?limit=${limit}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`notifications_fetch_failed_${response.status}`);
+    }
+
+    const payload = (await response.json()) as AdminNotificationsResponse;
+    return Array.isArray(payload.notifications) ? payload.notifications : [];
+  }, []);
+
+  const markAllAdminNotificationsAsRead = React.useCallback(async () => {
+    const response = await fetch("/api/admin/platform/notifications", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "mark_all_read" }),
+    });
+
+    return response.ok;
+  }, []);
+
+  const markAdminNotificationAsRead = React.useCallback(async (notificationId: string) => {
+    const response = await fetch(`/api/admin/platform/notifications/${notificationId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "mark_read" }),
+    });
+
+    return response.ok;
+  }, []);
+
+  const deleteAllAdminNotifications = React.useCallback(async () => {
+    const response = await fetch("/api/admin/platform/notifications", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "delete_all" }),
+    });
+
+    return response.ok;
   }, []);
 
   const syncPushSubscription = React.useCallback(
@@ -177,20 +266,26 @@ export function AdminNotificationBell() {
 
   const loadNotifications = React.useCallback(async () => {
     if (!recipientId) {
+      setNotifications([]);
       setIsLoading(false);
       return;
     }
-    const data = await fetchUserNotifications(recipientId, 30);
-    const previousIds = knownNotificationIdsRef.current;
-    const incoming = data.filter((item) => !previousIds.has(item.id));
-    knownNotificationIdsRef.current = new Set(data.map((item) => item.id));
-    setNotifications(data);
-    setIsLoading(false);
-    if (hasCompletedInitialLoadRef.current && incoming.length > 0) {
-      surfaceIncomingNotifications(incoming);
+    try {
+      const data = await fetchAdminNotifications(30);
+      const previousIds = knownNotificationIdsRef.current;
+      const incoming = data.filter((item) => !previousIds.has(item.id));
+      knownNotificationIdsRef.current = new Set(data.map((item) => item.id));
+      setNotifications(data);
+      if (hasCompletedInitialLoadRef.current && incoming.length > 0) {
+        surfaceIncomingNotifications(incoming);
+      }
+      hasCompletedInitialLoadRef.current = true;
+    } catch (error) {
+      console.error("Admin bell: loadNotifications failed", error);
+    } finally {
+      setIsLoading(false);
     }
-    hasCompletedInitialLoadRef.current = true;
-  }, [recipientId, surfaceIncomingNotifications]);
+  }, [fetchAdminNotifications, recipientId, surfaceIncomingNotifications]);
 
   React.useEffect(() => {
     void loadNotifications();
@@ -198,9 +293,22 @@ export function AdminNotificationBell() {
 
   React.useEffect(() => {
     if (!recipientId) return;
+    const activateAudio = () => {
+      void ensureAudioContext();
+    };
+    window.addEventListener("pointerdown", activateAudio, { once: true });
+    window.addEventListener("keydown", activateAudio, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", activateAudio);
+      window.removeEventListener("keydown", activateAudio);
+    };
+  }, [ensureAudioContext, recipientId]);
+
+  React.useEffect(() => {
+    if (!recipientId) return;
     const timer = window.setInterval(() => {
       void loadNotifications();
-    }, 10000);
+    }, 4000);
     return () => window.clearInterval(timer);
   }, [recipientId, loadNotifications]);
 
@@ -208,46 +316,6 @@ export function AdminNotificationBell() {
     if (!recipientId) return;
     void subscribeToPhoneNotifications(false);
   }, [recipientId, subscribeToPhoneNotifications]);
-
-  React.useEffect(() => {
-    if (!recipientId) return;
-
-    const channel = supabase
-      .channel(`admin-dashboard-notifications-${recipientId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_user_id=eq.${recipientId}`,
-        },
-        (payload) => {
-          const notification = normalizeRealtimeNotification(payload.new as Record<string, unknown>, recipientId);
-          setNotifications((prev) => mergeNotificationIntoList(prev, notification));
-          knownNotificationIdsRef.current.add(notification.id);
-          surfaceIncomingNotifications([notification]);
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_user_id=eq.${recipientId}`,
-        },
-        (payload) => {
-          const updated = normalizeRealtimeNotification(payload.new as Record<string, unknown>, recipientId);
-          setNotifications((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [recipientId, surfaceIncomingNotifications]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -259,17 +327,17 @@ export function AdminNotificationBell() {
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       if (recipientId && unreadCount > 0) {
-        void markAllNotificationsAsRead(recipientId);
+        void markAllAdminNotificationsAsRead();
         setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
       }
     }
 
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, unreadCount, recipientId]);
+  }, [isOpen, unreadCount, recipientId, markAllAdminNotificationsAsRead]);
 
   const openNotification = async (notification: AppNotification) => {
     if (recipientId && !notification.is_read) {
-      await markNotificationAsRead(notification.id, recipientId);
+      await markAdminNotificationAsRead(notification.id);
       setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)));
     }
     setIsOpen(false);
@@ -284,7 +352,7 @@ export function AdminNotificationBell() {
     setNotifications([]);
     emitNotificationsSync({ type: "delete-all", userId: recipientId });
 
-    const ok = await deleteAllNotifications(recipientId);
+    const ok = await deleteAllAdminNotifications();
     if (ok) {
       toast.success("تم مسح كل الإشعارات");
     } else {
