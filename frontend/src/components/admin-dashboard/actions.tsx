@@ -188,16 +188,51 @@ export function TripDispatchForm({
     const [driverId, setDriverId] = useState(eligibleDrivers[0]?.id || assignableDrivers[0]?.id || "");
     const [price, setPrice] = useState(defaultPrice);
     const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">(lockMode || initialMode);
-    const [isPending, startTransition] = useTransition();
+    const [pendingAction, setPendingAction] = useState<"primary" | "broadcast" | null>(null);
 
     const selectedDriver = assignableDrivers.find((driver) => driver.id === driverId);
     const effectiveMode = lockMode || mode;
     const isDirectAssign = effectiveMode === "assign_driver";
     const selectedDriverEligible = selectedDriver ? isDriverEligible(selectedDriver) : false;
+    const isBusy = pendingAction !== null;
 
     const describeDriverState = (driver: (typeof assignableDrivers)[number]) => {
         if (driver.availabilityStatus === "available") return "متاح";
         return "مشغول";
+    };
+
+    const runPrimaryAction = async () => {
+        setPendingAction("primary");
+        try {
+            await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                action: effectiveMode,
+                driverId: isDirectAssign ? driverId : null,
+                vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
+                price: price.trim() || null,
+            });
+            toast.success(isDirectAssign ? "تم إرسال العرض للكابتن المحدد." : "تم تحديد السعر وإرساله للعميل.");
+            router.refresh();
+        } catch (error: any) {
+            toast.error(error?.message || "تعذر تنفيذ الإجراء.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
+    const runBroadcastAction = async () => {
+        setPendingAction("broadcast");
+        try {
+            await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                action: "broadcast_available_drivers",
+                price: price.trim() || null,
+            });
+            toast.success("تم إرسال الطلب لكل الكباتن المتاحين.");
+            router.refresh();
+        } catch (error: any) {
+            toast.error(error?.message || "تعذر إرسال الطلب للكباتن المتاحين.");
+        } finally {
+            setPendingAction(null);
+        }
     };
 
     return (
@@ -259,24 +294,13 @@ export function TripDispatchForm({
 
             <div className={`flex ${isDirectAssign ? "flex-col gap-3 md:flex-row" : ""}`}>
                 <Button
-                    isLoading={isPending}
-                    disabled={(!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && (!driverId || !selectedDriverEligible))}
-                    onClick={() =>
-                        startTransition(async () => {
-                            try {
-                                await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
-                                    action: effectiveMode,
-                                    driverId: isDirectAssign ? driverId : null,
-                                    vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
-                                    price: price.trim() || null,
-                                });
-                                toast.success(isDirectAssign ? "تم إرسال العرض للكابتن المحدد." : "تم تحديد السعر وإرساله للعميل.");
-                                router.refresh();
-                            } catch (error: any) {
-                                toast.error(error?.message || "تعذر تنفيذ الإجراء.");
-                            }
-                        })
+                    isLoading={pendingAction === "primary"}
+                    disabled={
+                        isBusy ||
+                        (!hasAssignableDrivers && isDirectAssign) ||
+                        (isDirectAssign && (!driverId || !selectedDriverEligible))
                     }
+                    onClick={runPrimaryAction}
                 >
                     {isDirectAssign ? "اسند للكابتن" : "إرسال السعر للعميل"}
                 </Button>
@@ -284,22 +308,9 @@ export function TripDispatchForm({
                     <Button
                         variant="outline"
                         className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
-                        isLoading={isPending}
-                        disabled={!hasAssignableDrivers}
-                        onClick={() =>
-                            startTransition(async () => {
-                                try {
-                                    await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
-                                        action: "broadcast_available_drivers",
-                                        price: price.trim() || null,
-                                    });
-                                    toast.success("تم إرسال الطلب لكل الكباتن المتاحين.");
-                                    router.refresh();
-                                } catch (error: any) {
-                                    toast.error(error?.message || "تعذر إرسال الطلب للكباتن المتاحين.");
-                                }
-                            })
-                        }
+                        isLoading={pendingAction === "broadcast"}
+                        disabled={isBusy || !hasAssignableDrivers}
+                        onClick={runBroadcastAction}
                     >
                         إرسال لكل الكباتن المتاحين
                     </Button>
