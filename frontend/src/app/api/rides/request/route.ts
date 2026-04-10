@@ -245,9 +245,18 @@ export async function POST(request: Request) {
     }));
 
     if (adminNotifications.length > 0) {
-      await serviceClient.from("notifications").insert(adminNotifications);
+      const insertedNotifications = await Promise.allSettled(
+        adminNotifications.map(async (notification) => {
+          const { error } = await serviceClient.from("notifications").insert(notification);
+          if (error) throw error;
+          return notification;
+        })
+      );
+      const successfulNotifications = insertedNotifications
+        .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
+        .map((result) => result.value);
       await Promise.all(
-        adminNotifications.map((notification) =>
+        successfulNotifications.map((notification) =>
           sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
             title: "طلب مشوار جديد يحتاج تسعير",
             message: "يوجد طلب جديد في انتظار تحديد السعر النهائي من الإدارة.",

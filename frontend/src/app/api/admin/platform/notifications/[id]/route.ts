@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { requireAdminApi } from "@/lib/admin-guard";
+import { resolveCurrentAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
@@ -30,6 +31,10 @@ export async function PATCH(request: Request, context: Params) {
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
   const action = String(body?.action || "").trim().toLowerCase();
+  const recipientIds = await resolveCurrentAdminNotificationRecipientIds(supabase, {
+    id: auth.profile.user.id,
+    email: auth.profile.user.email,
+  });
 
   if (action !== "mark_read") {
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
@@ -39,7 +44,7 @@ export async function PATCH(request: Request, context: Params) {
     .from("notifications")
     .update({ is_read: true })
     .eq("id", id)
-    .eq("recipient_user_id", auth.profile.user.id);
+    .in("recipient_user_id", recipientIds);
 
   if (error) {
     return NextResponse.json({ error: error.message || "Failed to mark notification as read." }, { status: 500 });

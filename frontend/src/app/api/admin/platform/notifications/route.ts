@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { requireAdminApi } from "@/lib/admin-guard";
+import { resolveCurrentAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
@@ -64,11 +65,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawLimit = Number(searchParams.get("limit") || 30);
   const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 30;
+  const recipientIds = await resolveCurrentAdminNotificationRecipientIds(supabase, {
+    id: auth.profile.user.id,
+    email: auth.profile.user.email,
+  });
 
   const { data, error } = await supabase
     .from("notifications")
     .select("id, recipient_user_id, title, body, link, is_read, created_at, type, payload, related_trip_id")
-    .eq("recipient_user_id", auth.profile.user.id)
+    .in("recipient_user_id", recipientIds)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -95,12 +100,16 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const action = String(body?.action || "").trim().toLowerCase();
+  const recipientIds = await resolveCurrentAdminNotificationRecipientIds(supabase, {
+    id: auth.profile.user.id,
+    email: auth.profile.user.email,
+  });
 
   if (action === "mark_all_read") {
     const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
-      .eq("recipient_user_id", auth.profile.user.id)
+      .in("recipient_user_id", recipientIds)
       .eq("is_read", false);
 
     if (error) {
@@ -114,7 +123,7 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from("notifications")
       .delete()
-      .eq("recipient_user_id", auth.profile.user.id);
+      .in("recipient_user_id", recipientIds);
 
     if (error) {
       return NextResponse.json({ error: error.message || "Failed to delete notifications." }, { status: 500 });

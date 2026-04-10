@@ -196,13 +196,19 @@ export async function POST(request: Request, context: Params) {
       }));
 
       if (adminNotifications.length > 0) {
-        const { error: notificationError } = await serviceClient
-          .from("notifications")
-          .insert(adminNotifications);
-        if (notificationError) throw notificationError;
+        const insertedNotifications = await Promise.allSettled(
+          adminNotifications.map(async (notification) => {
+            const { error } = await serviceClient.from("notifications").insert(notification);
+            if (error) throw error;
+            return notification;
+          })
+        );
+        const successfulNotifications = insertedNotifications
+          .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
+          .map((result) => result.value);
 
         await Promise.all(
-          adminNotifications.map((notification) =>
+          successfulNotifications.map((notification) =>
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "العميل أكد السعر",
               message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
@@ -271,10 +277,9 @@ export async function POST(request: Request, context: Params) {
       }));
 
       if (adminNotifications.length > 0) {
-        const { error: notificationError } = await serviceClient
-          .from("notifications")
-          .insert(adminNotifications);
-        if (notificationError) throw notificationError;
+        await Promise.allSettled(
+          adminNotifications.map((notification) => serviceClient.from("notifications").insert(notification))
+        );
       }
 
       const { error: historyError } = await serviceClient.from("trip_status_history").insert({
@@ -646,13 +651,19 @@ export async function POST(request: Request, context: Params) {
       }));
 
       if (adminNotifications.length > 0) {
-        const { error: notificationError } = await serviceClient
-          .from("notifications")
-          .insert(adminNotifications);
-        if (notificationError) throw notificationError;
+        const insertedNotifications = await Promise.allSettled(
+          adminNotifications.map(async (notification) => {
+            const { error } = await serviceClient.from("notifications").insert(notification);
+            if (error) throw error;
+            return notification;
+          })
+        );
+        const successfulNotifications = insertedNotifications
+          .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
+          .map((result) => result.value);
 
         await Promise.all(
-          adminNotifications.map((notification) =>
+          successfulNotifications.map((notification) =>
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "العميل أكد السعر",
               message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
