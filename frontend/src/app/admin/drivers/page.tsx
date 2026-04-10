@@ -58,6 +58,7 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
                             { key: "driver", label: "الكابتن" },
                             { key: "vehicle", label: "المركبة" },
                             { key: "live", label: "الحالة الآن" },
+                            { key: "dispatch", label: "جاهز للتوزيع" },
                             { key: "approval", label: "المراجعة" },
                             { key: "city", label: "المدينة" },
                             { key: "trips", label: "مشاوير مكتملة" },
@@ -72,6 +73,14 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
                             ),
                             vehicle: <span className="text-white/70">{driver.vehicleType || "مفيش مركبة أساسية"}</span>,
                             live: <StatusBadge status={driver.availabilityStatus} />,
+                            dispatch: driver.dispatchReady ? (
+                                <StatusBadge status="active" />
+                            ) : (
+                                <div>
+                                    <StatusBadge status="warning" />
+                                    <p className="mt-1 text-xs text-white/45">{driver.dispatchBlockReason || "غير جاهز"}</p>
+                                </div>
+                            ),
                             approval: <StatusBadge status={driver.applicationStatus} />,
                             city: <div><p>{driver.city || "—"}</p><p className="mt-1 text-xs text-white/45">{driver.area || "—"}</p></div>,
                             trips: <span className="font-semibold">{driver.tripsCompleted}</span>,

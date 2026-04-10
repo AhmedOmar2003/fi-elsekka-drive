@@ -18,12 +18,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Invalid availability status' }, { status: 400 });
         }
 
-        // Update the driver's availability in the users table
+        const nextAvailability = isAvailable ? 'available' : 'offline';
         const { error: updateErr } = await driverSupabaseAdmin
-            .from('users')
-            .update({ is_available: isAvailable })
-            .eq('id', user.id)
-            .eq('role', 'driver');
+            .from('driver_profiles')
+            .update({ availability_status: nextAvailability, last_seen_at: new Date().toISOString() })
+            .eq('id', user.id);
 
         if (updateErr) throw updateErr;
 
@@ -34,11 +33,12 @@ export async function POST(request: Request) {
             payload: { 
                 driverId: user.id, 
                 isAvailable,
+                availabilityStatus: nextAvailability,
                 driverName: auth.profile.fullName || 'مندوب'
             }
         });
 
-        return NextResponse.json({ success: true, isAvailable });
+        return NextResponse.json({ success: true, isAvailable, availabilityStatus: nextAvailability });
 
     } catch (err: any) {
         console.error('API Error /driver/set-availability:', err);

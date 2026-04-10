@@ -133,6 +133,8 @@ export type AdminDriverListItem = {
     city: string | null;
     area: string | null;
     availabilityStatus: string;
+    dispatchReady: boolean;
+    dispatchBlockReason: string | null;
     applicationStatus: string;
     verificationStatus: string;
     vehicleType: string | null;
@@ -751,40 +753,103 @@ export async function fetchDriversList(filters: {
     const driverIds = rows.map((row) => String(row.id));
     const [profilesMap, vehiclesResult, tripsResult] = await Promise.all([
         loadProfilesMap(driverIds),
-        supabase.from("vehicles").select("id, driver_id, vehicle_type, is_primary").in("driver_id", driverIds),
+        supabase.from("vehicles").select("id, driver_id, vehicle_type, is_primary, is_active, approval_status").in("driver_id", driverIds),
         supabase.from("trips").select("assigned_driver_id, status").in("assigned_driver_id", driverIds),
     ]);
 
+    const { data: freshDriverRows } = await supabase
+        .from("driver_profiles")
+        .select("id, is_accepting_offers")
+        .in("id", driverIds);
+
+    const { data: openOffers } = await supabase
+        .from("trip_offers")
+        .select("driver_id, offer_status, expires_at")
+        .in("driver_id", driverIds)
+        .eq("offer_status", "offered")
+        .gt("expires_at", new Date().toISOString());
+
     const vehicleMap = new Map<string, string>();
+    const vehicleReadyMap = new Map<string, boolean>();
     for (const vehicle of vehiclesResult.data || []) {
         if (vehicle.is_primary || !vehicleMap.has(String(vehicle.driver_id))) {
             vehicleMap.set(String(vehicle.driver_id), String(vehicle.vehicle_type));
+            vehicleReadyMap.set(
+                String(vehicle.driver_id),
+                vehicle.is_active === true && String(vehicle.approval_status || "") === "approved"
+            );
         }
     }
 
     const completedTripsMap = new Map<string, number>();
+    const activeTripMap = new Map<string, boolean>();
     for (const trip of tripsResult.data || []) {
         if (trip.status === "completed" && trip.assigned_driver_id) {
             const key = String(trip.assigned_driver_id);
             completedTripsMap.set(key, (completedTripsMap.get(key) || 0) + 1);
         }
+        if (
+            trip.assigned_driver_id &&
+            ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"].includes(String(trip.status))
+        ) {
+            activeTripMap.set(String(trip.assigned_driver_id), true);
+        }
+    }
+
+    const acceptingOffersMap = new Map<string, boolean>();
+    for (const driver of freshDriverRows || []) {
+        acceptingOffersMap.set(String(driver.id), Boolean(driver.is_accepting_offers));
+    }
+
+    const openOfferMap = new Map<string, boolean>();
+    for (const offer of openOffers || []) {
+        if (offer.driver_id) {
+            openOfferMap.set(String(offer.driver_id), true);
+        }
     }
 
     return rows
         .filter((row) => !filters.vehicleType || filters.vehicleType === "all" || vehicleMap.get(String(row.id)) === filters.vehicleType)
-        .map((row) => ({
-            id: String(row.id),
-            fullName: String((profilesMap.get(String(row.id))?.full_name as string) || "كابتن"),
-            phone: (profilesMap.get(String(row.id))?.phone as string | null) || null,
-            city: (row.working_city as string | null) || null,
-            area: (row.working_area as string | null) || null,
-            availabilityStatus: String(row.availability_status),
-            applicationStatus: String(row.application_status),
-            verificationStatus: String(row.verification_status),
-            vehicleType: vehicleMap.get(String(row.id)) || null,
-            tripsCompleted: completedTripsMap.get(String(row.id)) || 0,
-            accountStatus: String((profilesMap.get(String(row.id))?.account_status as string) || "active"),
-        }));
+        .map((row) => {
+            const driverId = String(row.id);
+            const rawAvailability = String(row.availability_status);
+            const accountStatus = String((profilesMap.get(driverId)?.account_status as string) || "active");
+            const hasActiveTrip = activeTripMap.get(driverId) === true;
+            const hasOpenOffer = openOfferMap.get(driverId) === true;
+            const isAcceptingOffers = acceptingOffersMap.get(driverId) !== false;
+            const vehicleReady = vehicleReadyMap.get(driverId) === true;
+
+            const effectiveAvailability =
+                hasActiveTrip ? "busy" : rawAvailability;
+
+            let dispatchBlockReason: string | null = null;
+            if (accountStatus !== "active") dispatchBlockReason = "الحساب غير نشط";
+            else if (String(row.application_status) !== "approved" || String(row.verification_status) !== "approved") dispatchBlockReason = "المراجعة غير مكتملة";
+            else if (!vehicleMap.get(driverId)) dispatchBlockReason = "مفيش مركبة أساسية";
+            else if (!vehicleReady) dispatchBlockReason = "المركبة غير جاهزة";
+            else if (effectiveAvailability !== "available") dispatchBlockReason = effectiveAvailability === "busy" ? "مشغول في رحلة" : "أوفلاين";
+            else if (!isAcceptingOffers) dispatchBlockReason = "موقف استقبال العروض";
+            else if (hasOpenOffer) dispatchBlockReason = "عنده عرض مفتوح";
+
+            const dispatchReady = dispatchBlockReason === null;
+
+            return {
+                id: driverId,
+                fullName: String((profilesMap.get(driverId)?.full_name as string) || "كابتن"),
+                phone: (profilesMap.get(driverId)?.phone as string | null) || null,
+                city: (row.working_city as string | null) || null,
+                area: (row.working_area as string | null) || null,
+                availabilityStatus: effectiveAvailability,
+                dispatchReady,
+                dispatchBlockReason,
+                applicationStatus: String(row.application_status),
+                verificationStatus: String(row.verification_status),
+                vehicleType: vehicleMap.get(driverId) || null,
+                tripsCompleted: completedTripsMap.get(driverId) || 0,
+                accountStatus,
+            };
+        })
+        .filter((row) => !filters.availabilityStatus || filters.availabilityStatus === "all" || row.availabilityStatus === filters.availabilityStatus);
 }
 
 export async function fetchDriverDetail(id: string) {
