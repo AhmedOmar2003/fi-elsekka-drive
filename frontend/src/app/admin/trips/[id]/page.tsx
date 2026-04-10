@@ -7,11 +7,21 @@ import { fetchDispatchBoard, fetchTripDetail } from "@/lib/admin-dashboard-data"
 
 type Params = Promise<{ id: string }>;
 
+const STEP_LABELS = ["حدد السعر", "تأكيد العميل", "تعيين الكابتن"] as const;
+
+function resolveTripOpsStep(status: string, hasAdminPrice: boolean) {
+    if (!hasAdminPrice) return 0;
+    if (status === "pending") return 1;
+    return 2;
+}
+
 export default async function AdminTripDetailsPage({ params }: { params: Params }) {
     const { id } = await params;
     const [detail, dispatchBoard] = await Promise.all([fetchTripDetail(id), fetchDispatchBoard()]);
 
     if (!detail) notFound();
+
+    const activeStep = resolveTripOpsStep(detail.trip.status, detail.trip.adminSelectedPrice !== null);
 
     return (
         <div className="space-y-6">
@@ -33,23 +43,31 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                 <MetricPanel label="السعر النهائي" value={detail.trip.adminSelectedPrice ? `${detail.trip.adminSelectedPrice} ج.م` : "لسه ما اتحددش"} />
             </section>
 
-            <SectionCard title="الخطوات" subtitle="حدد السعر ← تأكيد العميل ← تعيين الكابتن">
-                <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                        <p className="text-xs tracking-[0.2em] text-white/40">1</p>
-                        <p className="mt-3 text-sm font-black">حدد السعر النهائي</p>
-                        <p className="mt-2 text-sm text-white/55">السعر النهائي للعميل.</p>
-                    </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                        <p className="text-xs tracking-[0.2em] text-white/40">2</p>
-                        <p className="mt-3 text-sm font-black">انتظر تأكيد العميل</p>
-                        <p className="mt-2 text-sm text-white/55">يصل إشعار فورًا عند التأكيد.</p>
-                    </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                        <p className="text-xs tracking-[0.2em] text-white/40">3</p>
-                        <p className="mt-3 text-sm font-black">عيّن كابتن مناسب</p>
-                        <p className="mt-2 text-sm text-white/55">تعيين مباشر بعد التأكيد.</p>
-                    </div>
+            <SectionCard title="الخطوات">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-0">
+                    {STEP_LABELS.map((label, index) => {
+                        const isDone = index < activeStep;
+                        const isCurrent = index == activeStep;
+                        return (
+                            <div key={label} className="flex flex-1 items-center gap-3">
+                                <div
+                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black ${
+                                        isDone || isCurrent
+                                            ? "border-primary bg-primary text-white"
+                                            : "border-white/10 bg-white/[0.03] text-white/45"
+                                    }`}
+                                >
+                                    {index + 1}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className={`text-sm font-black ${isDone || isCurrent ? "text-white" : "text-white/45"}`}>{label}</p>
+                                </div>
+                                {index < STEP_LABELS.length - 1 ? (
+                                    <div className={`hidden h-px flex-1 md:block ${index < activeStep ? "bg-primary" : "bg-white/10"}`} />
+                                ) : null}
+                            </div>
+                        );
+                    })}
                 </div>
             </SectionCard>
 
