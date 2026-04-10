@@ -262,6 +262,55 @@ export async function POST(request: Request, context: Params) {
 
       if (cancelError) throw cancelError;
 
+      const cancelledBy = isCustomer ? "customer" : "admin";
+      const cancelledByLabel = isCustomer ? "العميل" : "الإدارة";
+      const adminRecipientIds = await resolveAdminNotificationRecipientIds(serviceClient);
+      const adminNotifications = adminRecipientIds.map((adminId) => ({
+        recipient_user_id: adminId,
+        type: "admin_message",
+        title: isCustomer ? "العميل ألغى المشوار" : "تم إلغاء المشوار من الإدارة",
+        body: `${cancelledByLabel} ألغى الرحلة من ${trip.pickup_label || "نقطة التحرك"} إلى ${trip.destination_label || "الوجهة"}.`,
+        payload: {
+          trip_id: trip.id,
+          action: "trip_cancelled",
+          cancelled_by: cancelledBy,
+        },
+        related_trip_id: trip.id,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const insertedNotifications = await Promise.allSettled(
+          adminNotifications.map(async (notification) => {
+            const { error } = await serviceClient.from("notifications").insert(notification);
+            if (error) throw error;
+            return notification;
+          })
+        );
+        const failedNotifications = insertedNotifications.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        if (failedNotifications.length > 0) {
+          console.error("[rides/status] failed to insert admin notifications after customer_cancel_trip", {
+            tripId: trip.id,
+            failures: failedNotifications.map((result) => String(result.reason)),
+          });
+        }
+        const successfulNotifications = insertedNotifications
+          .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
+          .map((result) => result.value);
+
+        await Promise.all(
+          successfulNotifications.map((notification) =>
+            sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
+              title: isCustomer ? "العميل ألغى المشوار" : "تم إلغاء المشوار من الإدارة",
+              message: `${cancelledByLabel} ألغى الرحلة. افتح المشوار لمراجعة التفاصيل.`,
+              link: `/admin/trips/${trip.id}`,
+              topic: "admin-trip-cancelled",
+            })
+          )
+        );
+      }
+
       return NextResponse.json({ success: true, status: "cancelled", routeVersion: ROUTE_VERSION });
     }
 
@@ -494,6 +543,55 @@ export async function POST(request: Request, context: Params) {
         },
       });
       if (historyError) throw historyError;
+
+      const cancelledBy = isCustomer ? "customer" : "admin";
+      const cancelledByLabel = isCustomer ? "العميل" : "الإدارة";
+      const adminRecipientIds = await resolveAdminNotificationRecipientIds(serviceClient);
+      const adminNotifications = adminRecipientIds.map((adminId) => ({
+        recipient_user_id: adminId,
+        type: "admin_message",
+        title: "تم إلغاء رحلة الرجوع",
+        body: `${cancelledByLabel} ألغى جزء الرجوع في رحلة الذهاب والعودة، وتم إغلاق الرحلة.`,
+        payload: {
+          trip_id: trip.id,
+          action: "return_cancelled",
+          cancelled_by: cancelledBy,
+        },
+        related_trip_id: trip.id,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const insertedNotifications = await Promise.allSettled(
+          adminNotifications.map(async (notification) => {
+            const { error } = await serviceClient.from("notifications").insert(notification);
+            if (error) throw error;
+            return notification;
+          })
+        );
+        const failedNotifications = insertedNotifications.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        if (failedNotifications.length > 0) {
+          console.error("[rides/status] failed to insert admin notifications after customer_cancel_return", {
+            tripId: trip.id,
+            failures: failedNotifications.map((result) => String(result.reason)),
+          });
+        }
+        const successfulNotifications = insertedNotifications
+          .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
+          .map((result) => result.value);
+
+        await Promise.all(
+          successfulNotifications.map((notification) =>
+            sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
+              title: "تم إلغاء رحلة الرجوع",
+              message: `${cancelledByLabel} ألغى رحلة الرجوع. راجع تفاصيل المشوار.`,
+              link: `/admin/trips/${trip.id}`,
+              topic: "admin-return-cancelled",
+            })
+          )
+        );
+      }
 
       return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
     }
