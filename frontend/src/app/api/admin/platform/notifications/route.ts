@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { requireAdminApi } from "@/lib/admin-guard";
-import { resolveCurrentAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
+import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
@@ -65,10 +65,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawLimit = Number(searchParams.get("limit") || 30);
   const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 30;
-  const recipientIds = await resolveCurrentAdminNotificationRecipientIds(supabase, {
-    id: auth.profile.user.id,
-    email: auth.profile.user.email,
-  });
+  const recipientIds = await resolveAdminNotificationRecipientIds(supabase);
+  if (recipientIds.length === 0) {
+    return NextResponse.json({ notifications: [] });
+  }
 
   const { data, error } = await supabase
     .from("notifications")
@@ -100,10 +100,10 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const action = String(body?.action || "").trim().toLowerCase();
-  const recipientIds = await resolveCurrentAdminNotificationRecipientIds(supabase, {
-    id: auth.profile.user.id,
-    email: auth.profile.user.email,
-  });
+  const recipientIds = await resolveAdminNotificationRecipientIds(supabase);
+  if (recipientIds.length === 0) {
+    return NextResponse.json({ success: true });
+  }
 
   if (action === "mark_all_read") {
     const { error } = await supabase

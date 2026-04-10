@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { requireAdminApi } from "@/lib/admin-guard";
-import { resolveCurrentAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
+import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-targets";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
@@ -31,10 +31,10 @@ export async function PATCH(request: Request, context: Params) {
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
   const action = String(body?.action || "").trim().toLowerCase();
-  const recipientIds = await resolveCurrentAdminNotificationRecipientIds(supabase, {
-    id: auth.profile.user.id,
-    email: auth.profile.user.email,
-  });
+  const recipientIds = await resolveAdminNotificationRecipientIds(supabase);
+  if (recipientIds.length === 0) {
+    return NextResponse.json({ success: true });
+  }
 
   if (action !== "mark_read") {
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
