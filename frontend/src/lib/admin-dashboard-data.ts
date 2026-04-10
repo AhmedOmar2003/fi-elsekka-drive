@@ -296,6 +296,7 @@ export type AdminInboxNotification = {
     isRead: boolean;
     createdAt: string;
     recipientName: string | null;
+    link: string;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -1315,7 +1316,7 @@ export async function fetchAdminInboxNotifications() {
 
     const { data } = await supabase
         .from("notifications")
-        .select("id, recipient_user_id, title, body, is_read, created_at, type")
+        .select("id, recipient_user_id, title, body, is_read, created_at, type, payload, related_trip_id")
         .in("recipient_user_id", adminIds)
         .eq("type", "admin_message")
         .order("created_at", { ascending: false })
@@ -1324,6 +1325,20 @@ export async function fetchAdminInboxNotifications() {
     const profilesMap = await loadProfilesMap((data || []).map((item) => String(item.recipient_user_id)));
 
     return (data || []).map((item) => ({
+        // Keep notifications actionable from admin inbox table.
+        link: (() => {
+            const payload =
+                item.payload && typeof item.payload === "object"
+                    ? (item.payload as Record<string, unknown>)
+                    : {};
+            const directLink = String(payload.link || payload.url || "").trim();
+            if (directLink) return directLink;
+            const tripId = String(item.related_trip_id || payload.trip_id || "").trim();
+            if (tripId) return `/admin/trips/${tripId}`;
+            const ticketId = String(payload.ticket_id || "").trim();
+            if (ticketId) return `/admin/support/${ticketId}`;
+            return "/admin/notifications";
+        })(),
         id: String(item.id),
         title: String(item.title),
         body: String(item.body),

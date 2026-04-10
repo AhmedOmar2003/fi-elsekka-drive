@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { NotificationComposer } from "@/components/admin-dashboard/actions";
 import { DataTable, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
 import { fetchAdminInboxNotifications, fetchAnnouncements } from "@/lib/admin-dashboard-data";
@@ -19,7 +20,15 @@ export default async function AdminNotificationsPage() {
                         { key: "created", label: "وقت الإنشاء" },
                     ]}
                     rows={inbox.map((item) => ({
-                        title: <div><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-white/45">{item.body}</p></div>,
+                        title: (
+                            <div>
+                                <p className="font-semibold">{item.title}</p>
+                                <p className="mt-1 text-xs text-white/45">{item.body}</p>
+                                <Link href={item.link} className="mt-2 inline-flex text-xs font-bold text-primary hover:underline">
+                                    فتح التفاصيل
+                                </Link>
+                            </div>
+                        ),
                         recipient: item.recipientName || "إدارة",
                         status: <StatusBadge status={item.isRead ? "completed" : "pending"} />,
                         created: new Date(item.createdAt).toLocaleString("ar-EG"),
