@@ -120,7 +120,7 @@ export async function PATCH(request: NextRequest, context: Context) {
 
         if (action === "assign_driver") {
             const driverId = String(body.driverId || "");
-            const vehicleId = body.vehicleId ? String(body.vehicleId) : null;
+            let vehicleId = body.vehicleId ? String(body.vehicleId) : null;
             const price = body.price === null || body.price === undefined || body.price === "" ? null : Number(body.price);
             if (!driverId) {
                 return NextResponse.json({ error: "driverId is required for assign_driver" }, { status: 400 });
@@ -144,6 +144,92 @@ export async function PATCH(request: NextRequest, context: Context) {
             const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
             if (metadata.customer_price_confirmed !== true) {
                 return NextResponse.json({ error: "لازم العميل يؤكد السعر الأول قبل تعيين كابتن." }, { status: 409 });
+            }
+
+            const [{ data: driverProfile, error: driverProfileError }, { data: profileRow, error: profileError }, { data: primaryVehicle, error: vehicleError }, { data: activeTrips, error: activeTripsError }, { data: openOffers, error: openOffersError }] = await Promise.all([
+                supabase
+                    .from("driver_profiles")
+                    .select("id, availability_status, is_accepting_offers, application_status, verification_status")
+                    .eq("id", driverId)
+                    .maybeSingle(),
+                supabase
+                    .from("profiles")
+                    .select("id, full_name, account_status")
+                    .eq("id", driverId)
+                    .maybeSingle(),
+                supabase
+                    .from("vehicles")
+                    .select("id, approval_status, is_primary, is_active, vehicle_type, brand, model")
+                    .eq("driver_id", driverId)
+                    .eq("is_primary", true)
+                    .eq("is_active", true)
+                    .maybeSingle(),
+                supabase
+                    .from("trips")
+                    .select("id, status")
+                    .eq("assigned_driver_id", driverId)
+                    .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"])
+                    .limit(1),
+                supabase
+                    .from("trip_offers")
+                    .select("id, trip_id, offer_status, expires_at")
+                    .eq("driver_id", driverId)
+                    .eq("offer_status", "offered")
+                    .gt("expires_at", now)
+                    .neq("trip_id", id)
+                    .limit(1),
+            ]);
+
+            if (driverProfileError || !driverProfile || profileError || !profileRow) {
+                return NextResponse.json({ error: "الكابتن المحدد غير موجود أو غير مكتمل البيانات." }, { status: 404 });
+            }
+
+            if (vehicleError || !primaryVehicle) {
+                return NextResponse.json({ error: "الكابتن لا يملك مركبة أساسية جاهزة للإسناد." }, { status: 409 });
+            }
+
+            if (activeTripsError || openOffersError) {
+                throw activeTripsError || openOffersError;
+            }
+
+            if (String(profileRow.account_status || "") !== "active") {
+                return NextResponse.json({ error: "حساب الكابتن غير نشط حاليًا." }, { status: 409 });
+            }
+
+            if (String(driverProfile.application_status || "") !== "approved" || String(driverProfile.verification_status || "") !== "approved") {
+                return NextResponse.json({ error: "الكابتن غير معتمد بالكامل حتى الآن." }, { status: 409 });
+            }
+
+            if (String(driverProfile.availability_status || "") !== "available") {
+                return NextResponse.json({
+                    error: String(driverProfile.availability_status || "") === "busy" ? "الكابتن مشغول حاليًا في رحلة أخرى." : "الكابتن غير متاح الآن.",
+                    conflictReason: String(driverProfile.availability_status || "") || "not_available",
+                }, { status: 409 });
+            }
+
+            if (driverProfile.is_accepting_offers !== true) {
+                return NextResponse.json({ error: "الكابتن موقف استقبال العروض حاليًا." }, { status: 409 });
+            }
+
+            if ((activeTrips || []).length > 0) {
+                await supabase
+                    .from("driver_profiles")
+                    .update({ availability_status: "busy", last_seen_at: now })
+                    .eq("id", driverId);
+                return NextResponse.json({ error: "الكابتن مشغول حاليًا في رحلة أخرى.", conflictReason: "active_trip" }, { status: 409 });
+            }
+
+            if ((openOffers || []).length > 0) {
+                return NextResponse.json({ error: "الكابتن لديه عرض آخر مفتوح الآن.", conflictReason: "open_offer" }, { status: 409 });
+            }
+
+            if (String(primaryVehicle.approval_status || "") !== "approved" || primaryVehicle.is_active !== true) {
+                return NextResponse.json({ error: "مركبة الكابتن ليست جاهزة أو غير معتمدة." }, { status: 409 });
+            }
+
+            vehicleId = vehicleId || String(primaryVehicle.id || "");
+            if (!vehicleId) {
+                return NextResponse.json({ error: "تعذر تحديد مركبة الكابتن للإسناد." }, { status: 409 });
             }
 
             await supabase

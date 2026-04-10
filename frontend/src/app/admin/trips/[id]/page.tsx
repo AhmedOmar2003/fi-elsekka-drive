@@ -44,6 +44,10 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                         fullName: driver.fullName,
                         vehicleId: driver.vehicleId,
                         vehicleLabel: driver.vehicleLabel,
+                        availabilityStatus: driver.availabilityStatus,
+                        hasActiveTrip: driver.hasActiveTrip,
+                        hasOpenOffer: driver.hasOpenOffer,
+                        isAcceptingOffers: driver.isAcceptingOffers,
                     }))}
                 />
 

@@ -11,6 +11,10 @@ type WizardDriver = {
     fullName: string;
     vehicleId: string | null;
     vehicleLabel: string | null;
+    availabilityStatus?: string;
+    hasActiveTrip?: boolean;
+    hasOpenOffer?: boolean;
+    isAcceptingOffers?: boolean;
 };
 
 const STEP_LABELS = ["حدد السعر", "تأكيد العميل", "تعيين الكابتن"] as const;

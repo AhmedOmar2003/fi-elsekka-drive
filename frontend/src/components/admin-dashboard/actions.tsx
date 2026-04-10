@@ -163,7 +163,16 @@ export function TripDispatchForm({
 }: {
     tripId: string;
     broadcastDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
-    assignableDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
+    assignableDrivers: Array<{
+        id: string;
+        fullName: string;
+        vehicleId: string | null;
+        vehicleLabel: string | null;
+        availabilityStatus?: string;
+        hasActiveTrip?: boolean;
+        hasOpenOffer?: boolean;
+        isAcceptingOffers?: boolean;
+    }>;
     mapEstimatedPrice?: number | null;
     initialMode?: "dispatch_offer" | "assign_driver";
     lockMode?: "dispatch_offer" | "assign_driver";
@@ -172,8 +181,14 @@ export function TripDispatchForm({
 }) {
     const router = useRouter();
     const hasBroadcastDrivers = broadcastDrivers.length > 0;
-    const hasAssignableDrivers = assignableDrivers.length > 0;
-    const [driverId, setDriverId] = useState(assignableDrivers[0]?.id || "");
+    const isDriverEligible = (driver: (typeof assignableDrivers)[number]) =>
+        driver.availabilityStatus === "available" &&
+        driver.isAcceptingOffers !== false &&
+        driver.hasActiveTrip !== true &&
+        driver.hasOpenOffer !== true;
+    const eligibleDrivers = assignableDrivers.filter(isDriverEligible);
+    const hasAssignableDrivers = eligibleDrivers.length > 0;
+    const [driverId, setDriverId] = useState(eligibleDrivers[0]?.id || assignableDrivers[0]?.id || "");
     const [price, setPrice] = useState(defaultPrice);
     const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">(lockMode || initialMode);
     const [isPending, startTransition] = useTransition();
@@ -181,6 +196,17 @@ export function TripDispatchForm({
     const selectedDriver = assignableDrivers.find((driver) => driver.id === driverId);
     const effectiveMode = lockMode || mode;
     const isDirectAssign = effectiveMode === "assign_driver";
+    const selectedDriverEligible = selectedDriver ? isDriverEligible(selectedDriver) : false;
+
+    const describeDriverState = (driver: (typeof assignableDrivers)[number]) => {
+        if (driver.hasActiveTrip) return "مشغول";
+        if (driver.hasOpenOffer) return "عنده عرض مفتوح";
+        if (driver.isAcceptingOffers === false) return "موقف الاستقبال";
+        if (driver.availabilityStatus === "offline") return "أوفلاين";
+        if (driver.availabilityStatus === "busy") return "مشغول";
+        if (driver.availabilityStatus === "available") return "متاح";
+        return driver.availabilityStatus || "غير واضح";
+    };
 
     return (
         <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
@@ -221,8 +247,8 @@ export function TripDispatchForm({
                 <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white" disabled={!hasAssignableDrivers}>
                     {hasAssignableDrivers ? (
                         assignableDrivers.map((driver) => (
-                            <option key={driver.id} value={driver.id}>
-                                {driver.fullName}{driver.vehicleLabel ? ` · ${driver.vehicleLabel}` : ""}
+                            <option key={driver.id} value={driver.id} disabled={!isDriverEligible(driver)}>
+                                {driver.fullName}{driver.vehicleLabel ? ` · ${driver.vehicleLabel}` : ""} · {describeDriverState(driver)}
                             </option>
                         ))
                     ) : (
@@ -241,24 +267,31 @@ export function TripDispatchForm({
 
             <Button
                 isLoading={isPending}
-                disabled={(!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && !driverId)}
+                disabled={(!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && (!driverId || !selectedDriverEligible))}
                 onClick={() =>
                     startTransition(async () => {
-                        await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
-                            action: effectiveMode,
-                            driverId: isDirectAssign ? driverId : null,
-                            vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
-                            price: price.trim() || null,
-                        });
-                        toast.success(isDirectAssign ? "تم الإسناد المباشر بنجاح." : "تم تحديد السعر وإرساله للعميل.");
-                        router.refresh();
+                        try {
+                            await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                                action: effectiveMode,
+                                driverId: isDirectAssign ? driverId : null,
+                                vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
+                                price: price.trim() || null,
+                            });
+                            toast.success(isDirectAssign ? "تم إرسال العرض للكابتن بنجاح." : "تم تحديد السعر وإرساله للعميل.");
+                            router.refresh();
+                        } catch (error: any) {
+                            toast.error(error?.message || "تعذر تنفيذ الإجراء.");
+                        }
                     })
                 }
             >
                 {isDirectAssign ? "اسند للكابتن" : "إرسال السعر للعميل"}
             </Button>
             {!compact && !hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">يمكن تحديد السعر حتى لو لا يوجد كباتن متاحون الآن.</p> : null}
-            {!compact && !hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج على الأقل كابتن معتمد ومركبة أساسية جاهزة.</p> : null}
+            {!compact && !hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج كابتن متاح الآن، غير مشغول، ويستقبل عروض، ومعه مركبة أساسية جاهزة.</p> : null}
+            {isDirectAssign && selectedDriver && !selectedDriverEligible ? (
+                <p className="text-xs text-amber-300/90">الكابتن المحدد غير جاهز للإسناد الآن: {describeDriverState(selectedDriver)}.</p>
+            ) : null}
         </div>
     );
 }
