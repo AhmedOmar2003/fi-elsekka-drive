@@ -1,27 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { TripDispatchForm, TripStatusForm } from "@/components/admin-dashboard/actions";
-import { MetricPanel, SectionCard, StatusBadge, TripTimeline } from "@/components/admin-dashboard/primitives";
+import { TripOpsWizard } from "@/components/admin-dashboard/trip-ops-wizard";
+import { MetricPanel, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
 import { fetchDispatchBoard, fetchTripDetail } from "@/lib/admin-dashboard-data";
 
 type Params = Promise<{ id: string }>;
-
-const STEP_LABELS = ["حدد السعر", "تأكيد العميل", "تعيين الكابتن"] as const;
-
-function resolveTripOpsStep(status: string, hasAdminPrice: boolean) {
-    if (!hasAdminPrice) return 0;
-    if (status === "pending") return 1;
-    return 2;
-}
 
 export default async function AdminTripDetailsPage({ params }: { params: Params }) {
     const { id } = await params;
     const [detail, dispatchBoard] = await Promise.all([fetchTripDetail(id), fetchDispatchBoard()]);
 
     if (!detail) notFound();
-
-    const activeStep = resolveTripOpsStep(detail.trip.status, detail.trip.adminSelectedPrice !== null);
 
     return (
         <div className="space-y-6">
@@ -43,35 +33,20 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                 <MetricPanel label="السعر النهائي" value={detail.trip.adminSelectedPrice ? `${detail.trip.adminSelectedPrice} ج.م` : "لسه ما اتحددش"} />
             </section>
 
-            <SectionCard title="الخطوات">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-0">
-                    {STEP_LABELS.map((label, index) => {
-                        const isDone = index < activeStep;
-                        const isCurrent = index == activeStep;
-                        return (
-                            <div key={label} className="flex flex-1 items-center gap-3">
-                                <div
-                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black ${
-                                        isDone || isCurrent
-                                            ? "border-primary bg-primary text-white"
-                                            : "border-white/10 bg-white/[0.03] text-white/45"
-                                    }`}
-                                >
-                                    {index + 1}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className={`text-sm font-black ${isDone || isCurrent ? "text-white" : "text-white/45"}`}>{label}</p>
-                                </div>
-                                {index < STEP_LABELS.length - 1 ? (
-                                    <div className={`hidden h-px flex-1 md:block ${index < activeStep ? "bg-primary" : "bg-white/10"}`} />
-                                ) : null}
-                            </div>
-                        );
-                    })}
-                </div>
-            </SectionCard>
-
             <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                <TripOpsWizard
+                    tripId={detail.trip.id}
+                    mapEstimatedPrice={detail.trip.mapEstimatedPrice}
+                    adminSelectedPrice={detail.trip.adminSelectedPrice}
+                    customerPriceConfirmed={detail.trip.customerPriceConfirmed}
+                    assignableDrivers={dispatchBoard.assignableDrivers.map((driver) => ({
+                        id: driver.id,
+                        fullName: driver.fullName,
+                        vehicleId: driver.vehicleId,
+                        vehicleLabel: driver.vehicleLabel,
+                    }))}
+                />
+
                 <SectionCard title="ملخص المشوار" subtitle="الخط الأساسي وبيانات الراكب">
                     <div className="grid gap-4 md:grid-cols-2">
                         <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
@@ -118,70 +93,6 @@ export default async function AdminTripDetailsPage({ params }: { params: Params 
                             <p className="mt-3 text-sm leading-7 text-white/75">{detail.trip.riderNotes}</p>
                         </div>
                     ) : null}
-                </SectionCard>
-
-                <div className="space-y-6">
-                    <TripDispatchForm
-                        mapEstimatedPrice={detail.trip.mapEstimatedPrice}
-                        tripId={detail.trip.id}
-                        broadcastDrivers={dispatchBoard.availableDrivers.map((driver) => ({
-                            id: driver.id,
-                            fullName: driver.fullName,
-                            vehicleId: driver.vehicleId,
-                            vehicleLabel: driver.vehicleLabel,
-                        }))}
-                        assignableDrivers={dispatchBoard.assignableDrivers.map((driver) => ({
-                            id: driver.id,
-                            fullName: driver.fullName,
-                            vehicleId: driver.vehicleId,
-                            vehicleLabel: driver.vehicleLabel,
-                        }))}
-                    />
-                    <TripStatusForm tripId={detail.trip.id} currentStatus={detail.trip.status} />
-                </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-                <SectionCard title="تسلسل المشوار" subtitle="كل تغيير حصل على المشوار">
-                    <TripTimeline items={detail.timeline} />
-                </SectionCard>
-
-                <SectionCard title="عروض التوزيع" subtitle="سجل العروض اللي اتبعتت للكباتن">
-                    <div className="space-y-3">
-                        {detail.offers.map((offer) => (
-                            <div key={offer.id} className="rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                        <p className="font-semibold">{offer.driverName}</p>
-                                        <p className="mt-1 text-xs text-white/45">{new Date(offer.offeredAt).toLocaleString("ar-EG")}</p>
-                                    </div>
-                                    <StatusBadge status={offer.offerStatus} />
-                                </div>
-                                {offer.rejectionReason ? <p className="mt-3 text-sm text-white/55">سبب الرفض: {offer.rejectionReason}</p> : null}
-                            </div>
-                        ))}
-                        {detail.offers.length === 0 ? <p className="text-sm text-white/45">لسه مفيش عروض اتبعتت.</p> : null}
-                    </div>
-                </SectionCard>
-
-                <SectionCard title="تقييم العميل" subtitle="بيظهر بعد اكتمال الرحلة">
-                    {detail.review ? (
-                        <div className="space-y-4 rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <p className="text-lg font-black text-white">{detail.review.customerName}</p>
-                                    <p className="mt-1 text-sm text-white/55">قيّم الكابتن {detail.review.driverName}</p>
-                                </div>
-                                <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-200">
-                                    {detail.review.rating} / 5 نجوم
-                                </div>
-                            </div>
-                            <p className="text-sm text-white/75">{detail.review.comment || 'العميل ما كتبش تعليق نصي، لكن سجّل تقييم بالنجوم.'}</p>
-                            <p className="text-xs text-white/45">اتسجل التقييم يوم {new Date(detail.review.createdAt).toLocaleString("ar-EG")}</p>
-                        </div>
-                    ) : (
-                        <p className="text-sm text-white/45">لسه العميل ما قيّمش الرحلة دي.</p>
-                    )}
                 </SectionCard>
             </section>
         </div>

@@ -79,6 +79,7 @@ export type AdminTripDetail = {
         estimatedPrice: number | null;
         mapEstimatedPrice: number | null;
         adminSelectedPrice: number | null;
+        customerPriceConfirmed: boolean;
         actualPrice: number | null;
         createdAt: string;
         requestedAt: string;
@@ -660,6 +661,7 @@ export async function fetchTripDetail(id: string) {
             estimatedPrice: trip.estimated_price === null ? null : Number(trip.estimated_price),
             mapEstimatedPrice: trip.metadata?.map_estimated_price === undefined || trip.metadata?.map_estimated_price === null ? null : Number(trip.metadata.map_estimated_price),
             adminSelectedPrice: trip.metadata?.admin_selected_price === undefined || trip.metadata?.admin_selected_price === null ? null : Number(trip.metadata.admin_selected_price),
+            customerPriceConfirmed: trip.metadata?.customer_price_confirmed === true,
             actualPrice: trip.actual_price === null ? null : Number(trip.actual_price),
             createdAt: String(trip.created_at),
             requestedAt: String(trip.requested_at),

@@ -156,31 +156,46 @@ export function TripDispatchForm({
     broadcastDrivers,
     assignableDrivers,
     mapEstimatedPrice,
+    initialMode = "dispatch_offer",
+    lockMode,
+    compact = false,
+    defaultPrice = "",
 }: {
     tripId: string;
     broadcastDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
     assignableDrivers: Array<{ id: string; fullName: string; vehicleId: string | null; vehicleLabel: string | null }>;
     mapEstimatedPrice?: number | null;
+    initialMode?: "dispatch_offer" | "assign_driver";
+    lockMode?: "dispatch_offer" | "assign_driver";
+    compact?: boolean;
+    defaultPrice?: string;
 }) {
     const router = useRouter();
     const hasBroadcastDrivers = broadcastDrivers.length > 0;
     const hasAssignableDrivers = assignableDrivers.length > 0;
     const [driverId, setDriverId] = useState(assignableDrivers[0]?.id || "");
-    const [price, setPrice] = useState("");
-    const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">("dispatch_offer");
+    const [price, setPrice] = useState(defaultPrice);
+    const [mode, setMode] = useState<"dispatch_offer" | "assign_driver">(lockMode || initialMode);
     const [isPending, startTransition] = useTransition();
 
     const selectedDriver = assignableDrivers.find((driver) => driver.id === driverId);
-    const isDirectAssign = mode === "assign_driver";
+    const effectiveMode = lockMode || mode;
+    const isDirectAssign = effectiveMode === "assign_driver";
 
     return (
         <div className="relative z-30 space-y-3 overflow-visible rounded-3xl border border-white/10 bg-white/[0.025] p-4">
-            <Label className="text-white/75">إجراء التوزيع</Label>
+            <Label className="text-white/75">{isDirectAssign ? "تعيين الكابتن" : "تحديد السعر"}</Label>
             <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
-                <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
-                    <option value="dispatch_offer">حدد السعر للعميل</option>
-                    <option value="assign_driver">اسناد مباشر لكابتن</option>
-                </Select>
+                {lockMode ? (
+                    <div className="flex h-12 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-bold text-white">
+                        {isDirectAssign ? "إسناد مباشر لكابتن" : "حدد السعر للعميل"}
+                    </div>
+                ) : (
+                    <Select value={mode} onChange={(event) => setMode(event.target.value as "dispatch_offer" | "assign_driver")} className="relative z-30 bg-white/5 text-white">
+                        <option value="dispatch_offer">حدد السعر للعميل</option>
+                        <option value="assign_driver">اسناد مباشر لكابتن</option>
+                    </Select>
+                )}
                 <Input
                     value={price}
                     onChange={(event) => setPrice(event.target.value)}
@@ -191,10 +206,16 @@ export function TripDispatchForm({
                 />
             </div>
 
-            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-sm text-white/80">
-                السعر التقديري من الخريطة: <span className="font-black text-primary">{mapEstimatedPrice ? `${mapEstimatedPrice} ج.م` : "غير متاح"}</span>.
-                السعر اللي هتكتبه هنا هو السعر النهائي الذي سيصل للعميل أولًا، وبعد تأكيده يمكن تعيين كابتن مناسب.
-            </div>
+            {!compact ? (
+                <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-sm text-white/80">
+                    السعر التقديري من الخريطة: <span className="font-black text-primary">{mapEstimatedPrice ? `${mapEstimatedPrice} ج.م` : "غير متاح"}</span>.
+                    السعر اللي هتكتبه هنا هو السعر النهائي الذي سيصل للعميل أولًا، وبعد تأكيده يمكن تعيين كابتن مناسب.
+                </div>
+            ) : mapEstimatedPrice ? (
+                <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-white/80">
+                    التقديري: <span className="font-black text-primary">{mapEstimatedPrice} ج.م</span>
+                </div>
+            ) : null}
 
             {isDirectAssign ? (
                 <Select value={driverId} onChange={(event) => setDriverId(event.target.value)} className="relative z-30 bg-white/5 text-white" disabled={!hasAssignableDrivers}>
@@ -209,11 +230,13 @@ export function TripDispatchForm({
                     )}
                 </Select>
             ) : (
-                <div className="rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-3 text-sm text-white/70">
-                    {hasBroadcastDrivers
-                        ? "بعد ما العميل يؤكد السعر، ارجع من هنا وعيّن كابتن مناسب أو استخدم الإسناد المباشر."
-                        : "ابدأ أولًا بتحديد السعر النهائي للعميل، ثم انتظر تأكيده قبل تعيين الكابتن."}
-                </div>
+                !compact ? (
+                    <div className="rounded-2xl border border-dashed border-primary/25 bg-primary/5 p-3 text-sm text-white/70">
+                        {hasBroadcastDrivers
+                            ? "بعد ما العميل يؤكد السعر، ارجع من هنا وعيّن كابتن مناسب أو استخدم الإسناد المباشر."
+                            : "ابدأ أولًا بتحديد السعر النهائي للعميل، ثم انتظر تأكيده قبل تعيين الكابتن."}
+                    </div>
+                ) : null
             )}
 
             <Button
@@ -222,7 +245,7 @@ export function TripDispatchForm({
                 onClick={() =>
                     startTransition(async () => {
                         await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
-                            action: mode,
+                            action: effectiveMode,
                             driverId: isDirectAssign ? driverId : null,
                             vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
                             price: price.trim() || null,
@@ -234,8 +257,8 @@ export function TripDispatchForm({
             >
                 {isDirectAssign ? "اسند للكابتن" : "إرسال السعر للعميل"}
             </Button>
-            {!hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">يمكن تحديد السعر حتى لو لا يوجد كباتن متاحون الآن.</p> : null}
-            {!hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج على الأقل كابتن معتمد ومركبة أساسية جاهزة.</p> : null}
+            {!compact && !hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">يمكن تحديد السعر حتى لو لا يوجد كباتن متاحون الآن.</p> : null}
+            {!compact && !hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج على الأقل كابتن معتمد ومركبة أساسية جاهزة.</p> : null}
         </div>
     );
 }
