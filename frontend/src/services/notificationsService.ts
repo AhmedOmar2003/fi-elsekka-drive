@@ -127,7 +127,7 @@ export const fetchUserNotifications = async (userId: string, limit = 20): Promis
 
     const { data, error } = await supabase
         .from('notifications')
-        .select('id, recipient_user_id, title, body, link, is_read, created_at, type, payload, related_trip_id')
+        .select('id, recipient_user_id, title, body, is_read, created_at, type, payload, related_trip_id')
         .eq('recipient_user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit);
