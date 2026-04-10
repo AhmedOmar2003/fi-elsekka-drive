@@ -5,6 +5,11 @@ type SupabaseLikeClient = {
     select: (columns: string) => any;
     upsert?: (values: Record<string, unknown>, options?: Record<string, unknown>) => any;
   };
+  auth?: {
+    admin?: {
+      listUsers?: (params?: { page?: number; perPage?: number }) => Promise<any>;
+    };
+  };
 };
 
 type CurrentAdminUser = {
@@ -22,12 +27,10 @@ export async function resolveAdminNotificationRecipientIds(supabase: SupabaseLik
     .in("role", [...ADMIN_NOTIFICATION_ROLES])
     .eq("account_status", "active");
 
-  const profileById = new Map<string, Record<string, unknown>>();
   for (const row of profilesResult.data || []) {
     if (!row?.id) continue;
     const id = String(row.id);
     ids.add(id);
-    profileById.set(id, row as Record<string, unknown>);
   }
 
   const legacyUsersResult = await supabase
@@ -57,9 +60,54 @@ export async function resolveAdminNotificationRecipientIds(supabase: SupabaseLik
         const upsertResult = await profilesTable.upsert(upsertPayload, { onConflict: "id" });
         if (!upsertResult?.error) {
           ids.add(legacyId);
-          profileById.set(legacyId, upsertPayload);
         }
       }
+    }
+  }
+
+  // Fallback for environments where admin roles exist only in Supabase Auth metadata.
+  const listUsersFn = supabase.auth?.admin?.listUsers;
+  if (typeof listUsersFn === "function") {
+    try {
+      const listed = await listUsersFn({ page: 1, perPage: 300 });
+      const authUsers = listed?.data?.users || [];
+      for (const authUser of authUsers) {
+        const id = String(authUser?.id || "").trim();
+        if (!id || ids.has(id)) continue;
+
+        const userMeta =
+          authUser.user_metadata && typeof authUser.user_metadata === "object"
+            ? (authUser.user_metadata as Record<string, unknown>)
+            : {};
+        const appMeta =
+          authUser.app_metadata && typeof authUser.app_metadata === "object"
+            ? (authUser.app_metadata as Record<string, unknown>)
+            : {};
+        const role = String(userMeta.role || appMeta.role || "").trim();
+        if (!ADMIN_NOTIFICATION_ROLES.includes(role as (typeof ADMIN_NOTIFICATION_ROLES)[number])) {
+          continue;
+        }
+
+        ids.add(id);
+        const profilesTable = supabase.from("profiles");
+        if (typeof profilesTable.upsert === "function") {
+          const fullName = String(userMeta.full_name || authUser.email || "Admin");
+          await profilesTable.upsert(
+            {
+              id,
+              role,
+              account_status: "active",
+              full_name: fullName,
+              display_name: fullName,
+              email: String(authUser.email || ""),
+              updated_at: now,
+            },
+            { onConflict: "id" }
+          );
+        }
+      }
+    } catch {
+      // Keep notifications flow alive even if auth-admin listing is unavailable in this environment.
     }
   }
 
