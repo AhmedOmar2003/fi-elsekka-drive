@@ -28,12 +28,11 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
 
     return (
         <div className="space-y-6">
-            <SectionCard title="إدارة المشاوير" subtitle="3 خطوات فقط: حدد السعر، انتظر تأكيد العميل، ثم عيّن الكابتن">
+            <SectionCard title="إدارة المشاوير" subtitle="حدد السعر ← تأكيد العميل ← تعيين الكابتن">
                 <div className="grid gap-4 md:grid-cols-3">
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
                         <p className="text-xs text-white/45">طلبات في انتظار الإدارة</p>
                         <p className="mt-2 text-2xl font-black text-white">{pendingTrips.length}</p>
-                        <p className="mt-2 text-sm text-white/60">دي الطلبات التي تحتاج تسعيرًا أو متابعة سريعة.</p>
                     </div>
                     <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/5 p-4 md:col-span-2">
                         <p className="text-sm font-black text-white">طلبات تحتاج إجراء الآن</p>
@@ -43,7 +42,7 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                                     {trip.customerName} · {trip.pickup}
                                 </Link>
                             ))}
-                            {pendingTrips.length === 0 ? <p className="text-sm text-white/55">مفيش طلبات جديدة منتظرة الإدارة دلوقتي.</p> : null}
+                            {pendingTrips.length === 0 ? <p className="text-sm text-white/55">لا توجد طلبات معلقة الآن.</p> : null}
                         </div>
                     </div>
                 </div>
