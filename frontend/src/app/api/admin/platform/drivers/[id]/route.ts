@@ -36,6 +36,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                     application_status: "approved",
                     verification_status: "approved",
                     is_accepting_offers: true,
+                    availability_status: "available",
                     approved_at: now,
                     approved_by: auth.profile.user.id,
                     suspension_reason: null,
@@ -55,6 +56,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                     application_status: "rejected",
                     verification_status: "rejected",
                     is_accepting_offers: false,
+                    availability_status: "busy",
                     suspension_reason: note,
                     updated_at: now,
                 })
@@ -73,7 +75,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                     suspended_at: now,
                     suspended_by: auth.profile.user.id,
                     is_accepting_offers: false,
-                    availability_status: "offline",
+                    availability_status: "busy",
                     updated_at: now,
                 })
                 .eq("id", id);
@@ -92,7 +94,7 @@ export async function PATCH(request: NextRequest, context: Context) {
                     suspended_at: null,
                     suspended_by: null,
                     is_accepting_offers: true,
-                    availability_status: "offline",
+                    availability_status: "available",
                     updated_at: now,
                 })
                 .eq("id", id);

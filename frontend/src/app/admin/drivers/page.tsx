@@ -42,9 +42,8 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
                             <option value="tuk_tuk">توك توك</option>
                         </Select>
                         <Select name="availabilityStatus" defaultValue={availabilityStatus} className="bg-white/5 text-white">
-                            <option value="all">كل حالات التواجد</option>
+                            <option value="all">كل الحالات</option>
                             <option value="available">متاح</option>
-                            <option value="offline">أوفلاين</option>
                             <option value="busy">مشغول</option>
                         </Select>
                         <Input name="city" defaultValue={city} placeholder="فلتر حسب المدينة" className="bg-white/5 text-white" />

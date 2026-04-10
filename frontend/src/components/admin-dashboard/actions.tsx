@@ -182,10 +182,7 @@ export function TripDispatchForm({
     const router = useRouter();
     const hasBroadcastDrivers = broadcastDrivers.length > 0;
     const isDriverEligible = (driver: (typeof assignableDrivers)[number]) =>
-        driver.availabilityStatus === "available" &&
-        driver.isAcceptingOffers !== false &&
-        driver.hasActiveTrip !== true &&
-        driver.hasOpenOffer !== true;
+        driver.availabilityStatus === "available";
     const eligibleDrivers = assignableDrivers.filter(isDriverEligible);
     const hasAssignableDrivers = eligibleDrivers.length > 0;
     const [driverId, setDriverId] = useState(eligibleDrivers[0]?.id || assignableDrivers[0]?.id || "");
@@ -199,13 +196,8 @@ export function TripDispatchForm({
     const selectedDriverEligible = selectedDriver ? isDriverEligible(selectedDriver) : false;
 
     const describeDriverState = (driver: (typeof assignableDrivers)[number]) => {
-        if (driver.hasActiveTrip) return "مشغول";
-        if (driver.hasOpenOffer) return "عنده عرض مفتوح";
-        if (driver.isAcceptingOffers === false) return "موقف الاستقبال";
-        if (driver.availabilityStatus === "offline") return "أوفلاين";
-        if (driver.availabilityStatus === "busy") return "مشغول";
         if (driver.availabilityStatus === "available") return "متاح";
-        return driver.availabilityStatus || "غير واضح";
+        return "مشغول";
     };
 
     return (
@@ -265,30 +257,56 @@ export function TripDispatchForm({
                 ) : null
             )}
 
-            <Button
-                isLoading={isPending}
-                disabled={(!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && (!driverId || !selectedDriverEligible))}
-                onClick={() =>
-                    startTransition(async () => {
-                        try {
-                            await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
-                                action: effectiveMode,
-                                driverId: isDirectAssign ? driverId : null,
-                                vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
-                                price: price.trim() || null,
-                            });
-                            toast.success(isDirectAssign ? "تم إرسال العرض للكابتن بنجاح." : "تم تحديد السعر وإرساله للعميل.");
-                            router.refresh();
-                        } catch (error: any) {
-                            toast.error(error?.message || "تعذر تنفيذ الإجراء.");
+            <div className={`flex ${isDirectAssign ? "flex-col gap-3 md:flex-row" : ""}`}>
+                <Button
+                    isLoading={isPending}
+                    disabled={(!hasAssignableDrivers && isDirectAssign) || (isDirectAssign && (!driverId || !selectedDriverEligible))}
+                    onClick={() =>
+                        startTransition(async () => {
+                            try {
+                                await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                                    action: effectiveMode,
+                                    driverId: isDirectAssign ? driverId : null,
+                                    vehicleId: isDirectAssign ? selectedDriver?.vehicleId || null : null,
+                                    price: price.trim() || null,
+                                });
+                                toast.success(isDirectAssign ? "تم إرسال العرض للكابتن المحدد." : "تم تحديد السعر وإرساله للعميل.");
+                                router.refresh();
+                            } catch (error: any) {
+                                toast.error(error?.message || "تعذر تنفيذ الإجراء.");
+                            }
+                        })
+                    }
+                >
+                    {isDirectAssign ? "اسند للكابتن" : "إرسال السعر للعميل"}
+                </Button>
+                {isDirectAssign ? (
+                    <Button
+                        variant="outline"
+                        className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+                        isLoading={isPending}
+                        disabled={!hasAssignableDrivers}
+                        onClick={() =>
+                            startTransition(async () => {
+                                try {
+                                    await sendJson(`/api/admin/platform/trips/${tripId}`, "PATCH", {
+                                        action: "broadcast_available_drivers",
+                                        price: price.trim() || null,
+                                    });
+                                    toast.success("تم إرسال الطلب لكل الكباتن المتاحين.");
+                                    router.refresh();
+                                } catch (error: any) {
+                                    toast.error(error?.message || "تعذر إرسال الطلب للكباتن المتاحين.");
+                                }
+                            })
                         }
-                    })
-                }
-            >
-                {isDirectAssign ? "اسند للكابتن" : "إرسال السعر للعميل"}
-            </Button>
+                    >
+                        إرسال لكل الكباتن المتاحين
+                    </Button>
+                ) : null}
+            </div>
             {!compact && !hasBroadcastDrivers ? <p className="text-xs text-amber-300/90">يمكن تحديد السعر حتى لو لا يوجد كباتن متاحون الآن.</p> : null}
-            {!compact && !hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج كابتن متاح الآن، غير مشغول، ويستقبل عروض، ومعه مركبة أساسية جاهزة.</p> : null}
+            {!compact && !hasAssignableDrivers ? <p className="text-xs text-amber-300/90">الإسناد المباشر يحتاج كابتن متاح الآن ومعه مركبة أساسية جاهزة.</p> : null}
             {isDirectAssign && selectedDriver && !selectedDriverEligible ? (
                 <p className="text-xs text-amber-300/90">الكابتن المحدد غير جاهز للإسناد الآن: {describeDriverState(selectedDriver)}.</p>
             ) : null}

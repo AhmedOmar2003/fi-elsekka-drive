@@ -9,6 +9,86 @@ import { sendPushToUserDevices } from "@/lib/user-push-server";
 
 type Context = { params: Promise<{ id: string }> };
 
+type EligibleDriverRecord = {
+    id: string;
+    fullName: string;
+    vehicleId: string;
+};
+
+async function fetchEligibleDriversForAdminAssignment(supabase: ReturnType<typeof createAdminPlatformClient>) {
+    if (!supabase) return [] as EligibleDriverRecord[];
+
+    const nowIso = new Date().toISOString();
+    const [{ data: driverProfiles }, { data: vehicles }, { data: profiles }, { data: activeTrips }, { data: openOffers }] = await Promise.all([
+        supabase
+            .from("driver_profiles")
+            .select("id, application_status, verification_status")
+            .eq("application_status", "approved")
+            .eq("verification_status", "approved"),
+        supabase
+            .from("vehicles")
+            .select("id, driver_id, is_primary, is_active, approval_status")
+            .eq("is_primary", true)
+            .eq("is_active", true)
+            .eq("approval_status", "approved"),
+        supabase
+            .from("profiles")
+            .select("id, full_name, account_status, role")
+            .eq("role", "driver")
+            .eq("account_status", "active"),
+        supabase
+            .from("trips")
+            .select("assigned_driver_id, status")
+            .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"]),
+        supabase
+            .from("trip_offers")
+            .select("driver_id, offer_status, expires_at")
+            .eq("offer_status", "offered")
+            .gt("expires_at", nowIso),
+    ]);
+
+    const readyVehicleByDriver = new Map<string, string>();
+    for (const vehicle of vehicles || []) {
+        if (vehicle.driver_id && vehicle.id) {
+            readyVehicleByDriver.set(String(vehicle.driver_id), String(vehicle.id));
+        }
+    }
+
+    const activeTripDrivers = new Set(
+        (activeTrips || [])
+            .map((trip) => trip.assigned_driver_id)
+            .filter(Boolean)
+            .map((driverId) => String(driverId))
+    );
+
+    const driversWithOpenOffers = new Set(
+        (openOffers || [])
+            .map((offer) => offer.driver_id)
+            .filter(Boolean)
+            .map((driverId) => String(driverId))
+    );
+
+    const profilesMap = new Map(
+        (profiles || []).map((profile) => [String(profile.id), profile])
+    );
+
+    return (driverProfiles || [])
+        .map((driver) => {
+            const driverId = String(driver.id);
+            const profile = profilesMap.get(driverId);
+            const vehicleId = readyVehicleByDriver.get(driverId);
+            if (!profile || !vehicleId) return null;
+            if (activeTripDrivers.has(driverId)) return null;
+            if (driversWithOpenOffers.has(driverId)) return null;
+            return {
+                id: driverId,
+                fullName: String(profile.full_name || "كابتن"),
+                vehicleId,
+            } satisfies EligibleDriverRecord;
+        })
+        .filter((driver): driver is EligibleDriverRecord => driver !== null);
+}
+
 export async function PATCH(request: NextRequest, context: Context) {
     const auth = await requireAdminApi(request);
     if (!auth.ok) return auth.response;
@@ -200,17 +280,6 @@ export async function PATCH(request: NextRequest, context: Context) {
                 return NextResponse.json({ error: "الكابتن غير معتمد بالكامل حتى الآن." }, { status: 409 });
             }
 
-            if (String(driverProfile.availability_status || "") !== "available") {
-                return NextResponse.json({
-                    error: String(driverProfile.availability_status || "") === "busy" ? "الكابتن مشغول حاليًا في رحلة أخرى." : "الكابتن غير متاح الآن.",
-                    conflictReason: String(driverProfile.availability_status || "") || "not_available",
-                }, { status: 409 });
-            }
-
-            if (driverProfile.is_accepting_offers !== true) {
-                return NextResponse.json({ error: "الكابتن موقف استقبال العروض حاليًا." }, { status: 409 });
-            }
-
             if ((activeTrips || []).length > 0) {
                 await supabase
                     .from("driver_profiles")
@@ -342,6 +411,151 @@ export async function PATCH(request: NextRequest, context: Context) {
             }
 
             return NextResponse.json({ success: true });
+        }
+
+        if (action === "broadcast_available_drivers") {
+            const price = body.price === null || body.price === undefined || body.price === "" ? null : Number(body.price);
+            if (price !== null && (!Number.isFinite(price) || price <= 0)) {
+                return NextResponse.json({ error: "حدد سعر صحيح قبل إرسال الطلب للكباتن." }, { status: 400 });
+            }
+
+            const { data: trip, error: tripError } = await supabase
+                .from("trips")
+                .select("id, status, customer_id, pickup_label, destination_label, metadata")
+                .eq("id", id)
+                .single();
+
+            if (tripError || !trip) {
+                return NextResponse.json({ error: "المشوار المطلوب مش موجود." }, { status: 404 });
+            }
+
+            const metadata = ((trip.metadata as Record<string, unknown> | null) || {});
+            if (metadata.customer_price_confirmed !== true) {
+                return NextResponse.json({ error: "لازم العميل يؤكد السعر الأول قبل إرسال الطلب للكباتن." }, { status: 409 });
+            }
+
+            const eligibleDrivers = await fetchEligibleDriversForAdminAssignment(supabase);
+            if (eligibleDrivers.length === 0) {
+                return NextResponse.json({ error: "لا يوجد كباتن متاحون الآن لإرسال الطلب لهم." }, { status: 409 });
+            }
+
+            const now = new Date().toISOString();
+            const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+            const quotedPrice = price ?? ((metadata.map_estimated_price as number | null) ?? null);
+
+            await supabase
+                .from("trip_offers")
+                .update({
+                    offer_status: "cancelled",
+                    responded_at: now,
+                    updated_at: now,
+                    rejection_reason: "تمت إعادة إرسال الرحلة لكل الكباتن المتاحين من الإدارة",
+                })
+                .eq("trip_id", id)
+                .eq("offer_status", "offered");
+
+            const offersPayload = eligibleDrivers.map((driver) => ({
+                trip_id: id,
+                driver_id: driver.id,
+                vehicle_id: driver.vehicleId,
+                offered_by_admin_id: auth.profile.user.id,
+                offer_status: "offered",
+                offered_at: now,
+                responded_at: null,
+                rejection_reason: null,
+                expires_at: expiresAt,
+                updated_at: now,
+                metadata: {
+                    ...metadata,
+                    dispatch_mode: "admin_broadcast_available",
+                    broadcast_price: quotedPrice,
+                },
+            }));
+
+            const { error: offersError } = await supabase
+                .from("trip_offers")
+                .upsert(offersPayload, { onConflict: "trip_id,driver_id" });
+
+            if (offersError) throw offersError;
+
+            const { error: tripUpdateError } = await supabase
+                .from("trips")
+                .update({
+                    assigned_driver_id: null,
+                    assigned_vehicle_id: null,
+                    status: "offered",
+                    offered_at: now,
+                    offered_driver_count: eligibleDrivers.length,
+                    estimated_price: quotedPrice,
+                    updated_at: now,
+                    metadata: {
+                        ...metadata,
+                        admin_selected_price: quotedPrice,
+                        admin_priced_at: now,
+                        admin_priced_by: auth.profile.user.id,
+                        latest_dispatch_mode: "admin_broadcast_available",
+                        latest_direct_driver_id: null,
+                        awaiting_admin_dispatch: false,
+                    },
+                })
+                .eq("id", id);
+
+            if (tripUpdateError) throw tripUpdateError;
+
+            await supabase.from("trip_status_history").insert({
+                trip_id: id,
+                status: "offered",
+                changed_by: auth.profile.user.id,
+                note: "تم إرسال الرحلة لكل الكباتن المتاحين من لوحة التشغيل.",
+                metadata: {
+                    quoted_price: quotedPrice,
+                    offered_driver_count: eligibleDrivers.length,
+                    dispatch_mode: "admin_broadcast_available",
+                },
+            });
+
+            await Promise.all(
+                eligibleDrivers.map(async (driver) => {
+                    await supabase.from("notifications").insert({
+                        recipient_user_id: driver.id,
+                        type: "trip_offered",
+                        title: "عرض مشوار جديد",
+                        body: `رحلة من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")} في انتظار موافقتك.`,
+                        payload: {
+                            trip_id: id,
+                            estimated_price: quotedPrice,
+                            dispatch_mode: "admin_broadcast_available",
+                        },
+                        related_trip_id: id,
+                    });
+
+                    await sendPushToDriverDevices(supabase, driver.id, {
+                        title: "عرض مشوار جديد",
+                        message: `رحلة من ${String(trip.pickup_label || "نقطة التحرك")} إلى ${String(trip.destination_label || "الوجهة")} وصلت لك الآن.`,
+                        link: "/captain/offers",
+                        requireInteraction: true,
+                        topic: "admin-broadcast-available",
+                    });
+                })
+            );
+
+            if (trip.customer_id) {
+                await supabase.from("notifications").insert({
+                    recipient_user_id: trip.customer_id,
+                    type: "trip_offered",
+                    title: "تم إرسال الطلب للكباتن المتاحين",
+                    body: "الرحلة اتبعتت الآن لكل الكباتن المتاحين، وأول ما أحدهم يوافق هيوصلك إشعار فورًا.",
+                    payload: {
+                        trip_id: id,
+                        estimated_price: quotedPrice,
+                        dispatch_mode: "admin_broadcast_available",
+                        offered_driver_count: eligibleDrivers.length,
+                    },
+                    related_trip_id: id,
+                });
+            }
+
+            return NextResponse.json({ success: true, offeredDriverCount: eligibleDrivers.length });
         }
 
         if (action === "update_status") {

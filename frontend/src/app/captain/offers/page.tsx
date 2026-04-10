@@ -280,7 +280,7 @@ export default function CaptainOffersPage() {
             <div className="rounded-[24px] border border-dashed border-white/10 bg-surface-container-low px-5 py-8 text-center">
               <p className="text-lg font-black text-white">لسه مفيش عروض قريبة</p>
               <p className="mt-2 text-sm leading-7 text-white/60">
-                خليك أونلاين، وأول ما يوصلك مشوار من منطقتك هيظهر هنا تلقائي.
+                خليك متاح، وأول ما يوصلك مشوار من منطقتك هيظهر هنا تلقائي.
               </p>
             </div>
           ) : (

@@ -521,7 +521,7 @@ export async function fetchDashboardOverview() {
 
     const driverStatusMap = new Map<string, number>();
     for (const driver of driverRows || []) {
-        const key = String(driver.availability_status || "offline");
+        const key = String(driver.availability_status || "busy");
         driverStatusMap.set(key, (driverStatusMap.get(key) || 0) + 1);
     }
 
@@ -819,19 +819,16 @@ export async function fetchDriversList(filters: {
             const isAcceptingOffers = acceptingOffersMap.get(driverId) !== false;
             const vehicleReady = vehicleReadyMap.get(driverId) === true;
 
-            const effectiveAvailability =
-                hasActiveTrip ? "busy" : rawAvailability;
-
             let dispatchBlockReason: string | null = null;
             if (accountStatus !== "active") dispatchBlockReason = "الحساب غير نشط";
             else if (String(row.application_status) !== "approved" || String(row.verification_status) !== "approved") dispatchBlockReason = "المراجعة غير مكتملة";
             else if (!vehicleMap.get(driverId)) dispatchBlockReason = "مفيش مركبة أساسية";
             else if (!vehicleReady) dispatchBlockReason = "المركبة غير جاهزة";
-            else if (effectiveAvailability !== "available") dispatchBlockReason = effectiveAvailability === "busy" ? "مشغول في رحلة" : "أوفلاين";
-            else if (!isAcceptingOffers) dispatchBlockReason = "موقف استقبال العروض";
+            else if (hasActiveTrip) dispatchBlockReason = "مشغول في رحلة";
             else if (hasOpenOffer) dispatchBlockReason = "عنده عرض مفتوح";
 
             const dispatchReady = dispatchBlockReason === null;
+            const effectiveAvailability = dispatchReady ? "available" : "busy";
 
             return {
                 id: driverId,
@@ -883,7 +880,13 @@ export async function fetchDriverDetail(id: string) {
             ? {
                   applicationStatus: String(driverProfile.application_status),
                   verificationStatus: String(driverProfile.verification_status),
-        availabilityStatus: (trips || []).some((trip) => ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"].includes(String(trip.status))) ? "busy" : String(driverProfile.availability_status),
+                  availabilityStatus:
+                      String(profile?.account_status || "active") !== "active" ||
+                      String(driverProfile.application_status || "") !== "approved" ||
+                      String(driverProfile.verification_status || "") !== "approved" ||
+                      (trips || []).some((trip) => ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"].includes(String(trip.status)))
+                          ? "busy"
+                          : "available",
                   workingCity: String(driverProfile.working_city || ""),
                   workingArea: (driverProfile.working_area as string | null) || null,
                   operationalNotes: (driverProfile.operational_notes as string | null) || null,
@@ -1163,18 +1166,25 @@ export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
             return (profile?.account_status as string | undefined) !== "suspended" && primaryVehicleMap.has(String(driver.id));
         })
         .map((driver) => {
-            const location = liveDriverLocationMap.get(String(driver.id)) || getCityHintLocation(driver.working_city as string | null);
+            const driverId = String(driver.id);
+            const hasActiveTrip = driversWithActiveTrips.has(driverId);
+            const hasOpenOffer = (openOfferCounts.get(driverId) || 0) > 0;
+            const vehicleReady = primaryVehicleMap.has(driverId);
+            const accountStatus = String((profilesMap.get(driverId)?.account_status as string) || "active");
+            const reviewReady = String(driver.application_status || "") === "approved" && String(driver.verification_status || "") === "approved";
+            const dispatchReady = accountStatus === "active" && reviewReady && vehicleReady && !hasActiveTrip && !hasOpenOffer;
+            const location = liveDriverLocationMap.get(driverId) || getCityHintLocation(driver.working_city as string | null);
             return {
-                id: String(driver.id),
-                fullName: String((profilesMap.get(String(driver.id))?.full_name as string) || "كابتن"),
-                availabilityStatus: String(driver.availability_status),
+                id: driverId,
+                fullName: String((profilesMap.get(driverId)?.full_name as string) || "كابتن"),
+                availabilityStatus: dispatchReady ? "available" : "busy",
                 city: String(driver.working_city || "غير محدد"),
                 area: (driver.working_area as string | null) || null,
-                vehicleId: primaryVehicleMap.get(String(driver.id))?.id || null,
-                vehicleLabel: primaryVehicleMap.get(String(driver.id))?.label || null,
+                vehicleId: primaryVehicleMap.get(driverId)?.id || null,
+                vehicleLabel: primaryVehicleMap.get(driverId)?.label || null,
                 isAcceptingOffers: Boolean(driver.is_accepting_offers),
-                hasActiveTrip: driversWithActiveTrips.has(String(driver.id)),
-                hasOpenOffer: (openOfferCounts.get(String(driver.id)) || 0) > 0,
+                hasActiveTrip,
+                hasOpenOffer,
                 lastSeenAt: (driver.last_seen_at as string | null) || null,
                 locationLabel: location?.source === "city_hint" ? `تقديري من ${String(driver.working_city || "المدينة")}` : "موقع حي",
                 location,
@@ -1183,9 +1193,7 @@ export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
 
     const availableDrivers = normalizedDrivers.filter(
         (driver) =>
-            driver.availabilityStatus === "available" &&
-            driver.isAcceptingOffers &&
-            !driver.hasActiveTrip
+            driver.availabilityStatus === "available"
     );
 
     const regionOptions = Array.from(

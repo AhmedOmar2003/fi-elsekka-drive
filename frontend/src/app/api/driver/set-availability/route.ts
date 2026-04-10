@@ -18,7 +18,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Invalid availability status' }, { status: 400 });
         }
 
-        const nextAvailability = isAvailable ? 'available' : 'offline';
+        const nextAvailability = isAvailable ? 'available' : 'busy';
         const { error: updateErr } = await driverSupabaseAdmin
             .from('driver_profiles')
             .update({ availability_status: nextAvailability, last_seen_at: new Date().toISOString() })

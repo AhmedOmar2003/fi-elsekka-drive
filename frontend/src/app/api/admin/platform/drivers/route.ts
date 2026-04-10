@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
             id: userId,
             application_status: "approved",
             verification_status: "approved",
-            availability_status: "offline",
+            availability_status: "available",
             is_accepting_offers: true,
             national_id: nationalId,
             working_city: workingCity,

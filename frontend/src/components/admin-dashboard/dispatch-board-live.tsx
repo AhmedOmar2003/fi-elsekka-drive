@@ -163,7 +163,7 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <MetricPanel label="طابور التوزيع" value={String(board.metrics.queueTripsCount)} sublabel="طلبات بتنتظر عرض أو تدخل سريع" />
                 <MetricPanel label="رحلات حية" value={String(board.metrics.liveTripsCount)} sublabel="كباتن شغالة على الأرض الآن" />
-                <MetricPanel label="كباتن أونلاين" value={String(board.metrics.onlineDriversCount)} sublabel="جاهزين أو متاحين للتدخل" />
+                <MetricPanel label="كباتن متاحون" value={String(board.metrics.onlineDriversCount)} sublabel="جاهزون للتوزيع أو الإسناد" />
                 <MetricPanel label="رحلات Rescue" value={String(board.metrics.adminRescueCount)} sublabel="حوّلت للنظام التشغيلي للإدارة" />
                 <MetricPanel label="SLA حرجة" value={String(board.metrics.breachedTripsCount)} sublabel="تحتاج انتباه فوري" />
             </section>
@@ -243,7 +243,7 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
             </SectionCard>
 
             <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-                <SectionCard title="خريطة الأسطول والتوزيع" subtitle="Pickup queue + live trips + online fleet visibility">
+                <SectionCard title="خريطة الأسطول والتوزيع" subtitle="طابور الطلبات + الرحلات الحية + رؤية الكباتن المتاحين">
                     <DispatchFleetMap board={filteredBoard} selectedTripId={selectedTripId} selectedDriverId={selectedDriverId} />
                 </SectionCard>
 
@@ -334,7 +334,7 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
                         </div>
                     </SectionCard>
 
-                    <SectionCard title="الأسطول المتاح" subtitle="الكباتن الأونلاين الجاهزين للبث أو الإسناد المباشر">
+                    <SectionCard title="الكباتن المتاحون" subtitle="الجاهزون للبث أو الإسناد المباشر الآن">
                         <div className="space-y-3">
                             {visibleAvailableDrivers.map((driver) => (
                                 <button

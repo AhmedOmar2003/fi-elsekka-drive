@@ -72,7 +72,6 @@ export async function fetchEligibleDriversForTrip(
         .from("driver_profiles")
         .select("id, working_city, working_area, availability_status, is_accepting_offers, application_status, verification_status, last_seen_at")
         .eq("availability_status", "available")
-        .eq("is_accepting_offers", true)
         .eq("application_status", "approved")
         .eq("verification_status", "approved");
 
