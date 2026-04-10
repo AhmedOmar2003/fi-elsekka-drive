@@ -203,6 +203,15 @@ export async function POST(request: Request, context: Params) {
             return notification;
           })
         );
+        const failedNotifications = insertedNotifications.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        if (failedNotifications.length > 0) {
+          console.error("[rides/status] failed to insert admin notifications after customer_confirm_price", {
+            tripId: trip.id,
+            failures: failedNotifications.map((result) => String(result.reason)),
+          });
+        }
         const successfulNotifications = insertedNotifications
           .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
           .map((result) => result.value);
@@ -277,9 +286,18 @@ export async function POST(request: Request, context: Params) {
       }));
 
       if (adminNotifications.length > 0) {
-        await Promise.allSettled(
+        const insertedNotifications = await Promise.allSettled(
           adminNotifications.map((notification) => serviceClient.from("notifications").insert(notification))
         );
+        const failedNotifications = insertedNotifications.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        if (failedNotifications.length > 0) {
+          console.error("[rides/status] failed to insert admin notifications after report_driver_delay", {
+            tripId: trip.id,
+            failures: failedNotifications.map((result) => String(result.reason)),
+          });
+        }
       }
 
       const { error: historyError } = await serviceClient.from("trip_status_history").insert({
@@ -658,6 +676,15 @@ export async function POST(request: Request, context: Params) {
             return notification;
           })
         );
+        const failedNotifications = insertedNotifications.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        if (failedNotifications.length > 0) {
+          console.error("[rides/status] failed to insert admin notifications after customer_confirm_price_status", {
+            tripId: trip.id,
+            failures: failedNotifications.map((result) => String(result.reason)),
+          });
+        }
         const successfulNotifications = insertedNotifications
           .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
           .map((result) => result.value);

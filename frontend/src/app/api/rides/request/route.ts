@@ -252,6 +252,15 @@ export async function POST(request: Request) {
           return notification;
         })
       );
+      const failedNotifications = insertedNotifications.filter(
+        (result): result is PromiseRejectedResult => result.status === "rejected"
+      );
+      if (failedNotifications.length > 0) {
+        console.error("[rides/request] failed to insert admin notifications", {
+          tripId,
+          failures: failedNotifications.map((result) => String(result.reason)),
+        });
+      }
       const successfulNotifications = insertedNotifications
         .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
         .map((result) => result.value);

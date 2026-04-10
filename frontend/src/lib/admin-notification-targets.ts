@@ -17,18 +17,40 @@ type CurrentAdminUser = {
   email?: string | null;
 };
 
+function isAdminRole(value: unknown) {
+  const role = String(value || "").trim();
+  return ADMIN_NOTIFICATION_ROLES.includes(role as (typeof ADMIN_NOTIFICATION_ROLES)[number]);
+}
+
+function normalizeAdminRoleForProfiles(_value: unknown) {
+  // profiles.role uses enum(user_role) => customer | driver | admin.
+  return "admin";
+}
+
+async function loadActiveAdminProfiles(supabase: SupabaseLikeClient) {
+  const baseSelect = "id, role, full_name, email";
+  const withStatus = await supabase
+    .from("profiles")
+    .select(`${baseSelect}, account_status`)
+    .eq("account_status", "active");
+
+  if (!withStatus.error) {
+    return withStatus.data || [];
+  }
+
+  // Backward-compatible fallback for projects where account_status is absent.
+  const fallback = await supabase.from("profiles").select(baseSelect);
+  return fallback.error ? [] : fallback.data || [];
+}
+
 export async function resolveAdminNotificationRecipientIds(supabase: SupabaseLikeClient) {
   const ids = new Set<string>();
   const now = new Date().toISOString();
 
-  const profilesResult = await supabase
-    .from("profiles")
-    .select("id, role, account_status, full_name, email")
-    .in("role", [...ADMIN_NOTIFICATION_ROLES])
-    .eq("account_status", "active");
-
-  for (const row of profilesResult.data || []) {
+  const profiles = await loadActiveAdminProfiles(supabase);
+  for (const row of profiles) {
     if (!row?.id) continue;
+    if (!isAdminRole((row as Record<string, unknown>).role)) continue;
     const id = String(row.id);
     ids.add(id);
   }
@@ -50,7 +72,7 @@ export async function resolveAdminNotificationRecipientIds(supabase: SupabaseLik
       if (typeof profilesTable.upsert === "function") {
         const upsertPayload = {
           id: legacyId,
-          role: String(row.role || "admin"),
+          role: normalizeAdminRoleForProfiles(row.role),
           account_status: "active",
           full_name: String((row as Record<string, unknown>).full_name || "Admin"),
           display_name: String((row as Record<string, unknown>).full_name || "Admin"),
@@ -88,14 +110,13 @@ export async function resolveAdminNotificationRecipientIds(supabase: SupabaseLik
           continue;
         }
 
-        ids.add(id);
         const profilesTable = supabase.from("profiles");
         if (typeof profilesTable.upsert === "function") {
           const fullName = String(userMeta.full_name || authUser.email || "Admin");
-          await profilesTable.upsert(
+          const upsertResult = await profilesTable.upsert(
             {
               id,
-              role,
+              role: normalizeAdminRoleForProfiles(role),
               account_status: "active",
               full_name: fullName,
               display_name: fullName,
@@ -104,6 +125,9 @@ export async function resolveAdminNotificationRecipientIds(supabase: SupabaseLik
             },
             { onConflict: "id" }
           );
+          if (!upsertResult?.error) {
+            ids.add(id);
+          }
         }
       }
     } catch {
@@ -126,19 +150,16 @@ export async function resolveCurrentAdminNotificationRecipientIds(
     return [...ids];
   }
 
-  const [profilesResult, legacyUsersResult] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, email, role, account_status")
-      .in("role", [...ADMIN_NOTIFICATION_ROLES])
-      .eq("account_status", "active"),
+  const [profiles, legacyUsersResult] = await Promise.all([
+    loadActiveAdminProfiles(supabase),
     supabase
       .from("users")
       .select("id, email, role, disabled")
       .in("role", [...ADMIN_NOTIFICATION_ROLES]),
   ]);
 
-  for (const row of profilesResult.data || []) {
+  for (const row of profiles) {
+    if (!isAdminRole((row as Record<string, unknown>).role)) continue;
     if (String(row?.email || "").trim().toLowerCase() === normalizedEmail && row?.id) {
       ids.add(String(row.id));
     }
