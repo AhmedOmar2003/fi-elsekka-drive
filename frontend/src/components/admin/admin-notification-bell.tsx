@@ -59,7 +59,7 @@ export function AdminNotificationBell() {
   const knownNotificationIdsRef = React.useRef<Set<string>>(new Set());
   const hasCompletedInitialLoadRef = React.useRef(false);
   const audioContextRef = React.useRef<AudioContext | null>(null);
-  const recipientId = user?.id || profile?.id || null;
+  const recipientId = user?.id || profile?.id || "admin-session";
 
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
@@ -194,7 +194,7 @@ export function AdminNotificationBell() {
 
   const subscribeToPhoneNotifications = React.useCallback(
     async (interactive: boolean) => {
-      if (typeof window === "undefined" || !recipientId) return false;
+      if (typeof window === "undefined") return false;
       if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.isSecureContext || !publicVapidKey) {
         setPushSetupState("unsupported");
         return false;
@@ -245,7 +245,7 @@ export function AdminNotificationBell() {
         setIsSubscribingPush(false);
       }
     },
-    [recipientId, syncPushSubscription]
+    [syncPushSubscription]
   );
 
   const surfaceIncomingNotifications = React.useCallback((items: AppNotification[]) => {
@@ -265,11 +265,6 @@ export function AdminNotificationBell() {
   }, [playNotificationSound]);
 
   const loadNotifications = React.useCallback(async () => {
-    if (!recipientId) {
-      setNotifications([]);
-      setIsLoading(false);
-      return;
-    }
     try {
       const data = await fetchAdminNotifications(30);
       const previousIds = knownNotificationIdsRef.current;
@@ -285,14 +280,13 @@ export function AdminNotificationBell() {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchAdminNotifications, recipientId, surfaceIncomingNotifications]);
+  }, [fetchAdminNotifications, surfaceIncomingNotifications]);
 
   React.useEffect(() => {
     void loadNotifications();
   }, [loadNotifications]);
 
   React.useEffect(() => {
-    if (!recipientId) return;
     const activateAudio = () => {
       void ensureAudioContext();
     };
@@ -302,20 +296,18 @@ export function AdminNotificationBell() {
       window.removeEventListener("pointerdown", activateAudio);
       window.removeEventListener("keydown", activateAudio);
     };
-  }, [ensureAudioContext, recipientId]);
+  }, [ensureAudioContext]);
 
   React.useEffect(() => {
-    if (!recipientId) return;
     const timer = window.setInterval(() => {
       void loadNotifications();
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [recipientId, loadNotifications]);
+  }, [loadNotifications]);
 
   React.useEffect(() => {
-    if (!recipientId) return;
     void subscribeToPhoneNotifications(false);
-  }, [recipientId, subscribeToPhoneNotifications]);
+  }, [subscribeToPhoneNotifications]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -326,17 +318,17 @@ export function AdminNotificationBell() {
 
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      if (recipientId && unreadCount > 0) {
+      if (unreadCount > 0) {
         void markAllAdminNotificationsAsRead();
         setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
       }
     }
 
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, unreadCount, recipientId, markAllAdminNotificationsAsRead]);
+  }, [isOpen, unreadCount, markAllAdminNotificationsAsRead]);
 
   const openNotification = async (notification: AppNotification) => {
-    if (recipientId && !notification.is_read) {
+    if (!notification.is_read) {
       await markAdminNotificationAsRead(notification.id);
       setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)));
     }
@@ -345,7 +337,7 @@ export function AdminNotificationBell() {
   };
 
   const clearAllNotifications = async () => {
-    if (!recipientId || notifications.length === 0 || isClearingNotifications) return;
+    if (notifications.length === 0 || isClearingNotifications) return;
 
     setIsClearingNotifications(true);
     const previous = notifications;
@@ -371,7 +363,6 @@ export function AdminNotificationBell() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        disabled={!recipientId}
         className="relative rounded-xl p-2 text-white/80 transition-colors hover:bg-surface-hover hover:text-white disabled:cursor-default disabled:opacity-70"
         aria-label="إشعارات لوحة التحكم"
       >
