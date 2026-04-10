@@ -113,17 +113,21 @@ async function fetchUser(token: string) {
     user.user_metadata?.role ||
     (user.app_metadata as Record<string, unknown> | undefined)?.role;
 
-  const { data: legacyProfile } = await supabaseAdmin
-    .from('users')
-    .select('role, permissions, disabled')
-    .eq('id', user.id)
-    .single();
-
-  const { data: operationalProfile } = await supabaseAdmin
-    .from('profiles')
-    .select('role, account_status')
-    .eq('id', user.id)
-    .maybeSingle();
+  const [
+    { data: legacyProfile },
+    { data: operationalProfile }
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('users')
+      .select('role, permissions, disabled')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('profiles')
+      .select('role, account_status')
+      .eq('id', user.id)
+      .maybeSingle(),
+  ]);
 
   const role = legacyProfile?.role || operationalProfile?.role || metaRole || null;
   const permissions: string[] = Array.isArray(legacyProfile?.permissions)
