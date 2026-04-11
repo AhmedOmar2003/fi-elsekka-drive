@@ -714,7 +714,10 @@ export async function fetchTripsList(filters: {
     if (filters.to) query = query.lte("created_at", filters.to);
     if (filters.city) query = query.ilike("pickup_address", `%${filters.city}%`);
 
-    const { data } = await query;
+    const { data } = await withQueryTimeout(
+        query,
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
     let rows = (data || []) as Array<Record<string, unknown>>;
 
     if (filters.manualMode === "manual") {
@@ -744,25 +747,46 @@ export async function fetchTripDetail(id: string) {
     const supabase = createAdminClient();
     if (!supabase) return null as AdminTripDetail | null;
 
-    const { data: trip } = await supabase
-        .from("trips")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+    const { data: trip } = await withQueryTimeout(
+        supabase
+            .from("trips")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle(),
+        { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+    );
 
     if (!trip) return null;
 
     const [{ data: customer }, { data: driverProfile }, { data: vehicle }, { data: offers }, { data: history }, { data: review }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, phone, email").eq("id", trip.customer_id).maybeSingle(),
+        withQueryTimeout(
+            supabase.from("profiles").select("id, full_name, phone, email").eq("id", trip.customer_id).maybeSingle(),
+            { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+        ),
         trip.assigned_driver_id
-            ? supabase.from("driver_profiles").select("id, working_city, availability_status").eq("id", trip.assigned_driver_id).maybeSingle()
+            ? withQueryTimeout(
+                  supabase.from("driver_profiles").select("id, working_city, availability_status").eq("id", trip.assigned_driver_id).maybeSingle(),
+                  { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+              )
             : Promise.resolve({ data: null }),
         trip.assigned_vehicle_id
-            ? supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number").eq("id", trip.assigned_vehicle_id).maybeSingle()
+            ? withQueryTimeout(
+                  supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number").eq("id", trip.assigned_vehicle_id).maybeSingle(),
+                  { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+              )
             : Promise.resolve({ data: null }),
-        supabase.from("trip_offers").select("id, driver_id, vehicle_id, offer_status, offered_at, responded_at, rejection_reason").eq("trip_id", id).order("offered_at", { ascending: false }),
-        supabase.from("trip_status_history").select("id, status, note, changed_by, created_at").eq("trip_id", id).order("created_at", { ascending: true }),
-        supabase.from("trip_reviews").select("id, rating, comment, created_at, customer_id, driver_id").eq("trip_id", id).maybeSingle(),
+        withQueryTimeout(
+            supabase.from("trip_offers").select("id, driver_id, vehicle_id, offer_status, offered_at, responded_at, rejection_reason").eq("trip_id", id).order("offered_at", { ascending: false }),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("trip_status_history").select("id, status, note, changed_by, created_at").eq("trip_id", id).order("created_at", { ascending: true }),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("trip_reviews").select("id, rating, comment, created_at, customer_id, driver_id").eq("trip_id", id).maybeSingle(),
+            { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+        ),
     ]);
 
     const offerDriverIds = (offers || []).map((offer) => String(offer.driver_id));
@@ -875,27 +899,42 @@ export async function fetchDriversList(filters: {
     if (filters.city) query = query.ilike("working_city", `%${filters.city}%`);
     // التواجد النهائي بيتحسب لاحقًا من حالة الرحلات الفعلية، علشان نقدر نميز الكابتن المشغول.
 
-    const { data } = await query;
+    const { data } = await withQueryTimeout(
+        query,
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
     let rows = (data || []) as Array<Record<string, unknown>>;
 
     const driverIds = rows.map((row) => String(row.id));
     const [profilesMap, vehiclesResult, tripsResult] = await Promise.all([
-        loadProfilesMap(driverIds),
-        supabase.from("vehicles").select("id, driver_id, vehicle_type, is_primary, is_active, approval_status").in("driver_id", driverIds),
-        supabase.from("trips").select("assigned_driver_id, status").in("assigned_driver_id", driverIds),
+        withQueryTimeout(loadProfilesMap(driverIds), new Map<string, Json>()),
+        withQueryTimeout(
+            supabase.from("vehicles").select("id, driver_id, vehicle_type, is_primary, is_active, approval_status").in("driver_id", driverIds),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("trips").select("assigned_driver_id, status").in("assigned_driver_id", driverIds),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
     ]);
 
-    const { data: freshDriverRows } = await supabase
-        .from("driver_profiles")
-        .select("id, is_accepting_offers")
-        .in("id", driverIds);
+    const { data: freshDriverRows } = await withQueryTimeout(
+        supabase
+            .from("driver_profiles")
+            .select("id, is_accepting_offers")
+            .in("id", driverIds),
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
 
-    const { data: openOffers } = await supabase
-        .from("trip_offers")
-        .select("driver_id, offer_status, expires_at")
-        .in("driver_id", driverIds)
-        .eq("offer_status", "offered")
-        .gt("expires_at", new Date().toISOString());
+    const { data: openOffers } = await withQueryTimeout(
+        supabase
+            .from("trip_offers")
+            .select("driver_id, offer_status, expires_at")
+            .in("driver_id", driverIds)
+            .eq("offer_status", "offered")
+            .gt("expires_at", new Date().toISOString()),
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
 
     const vehicleMap = new Map<string, string>();
     const vehicleReadyMap = new Map<string, boolean>();
@@ -982,13 +1021,34 @@ export async function fetchDriverDetail(id: string) {
     if (!supabase) return null as AdminDriverDetail | null;
 
     const [{ data: driverProfile }, { data: profile }, { data: vehicles }, { data: documents }, { data: trips }, { data: reviews }, authUserResult] = await Promise.all([
-        supabase.from("driver_profiles").select("*").eq("id", id).maybeSingle(),
-        supabase.from("profiles").select("id, full_name, phone, email, account_status").eq("id", id).maybeSingle(),
-        supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number, approval_status, is_primary").eq("driver_id", id).order("is_primary", { ascending: false }),
-        supabase.from("driver_documents").select("id, document_type, approval_status, file_name, storage_bucket, storage_path, created_at").eq("driver_id", id).order("created_at", { ascending: false }),
-        supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count, metadata").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
-        supabase.from("trip_reviews").select("id, trip_id, customer_id, rating, comment, created_at").eq("driver_id", id).order("created_at", { ascending: false }).limit(12),
-        supabase.auth.admin.getUserById(id),
+        withQueryTimeout(
+            supabase.from("driver_profiles").select("*").eq("id", id).maybeSingle(),
+            { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("profiles").select("id, full_name, phone, email, account_status").eq("id", id).maybeSingle(),
+            { data: null as any, error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("vehicles").select("id, vehicle_type, brand, model, plate_number, approval_status, is_primary").eq("driver_id", id).order("is_primary", { ascending: false }),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("driver_documents").select("id, document_type, approval_status, file_name, storage_bucket, storage_path, created_at").eq("driver_id", id).order("created_at", { ascending: false }),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("trips").select("id, customer_id, assigned_driver_id, trip_type, pickup_label, pickup_address, destination_label, status, created_at, passenger_count, luggage_count, metadata").eq("assigned_driver_id", id).order("created_at", { ascending: false }).limit(8),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("trip_reviews").select("id, trip_id, customer_id, rating, comment, created_at").eq("driver_id", id).order("created_at", { ascending: false }).limit(12),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.auth.admin.getUserById(id),
+            { data: { user: null } as any, error: null }
+        ),
     ]);
 
     const tripProfilesMap = await loadProfilesMap([...(trips || []).map((trip) => String(trip.customer_id)), ...(reviews || []).map((review) => String(review.customer_id))]);
@@ -1077,11 +1137,14 @@ export async function fetchVehiclesList() {
     const supabase = createAdminClient();
     if (!supabase) return [] as AdminVehicleListItem[];
 
-    const { data: vehicles } = await supabase
-        .from("vehicles")
-        .select("id, driver_id, vehicle_type, brand, model, plate_number, approval_status, is_primary")
-        .order("created_at", { ascending: false })
-        .limit(100);
+    const { data: vehicles } = await withQueryTimeout(
+        supabase
+            .from("vehicles")
+            .select("id, driver_id, vehicle_type, brand, model, plate_number, approval_status, is_primary")
+            .order("created_at", { ascending: false })
+            .limit(100),
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
 
     const profilesMap = await loadProfilesMap((vehicles || []).map((vehicle) => String(vehicle.driver_id)));
 
@@ -1501,12 +1564,18 @@ export async function fetchCustomersList() {
     if (!supabase) return [] as AdminCustomerListItem[];
 
     const [{ data: profiles }, { data: driverProfiles }] = await Promise.all([
-        supabase
-            .from("profiles")
-            .select("id, full_name, email, phone, account_status, created_at, role")
-            .order("created_at", { ascending: false })
-            .limit(150),
-        supabase.from("driver_profiles").select("id"),
+        withQueryTimeout(
+            supabase
+                .from("profiles")
+                .select("id, full_name, email, phone, account_status, created_at, role")
+                .order("created_at", { ascending: false })
+                .limit(150),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
+        withQueryTimeout(
+            supabase.from("driver_profiles").select("id"),
+            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+        ),
     ]);
 
     const driverIds = new Set((driverProfiles || []).map((item) => String(item.id)));
@@ -1528,11 +1597,14 @@ export async function fetchStaffSnapshot() {
     const supabase = createAdminClient();
     if (!supabase) return [] as StaffListItem[];
 
-    const { data: legacyStaff, error } = await supabase
-        .from("users")
-        .select("id, full_name, email, role, disabled, last_login_at")
-        .in("role", ["super_admin", "admin", "operations_manager", "catalog_manager", "support_agent"])
-        .order("created_at", { ascending: false });
+    const { data: legacyStaff, error } = await withQueryTimeout(
+        supabase
+            .from("users")
+            .select("id, full_name, email, role, disabled, last_login_at")
+            .in("role", ["super_admin", "admin", "operations_manager", "catalog_manager", "support_agent"])
+            .order("created_at", { ascending: false }),
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
 
     if (!error && legacyStaff) {
         return legacyStaff.map((item) => ({
@@ -1545,11 +1617,14 @@ export async function fetchStaffSnapshot() {
         }));
     }
 
-    const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, role, account_status, last_login_at")
-        .eq("role", "admin")
-        .order("created_at", { ascending: false });
+    const { data: profiles } = await withQueryTimeout(
+        supabase
+            .from("profiles")
+            .select("id, full_name, email, role, account_status, last_login_at")
+            .eq("role", "admin")
+            .order("created_at", { ascending: false }),
+        { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+    );
 
     return (profiles || []).map((item) => ({
         id: String(item.id),
