@@ -69,7 +69,7 @@ export function RestaurantCard({
 
           <div className="mt-2 min-h-0">
             <p className="line-clamp-2 text-[11px] leading-5 text-gray-500 md:line-clamp-2 md:text-xs md:leading-6">
-              {shortDescription || "منيو مرتب وسهل من داخل في السكة. ادخل شوف الأصناف واطلب مباشرة."}
+              {shortDescription || "منيو مرتب وسهل من داخل وصلني. ادخل شوف الأصناف واطلب مباشرة."}
             </p>
           </div>
 

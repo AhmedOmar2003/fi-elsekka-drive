@@ -21,7 +21,7 @@ function buildDriverPushPayload(payload: DriverPushPayload) {
   const notificationLink = payload.link || '/driver';
 
   return JSON.stringify({
-    title: payload.title.startsWith('في السكة') ? payload.title : `في السكة | ${payload.title}`,
+    title: payload.title.startsWith('وصلني') ? payload.title : `وصلني | ${payload.title}`,
     body: payload.message,
     icon: '/notification-icon-512.png',
     image: '/notification-icon-512.png',

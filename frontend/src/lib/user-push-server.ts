@@ -18,9 +18,9 @@ type PushNotificationPayload = {
 };
 
 function buildPushPayload(payload: PushNotificationPayload) {
-  const title = payload.title.startsWith('في السكة')
+  const title = payload.title.startsWith('وصلني')
     ? payload.title
-    : `في السكة | ${payload.title}`;
+    : `وصلني | ${payload.title}`;
   const notificationLink = payload.link || '/notifications';
 
   return JSON.stringify({

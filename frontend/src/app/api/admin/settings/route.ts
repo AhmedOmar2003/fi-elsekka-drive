@@ -91,17 +91,17 @@ export async function PUT(request: Request) {
 
       const maintenanceDisabledPayload = {
         title: 'رجعنا تاني',
-        message: 'الدنيا رجعت تمام. تقدر تكمل طلباتك وتستخدم في السكة بشكل طبيعي دلوقتي.',
+        message: 'الدنيا رجعت تمام. تقدر تكمل طلباتك وتستخدم وصلني بشكل طبيعي دلوقتي.',
       };
 
       const customerPayload = nextMaintenanceMode ? maintenanceEnabledPayload : maintenanceDisabledPayload;
       const driverPayload = nextMaintenanceMode
         ? {
-            title: 'في السكة داخل على صيانة خفيفة',
+            title: 'وصلني داخل على صيانة خفيفة',
             message: 'استنى علينا شوية يا بطل. بنظبط الشغل ونرجعلك الطلبات والدنيا ماشية تمام.',
           }
         : {
-            title: 'في السكة رجع تمام',
+            title: 'وصلني رجع تمام',
             message: 'نقدر نكمل شغلنا عادي دلوقتي. افتح التطبيق وتابع طلباتك براحتك.',
           };
 

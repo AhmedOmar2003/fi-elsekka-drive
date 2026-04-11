@@ -106,7 +106,7 @@ function OrderCard({ order, onMarkDelivered, onMarkPickedUp, isUpdating }: {
                         </p>
                         {restaurantOrder.isRestaurantOrder && (
                             <p className="mt-1 text-[11px] font-bold text-primary truncate">
-                                من مطعم: {restaurantOrder.restaurantName || 'مطعم من في السكة'}
+                                من مطعم: {restaurantOrder.restaurantName || 'مطعم من وصلني'}
                             </p>
                         )}
                     </div>
@@ -134,7 +134,7 @@ function OrderCard({ order, onMarkDelivered, onMarkPickedUp, isUpdating }: {
                         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
                             <p className="text-xs font-black text-primary/80">طلب مطعم</p>
                             <p className="text-sm font-black text-foreground">
-                                استلامك هيكون من مطعم: {restaurantOrder.restaurantName || 'مطعم من في السكة'}
+                                استلامك هيكون من مطعم: {restaurantOrder.restaurantName || 'مطعم من وصلني'}
                             </p>
                         </div>
                     )}
@@ -358,7 +358,7 @@ export default function DriverDashboard() {
             }
             void showInstantDeviceNotification({
                 title: restaurantOrder.isRestaurantOrder
-                    ? `طلب جديد من مطعم ${restaurantOrder.restaurantName || 'من في السكة'}`
+                    ? `طلب جديد من مطعم ${restaurantOrder.restaurantName || 'من وصلني'}`
                     : 'طلب جديد بانتظارك',
                 body: restaurantOrder.isRestaurantOrder
                     ? 'فيه طلب مطعم جديد وصل لك الآن من الإدارة. افتحه وشوف التفاصيل بسرعة.'
@@ -368,7 +368,7 @@ export default function DriverDashboard() {
             })
             toast(
                 restaurantOrder.isRestaurantOrder
-                    ? `🛵 طلب جديد من مطعم ${restaurantOrder.restaurantName || 'من في السكة'} بانتظارك!`
+                    ? `🛵 طلب جديد من مطعم ${restaurantOrder.restaurantName || 'من وصلني'} بانتظارك!`
                     : '🛵 طلب جديد بانتظارك من الإدارة!',
                 { duration: 6000 }
             )
@@ -747,7 +747,7 @@ export default function DriverDashboard() {
                         <h2 className="text-xl font-black text-center text-foreground mb-2">فيه طلب جديد ليك! 🔔</h2>
                         <p className="text-center text-gray-400 mb-6 text-sm">
                             {pendingRestaurantOrder?.isRestaurantOrder
-                                ? `الإدارة بعتالك طلب من مطعم ${pendingRestaurantOrder.restaurantName || 'من في السكة'}، إنت جاهز تستلمه؟`
+                                ? `الإدارة بعتالك طلب من مطعم ${pendingRestaurantOrder.restaurantName || 'من وصلني'}، إنت جاهز تستلمه؟`
                                 : 'الإدارة بعتالك طلب جديد، إنت جاهز تمسكه دلوقتي؟'}
                         </p>
                         
@@ -756,7 +756,7 @@ export default function DriverDashboard() {
                                 <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 text-sm">
                                     <p className="text-xs font-black text-primary/80">مكان الاستلام</p>
                                     <p className="mt-1 font-black text-foreground">
-                                        مطعم {pendingRestaurantOrder.restaurantName || 'من في السكة'}
+                                        مطعم {pendingRestaurantOrder.restaurantName || 'من وصلني'}
                                     </p>
                                 </div>
                             )}

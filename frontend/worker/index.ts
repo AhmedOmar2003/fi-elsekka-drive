@@ -36,7 +36,7 @@ self.addEventListener('push', (event: any) => {
         notificationOptions.badge = data.badge;
       }
 
-      return (self as any).registration.showNotification(data.title || "في السكة", notificationOptions);
+      return (self as any).registration.showNotification(data.title || "وصلني", notificationOptions);
     })()
   );
 });

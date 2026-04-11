@@ -69,7 +69,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
                                     ? `أهلاً بمندوبنا الجميل ${(profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name).split(' ')[0]} ✨` 
                                     : 'لوحة المندوب'}
                             </h1>
-                            <p className="text-[10px] text-gray-500 font-bold">في السكة</p>
+                            <p className="text-[10px] text-gray-500 font-bold">وصلني</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">

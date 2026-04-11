@@ -12,7 +12,7 @@ export default function InstallPosterPage() {
         <div className="absolute" />
 
         <div className="rounded-full border border-primary/10 bg-[#10231d] px-4 py-2 text-center text-xs font-black text-primary">
-          في السكة | تحميل التطبيق
+          وصلني | تحميل التطبيق
         </div>
 
         <div className="mt-6 flex justify-center">
@@ -22,7 +22,7 @@ export default function InstallPosterPage() {
         </div>
 
         <div className="mt-6 text-center">
-          <p className="text-5xl font-black text-white">في السكة</p>
+          <p className="text-5xl font-black text-white">وصلني</p>
           <p className="mt-4 text-base font-bold text-white/80">تطبيق المشاوير لموبايلك</p>
           <p className="mt-2 text-sm leading-7 text-white/55">
             امسح الكود وابدأ التثبيت على موبايلك
@@ -36,7 +36,7 @@ export default function InstallPosterPage() {
           <div className="rounded-[28px] bg-white p-5 shadow-[0_0_60px_rgba(255,255,255,0.14)]">
             <img
               src="/app-download-qr.png"
-              alt="QR لتحميل تطبيق في السكة"
+              alt="QR لتحميل تطبيق وصلني"
               className="h-[280px] w-[280px] rounded-[16px] object-contain"
             />
           </div>

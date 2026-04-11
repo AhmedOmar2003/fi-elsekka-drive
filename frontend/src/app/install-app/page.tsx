@@ -94,14 +94,14 @@ export default function InstallAppPage() {
               <Smartphone className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs font-bold text-primary">تثبيت في السكة</p>
+              <p className="text-xs font-bold text-primary">تثبيت وصلني</p>
               <h1 className="mt-1 text-2xl font-heading font-black text-foreground">نزّل التطبيق على موبايلك</h1>
             </div>
           </div>
 
           <p className="mt-4 text-sm leading-7 text-gray-500">
             {isDirectInstallView
-              ? "أنت الآن على شاشة تثبيت التطبيق. اضغط الزر الكبير تحت ليظهر لك تثبيت في السكة مباشرة."
+              ? "أنت الآن على شاشة تثبيت التطبيق. اضغط الزر الكبير تحت ليظهر لك تثبيت وصلني مباشرة."
               : "افتح اللينك من الموبايل أو اعمل Scan للـQR، ولما الصفحة تفتح على الهاتف ستتحول لشاشة تثبيت مباشرة بدل عرض البوستر."}
           </p>
 
@@ -121,7 +121,7 @@ export default function InstallAppPage() {
                   <div className="absolute -right-8 top-8 h-32 w-32 rounded-full bg-primary/10 blur-2xl" />
 
                   <div className="relative rounded-full border border-primary/10 bg-[#10231d] px-4 py-2 text-center text-xs font-black text-primary">
-                    في السكة | تحميل التطبيق
+                    وصلني | تحميل التطبيق
                   </div>
 
                   <div className="relative mt-6 flex justify-center">
@@ -131,7 +131,7 @@ export default function InstallAppPage() {
                   </div>
 
                   <div className="relative mt-5 text-center">
-                    <p className="text-4xl font-black text-white">في السكة</p>
+                    <p className="text-4xl font-black text-white">وصلني</p>
                     <p className="mt-3 text-sm font-bold text-white/80">تطبيق المشاوير لموبايلك</p>
                     <p className="mt-2 text-xs leading-6 text-white/50">
                       اعمل Scan وابدأ التثبيت على موبايلك
@@ -142,7 +142,7 @@ export default function InstallAppPage() {
                     <div className="rounded-[24px] bg-white p-4 shadow-[0_0_50px_rgba(255,255,255,0.14)]">
                       <img
                         src="/app-download-qr.png"
-                        alt="QR لتحميل تطبيق في السكة"
+                        alt="QR لتحميل تطبيق وصلني"
                         className="h-[220px] w-[220px] rounded-[12px] object-contain"
                       />
                     </div>

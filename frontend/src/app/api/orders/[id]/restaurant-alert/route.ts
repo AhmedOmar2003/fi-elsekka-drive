@@ -69,7 +69,7 @@ export async function POST(
     restaurantOrder.restaurantId,
     {
       title: `طلب جديد من ${customerName}`,
-      message: `فيه طلب جديد من العميل ${customerName} وصل من موقع في السكة. افتح لوحة المطعم وشوف تفاصيله الآن.`,
+      message: `فيه طلب جديد من العميل ${customerName} وصل من موقع وصلني. افتح لوحة المطعم وشوف تفاصيله الآن.`,
       link: '/restaurant',
       topic: 'restaurant-order-created',
     }

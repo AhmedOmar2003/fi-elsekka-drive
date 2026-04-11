@@ -40,18 +40,18 @@ function buildFunctionPayload(
       provider: record.provider || "fcm",
     })),
     notification: {
-      title: payload.title.startsWith("في السكة")
+      title: payload.title.startsWith("وصلني")
         ? payload.title
-        : `في السكة | ${payload.title}`,
+        : `وصلني | ${payload.title}`,
       body: payload.message,
       sound: "default",
     },
     data: {
       link,
       url: link,
-      title: payload.title.startsWith("في السكة")
+      title: payload.title.startsWith("وصلني")
         ? payload.title
-        : `في السكة | ${payload.title}`,
+        : `وصلني | ${payload.title}`,
       body: payload.message,
       topic: payload.topic || "fi_elsekka_mobile",
       sound: "default",

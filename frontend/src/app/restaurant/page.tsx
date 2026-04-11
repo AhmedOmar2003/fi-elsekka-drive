@@ -606,10 +606,10 @@ export default function RestaurantPortalPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-black text-primary">بوابة المطعم</p>
                 <h1 className="mt-1 text-xl font-black text-foreground sm:text-2xl">
-                  {restaurant?.name || "مطعم في السكة"}
+                  {restaurant?.name || "مطعم وصلني"}
                 </h1>
                 <p className="mt-1 text-xs leading-6 text-gray-500 sm:text-sm">
-                  الطلبات اللي جاية من موقع في السكة هتظهر لك هنا مباشرة.
+                  الطلبات اللي جاية من موقع وصلني هتظهر لك هنا مباشرة.
                 </p>
               </div>
             </div>

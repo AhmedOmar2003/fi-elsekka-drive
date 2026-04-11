@@ -36,7 +36,7 @@ function parsePayload(text: string): BackupPayload {
   const parsed = JSON.parse(text);
 
   if (!isPlainObject(parsed) || !isPlainObject(parsed.tables)) {
-    throw new Error('الملف ده مش باين إنه نسخة Backup صحيحة من في السكة');
+    throw new Error('الملف ده مش باين إنه نسخة Backup صحيحة من وصلني');
   }
 
   const scope = isBackupScope(parsed.scope as string) ? (parsed.scope as BackupScope) : 'full';

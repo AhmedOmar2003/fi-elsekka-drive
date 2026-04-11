@@ -554,9 +554,9 @@ export default function ProductPage({
     return items.slice(0, 4)
   }, [product.isBestSeller, product.stockQty, reviewStats.totalReviews])
 
-  const shareTitle = React.useMemo(() => `شوف ${dbProduct?.name || "المنتج ده"} على في السكة`, [dbProduct?.name])
+  const shareTitle = React.useMemo(() => `شوف ${dbProduct?.name || "المنتج ده"} على وصلني`, [dbProduct?.name])
   const shareMessage = React.useMemo(
-    () => `المنتج ده عاجبني على في السكة 👇\n${dbProduct?.name || product.title}`,
+    () => `المنتج ده عاجبني على وصلني 👇\n${dbProduct?.name || product.title}`,
     [dbProduct?.name, product.title]
   )
 

@@ -204,7 +204,7 @@ Deno.serve(async (request) => {
       );
     }
 
-    const title = String(payload.notification?.title || "في السكة").trim();
+    const title = String(payload.notification?.title || "وصلني").trim();
     const body = String(payload.notification?.body || "").trim();
     const data = normalizeData(payload.data);
     const accessToken = await getAccessToken(serviceAccount);

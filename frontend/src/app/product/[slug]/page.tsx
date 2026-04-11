@@ -23,7 +23,7 @@ export async function generateMetadata({
   const { slug } = await params
   const product = await getProductForPage(slug)
   const settings = await fetchPublicAppSettingsServer()
-  const siteName = settings.siteName || "في السكة"
+  const siteName = settings.siteName || "وصلني"
 
   if (!product) {
     return {
@@ -35,7 +35,7 @@ export async function generateMetadata({
   const title = `${product.name} | ${siteName}`
   const description =
     product.description?.trim() ||
-    "شوف تفاصيل المنتج على في السكة واطلبه بسهولة لحد عندك."
+    "شوف تفاصيل المنتج على وصلني واطلبه بسهولة لحد عندك."
   const image = toAbsoluteUrl(product.images?.[0] || product.image_url)
   const url = `${SITE_URL}/product/${slug}`
 

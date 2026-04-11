@@ -27,7 +27,7 @@ const APP_SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
 const APP_SETTINGS_FAILURE_COOLDOWN_MS = 60 * 1000;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  siteName: 'في السكة',
+  siteName: 'وصلني',
   siteTagline: 'طلباتك ماشية معاك من غير لف',
   supportPhone: '',
   supportEmail: '',

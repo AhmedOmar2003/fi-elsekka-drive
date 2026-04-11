@@ -280,7 +280,7 @@ export default function CategoryPageClient({
         <div className="bg-surface border-b border-surface-hover py-6 md:py-10">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <h1 className="text-3xl md:text-4xl font-black text-foreground">
-              {searchQuery ? `نتايج البحث: "${searchQuery}"` : showRestaurantsView ? "مطاعم في السكة" : categoryName}
+              {searchQuery ? `نتايج البحث: "${searchQuery}"` : showRestaurantsView ? "مطاعم وصلني" : categoryName}
             </h1>
             <p className="mt-2 text-gray-500">
               {searchQuery

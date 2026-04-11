@@ -41,6 +41,117 @@ function chunk<T>(items: T[], size: number) {
     return result;
 }
 
+function toLowerSafe(value: unknown) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function containsAny(haystack: string, needles: string[]) {
+    return needles.some((needle) => haystack.includes(needle));
+}
+
+function isTruthy(value: unknown) {
+    if (value === true || value === 1) return true;
+    const text = toLowerSafe(value);
+    return text === "true" || text === "1" || text === "yes";
+}
+
+function isTestMetadata(metadata: Record<string, unknown> | null) {
+    if (!metadata) return false;
+
+    const directFlags = [
+        metadata.is_test,
+        metadata.test_data,
+        metadata.qa_data,
+        metadata.dev_seed,
+        metadata.generated_for_testing,
+    ];
+    if (directFlags.some(isTruthy)) return true;
+
+    const sourceKeys = [
+        metadata.source,
+        metadata.created_by,
+        metadata.request_source,
+        metadata.dispatch_mode,
+        metadata.channel,
+    ];
+
+    const sourceText = sourceKeys.map((value) => toLowerSafe(value)).join(" ");
+    return containsAny(sourceText, ["test", "qa", "debug", "seed", "script", "dev"]);
+}
+
+function isLikelyTestText(value: unknown) {
+    const text = toLowerSafe(value);
+    if (!text) return false;
+    return containsAny(text, [
+        "test",
+        "qa",
+        "demo",
+        "debug",
+        "seed",
+        "اختبار",
+        "تجريبي",
+    ]);
+}
+
+type ProfileSnapshot = {
+    id: string;
+    full_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+};
+
+type TripSnapshot = {
+    id: string;
+    status: string;
+    created_at: string;
+    customer_id: string | null;
+    pickup_label?: string | null;
+    destination_label?: string | null;
+    metadata?: Record<string, unknown> | null;
+};
+
+function isLikelyTestTrip(trip: TripSnapshot, profile: ProfileSnapshot | null) {
+    if (isTestMetadata(trip.metadata || null)) return true;
+
+    if (isLikelyTestText(trip.pickup_label) || isLikelyTestText(trip.destination_label)) return true;
+
+    if (!profile) return false;
+
+    return [profile.full_name, profile.phone, profile.email].some(isLikelyTestText);
+}
+
+async function loadProfilesSnapshot(ids: string[]) {
+    if (!supabaseAdmin || ids.length === 0) return new Map<string, ProfileSnapshot>();
+
+    const chunks = chunk([...new Set(ids.filter(Boolean))], BATCH_SIZE);
+    const map = new Map<string, ProfileSnapshot>();
+
+    for (const group of chunks) {
+        const { data, error } = await supabaseAdmin
+            .from("profiles")
+            .select("id, full_name, phone, email")
+            .in("id", group);
+
+        if (error) {
+            if (isMissingRelationError(error.message)) continue;
+            throw new Error(`تعذر قراءة بيانات العملاء للتنظيف الآمن: ${error.message}`);
+        }
+
+        for (const row of data || []) {
+            const id = String((row as Record<string, unknown>).id || "").trim();
+            if (!id) continue;
+            map.set(id, {
+                id,
+                full_name: ((row as Record<string, unknown>).full_name as string | null) || null,
+                phone: ((row as Record<string, unknown>).phone as string | null) || null,
+                email: ((row as Record<string, unknown>).email as string | null) || null,
+            });
+        }
+    }
+
+    return map;
+}
+
 async function tableExists(tableName: string) {
     if (!supabaseAdmin) return false;
     const { error } = await supabaseAdmin.from(tableName).select("id").limit(1);
@@ -53,7 +164,7 @@ async function listTargetTripIds(scope: CleanupScope) {
     if (!supabaseAdmin) return [] as string[];
     const { data, error } = await supabaseAdmin
         .from("trips")
-        .select("id, status, created_at")
+        .select("id, status, created_at, customer_id, pickup_label, destination_label, metadata")
         .order("created_at", { ascending: true })
         .limit(3000);
 
@@ -61,13 +172,20 @@ async function listTargetTripIds(scope: CleanupScope) {
         throw new Error(`تعذر قراءة المشاوير: ${error.message}`);
     }
 
-    const rows = (data || []) as Array<{ id: string; status: string; created_at: string }>;
+    const rows = (data || []) as TripSnapshot[];
+    const customerIds = [...new Set(rows.map((row) => String(row.customer_id || "")).filter(Boolean))];
+    const profilesMap = await loadProfilesSnapshot(customerIds);
+
+    const testOnlyRows = rows.filter((row) => isLikelyTestTrip(row, profilesMap.get(String(row.customer_id || "")) || null));
+
     if (scope === "all_trips") {
-        return rows.map((row) => row.id).filter(Boolean);
+        // Critical safety guard:
+        // even in "all_trips", we only delete trips classified as test/demo data.
+        return testOnlyRows.map((row) => row.id).filter(Boolean);
     }
 
     const threshold = Date.now() - SAFE_TRIP_RETENTION_HOURS * 60 * 60 * 1000;
-    return rows
+    return testOnlyRows
         .filter((row) => ["completed", "cancelled"].includes(String(row.status || "")))
         .filter((row) => {
             const createdAt = new Date(row.created_at || "").getTime();
@@ -276,8 +394,8 @@ export async function POST(request: Request) {
             summary,
             message:
                 scope === "all_trips"
-                    ? "تم تنظيف كل بيانات المشاوير التجريبية وملحقاتها بنجاح."
-                    : "تم تنظيف المشاوير المنتهية/الملغية وملحقاتها بنجاح.",
+                    ? "تم تنظيف كل المشاوير التجريبية (فقط) وملحقاتها بنجاح."
+                    : "تم تنظيف المشاوير التجريبية المنتهية/الملغية وملحقاتها بنجاح.",
         });
     } catch (error: any) {
         const message = String(error?.message || "");

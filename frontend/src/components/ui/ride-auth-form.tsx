@@ -178,7 +178,7 @@ export function AuthForm({
           {isRegister ? <UserPlus className="h-7 w-7 text-primary" /> : <LogIn className="h-7 w-7 text-primary" />}
         </div>
         <h1 className="text-3xl font-black text-foreground mb-3 tracking-tight">
-          {isRegister ? "أهلاً بيك في السكة" : (isCaptain ? "دخول الكباتن" : "سجل دخولك")}
+          {isRegister ? "أهلاً بيك وصلني" : (isCaptain ? "دخول الكباتن" : "سجل دخولك")}
         </h1>
         <p className="text-sm text-gray-400 font-medium max-w-[280px] mx-auto leading-relaxed">
           {isRegister

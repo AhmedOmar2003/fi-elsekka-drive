@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         admins.map((admin) => ({
           recipient_user_id: admin.id,
           type: "admin_message",
-          title: "عميل جديد سجل في في السكة",
+          title: "عميل جديد سجل في وصلني",
           body: `${fullName} أنشأ حساب جديد على المنصة.`,
           payload: {
             customer_id: data.user.id,
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       await Promise.all(
         admins.map((admin) =>
           sendPushToUserDevices(serviceClient, admin.id, {
-            title: "عميل جديد سجل في في السكة",
+            title: "عميل جديد سجل في وصلني",
             message: `${fullName} فتح حساب جديد على المنصة.`,
             link: "/admin/users",
             requireInteraction: true,

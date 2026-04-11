@@ -86,7 +86,7 @@ function RestaurantLoginContent() {
     if (profile?.disabled) {
       await signOut();
       setIsLoading(false);
-      setErrorMsg("حساب المطعم ده موقوف حاليًا. تواصل مع إدارة في السكة علشان نفعّله لك.");
+      setErrorMsg("حساب المطعم ده موقوف حاليًا. تواصل مع إدارة وصلني علشان نفعّله لك.");
       return;
     }
 
@@ -101,7 +101,7 @@ function RestaurantLoginContent() {
 
       <h1 className="mb-2 text-center text-3xl font-black text-foreground">بوابة المطعم</h1>
       <p className="mb-8 text-center text-gray-500">
-        ادخل بالإيميل والباسورد اللي الإدارة سلّمتهم لك علشان تتابع الطلبات الجديدة من في السكة.
+        ادخل بالإيميل والباسورد اللي الإدارة سلّمتهم لك علشان تتابع الطلبات الجديدة من وصلني.
       </p>
 
       {errorMsg ? (

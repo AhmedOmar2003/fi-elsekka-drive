@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
         await supabase.from("notifications").insert({
             recipient_user_id: userId,
             type: "admin_message",
-            title: "حسابك جاهز من إدارة في السكة",
+            title: "حسابك جاهز من إدارة وصلني",
             body: "تقدر تدخل دلوقتي من رابط دخول الكباتن وتشوف العروض اللي الإدارة هتبعتها لك.",
             payload: {
                 login_link: "/captain/login",

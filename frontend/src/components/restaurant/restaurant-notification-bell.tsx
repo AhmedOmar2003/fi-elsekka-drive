@@ -293,7 +293,7 @@ export function RestaurantNotificationBell() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black text-foreground">إشعارات المطعم</h3>
-                <p className="mt-1 text-[11px] text-gray-500">طلبات جديدة وتأكيدات التوصيل من في السكة</p>
+                <p className="mt-1 text-[11px] text-gray-500">طلبات جديدة وتأكيدات التوصيل من وصلني</p>
               </div>
               {notifications.length > 0 && (
                 <button

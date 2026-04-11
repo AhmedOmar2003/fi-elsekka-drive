@@ -71,7 +71,7 @@ const getCategoryPageData = cache(async (slug: string, view: string, page: numbe
 
 function buildCategoryDescription(categoryName: string, categoryDescription?: string | null) {
   if (categoryDescription?.trim()) return categoryDescription.trim()
-  return `شوف منتجات ${categoryName} على في السكة، واختار اللي يناسبك بسهولة ومن غير لفة كتير.`
+  return `شوف منتجات ${categoryName} على وصلني، واختار اللي يناسبك بسهولة ومن غير لفة كتير.`
 }
 
 export async function generateMetadata({
@@ -86,7 +86,7 @@ export async function generateMetadata({
 
   if (slug === "all") {
     const settings = await fetchPublicAppSettingsServer()
-    const siteName = settings.siteName || "في السكة"
+    const siteName = settings.siteName || "وصلني"
     const query = q?.trim()
     const isBestSellersView = view === "best-sellers"
     const title = isBestSellersView
@@ -128,7 +128,7 @@ export async function generateMetadata({
 
   const { category } = await getCategoryPageData(slug, "", 0)
   const settings = await fetchPublicAppSettingsServer()
-  const siteName = settings.siteName || "في السكة"
+  const siteName = settings.siteName || "وصلني"
   const categoryName = category?.name || "قسم المنتجات"
   const description = buildCategoryDescription(categoryName, category?.description)
   const taxonomyConfig = getCategoryTaxonomyConfig(category?.name)

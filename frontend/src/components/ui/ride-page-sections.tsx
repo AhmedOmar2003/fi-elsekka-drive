@@ -27,14 +27,14 @@ export function HeroSection() {
           <div className="relative z-10">
             <Badge variant="success" className="rounded-full px-4 py-1.5 text-xs">
               <Sparkles className="h-3.5 w-3.5" />
-              في السكة بشكلها الجديد
+              وصلني بشكلها الجديد
             </Badge>
             <h1 className="mt-5 text-4xl font-black leading-[1.08] tracking-tight text-foreground sm:text-5xl lg:text-7xl">
               رايح فين؟
               <span className="mt-2 block text-primary">احجز مشوارك بسهولة.</span>
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-8 text-gray-500 sm:text-lg">
-              نفس روح "في السكة" القريبة والسهلة، لكن بشكل أبسط شبه تطبيقات الطلب السريع على الموبايل:
+              نفس روح "وصلني" القريبة والسهلة، لكن بشكل أبسط شبه تطبيقات الطلب السريع على الموبايل:
               من وإلى، تبعت الطلب، الأدمن يشوفه، وبعدها يوصله للكباتن المناسبين.
             </p>
 

@@ -24,7 +24,7 @@ export async function generateMetadata({
   const { id } = await params
   const restaurant = await fetchRestaurantByIdServer(id)
   const settings = await fetchPublicAppSettingsServer()
-  const siteName = settings.siteName || "في السكة"
+  const siteName = settings.siteName || "وصلني"
 
   if (!restaurant) {
     return {
@@ -34,7 +34,7 @@ export async function generateMetadata({
 
   const description =
     restaurant.short_description?.trim() ||
-    `شوف منيو ${restaurant.name} على في السكة واطلب اللي يعجبك بسهولة.`
+    `شوف منيو ${restaurant.name} على وصلني واطلب اللي يعجبك بسهولة.`
 
   return {
     title: `${restaurant.name} | مطاعم ${siteName}`,
@@ -93,7 +93,7 @@ export default async function RestaurantPage({
                 <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-3xl font-black text-foreground md:text-5xl">{restaurant.name}</h1>
                   <div className="inline-flex rounded-full border border-orange-500/15 bg-orange-500/10 px-3 py-1 text-xs font-black text-orange-300">
-                    {restaurant.cuisine || "مطاعم في السكة"}
+                    {restaurant.cuisine || "مطاعم وصلني"}
                   </div>
                 </div>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-gray-400 md:text-base">
@@ -115,7 +115,7 @@ export default async function RestaurantPage({
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-2xl border border-surface-hover bg-background/70 px-4 py-3 text-sm font-black text-gray-300">
                     <UtensilsCrossed className="h-4 w-4 text-primary" />
-                    المنيو والأسعار والعروض كلها محدثة من داخل في السكة
+                    المنيو والأسعار والعروض كلها محدثة من داخل وصلني
                   </div>
                 </div>
               </div>

@@ -99,7 +99,7 @@ function WelcomeContent() {
                 </h2>
 
                 <p className="text-gray-500 text-base sm:text-lg leading-relaxed mb-3 max-w-sm">
-                    يشرفنا إنضمامك لعيلة <span className="text-emerald-400 font-bold">في السكة</span>. إحنا متحمسين ليك وجاهزين لتوصيل أي طلب بأسرع وقت وأحسن جودة.
+                    يشرفنا إنضمامك لعيلة <span className="text-emerald-400 font-bold">وصلني</span>. إحنا متحمسين ليك وجاهزين لتوصيل أي طلب بأسرع وقت وأحسن جودة.
                 </p>
 
                 {/* Cycling message */}
@@ -132,7 +132,7 @@ function WelcomeContent() {
 
             {/* Bottom brand */}
             <div className="absolute bottom-6 text-xs text-gray-700 font-medium tracking-widest">
-                في السكة · بالسكة الصح
+                وصلني · بالسكة الصح
             </div>
         </div>
     )

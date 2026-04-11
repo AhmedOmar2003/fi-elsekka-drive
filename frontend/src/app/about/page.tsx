@@ -21,7 +21,7 @@ export default function AboutUsPage() {
           <div className="inline-flex items-center justify-center px-4 py-2 bg-primary/10 rounded-full mb-6 border border-primary/20 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
             <span className="text-primary font-bold text-xs tracking-wide flex items-center gap-2">
               <Smile className="w-4 h-4" />
-              أهلاً بيك في عالم "في السكة"
+              أهلاً بيك في عالم "وصلني"
             </span>
           </div>
 
@@ -59,7 +59,7 @@ export default function AboutUsPage() {
                   الفكرة دايماً كانت بتبدأ من احتياج بسيط. الزحمة، وتأخير المواعيد، وصعوبة إنك تلاقي وسيلة مواصلات مريحة وبسعر مناسب. فكرنا... ليه متبقاش في طريقة أسهل؟
                 </p>
                 <p>
-                  من هنا اتولدت فكرة <strong className="text-foreground">"في السكة"</strong>. اسم بيعبر عننا، عن سرعتنا وعن إننا دايماً في طريقنا ليك. لمينا أكفأ كباتن وأحدث عربيات وتكاتك عشان نوفرلك رحلة متتنسيش.
+                  من هنا اتولدت فكرة <strong className="text-foreground">"وصلني"</strong>. اسم بيعبر عننا، عن سرعتنا وعن إننا دايماً في طريقنا ليك. لمينا أكفأ كباتن وأحدث عربيات وتكاتك عشان نوفرلك رحلة متتنسيش.
                 </p>
                 <div className="flex items-center gap-2 pt-2 text-primary font-bold text-sm">
                   <HeartHandshake className="w-5 h-5" />

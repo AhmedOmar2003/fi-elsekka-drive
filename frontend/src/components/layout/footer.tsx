@@ -18,7 +18,7 @@ export function Footer() {
             <div>
               <BrandLogo className="[&_span]:text-white [&_.text-primary]:!text-primary" tagline={settings.siteTagline || "رايح فين؟ إحنا معاك"} />
               <p className="mt-4 max-w-md text-sm leading-7 text-white/65">
-                في السكة بقت منصة مشاوير عربية مصممة لمصر. نفس الروح القريبة، لكن بتجربة حجز وتتبّع أذكى وأسهل على الموبايل.
+                وصلني بقت منصة مشاوير عربية مصممة لمصر. نفس الروح القريبة، لكن بتجربة حجز وتتبّع أذكى وأسهل على الموبايل.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-xs font-black text-white/85">
@@ -79,7 +79,7 @@ export function Footer() {
           </div>
 
           <div className="mt-8 border-t border-white/10 pt-5 text-xs text-white/45">
-            © {new Date().getFullYear()} في السكة. تجربة مشاوير عربية جاهزة للتوسع وربط Supabase والخرائط والتنبيهات.
+            © {new Date().getFullYear()} وصلني. تجربة مشاوير عربية جاهزة للتوسع وربط Supabase والخرائط والتنبيهات.
           </div>
         </div>
       </div>
