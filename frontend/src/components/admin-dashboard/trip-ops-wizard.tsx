@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { TripDispatchForm } from "@/components/admin-dashboard/actions";
 import { Button } from "@/components/ui/button";
+import { ADMIN_LIGHT_MODE_EVENT, readAdminLightMode } from "@/lib/admin-stability-client";
 
 type WizardDriver = {
     id: string;
@@ -46,18 +47,32 @@ export function TripOpsWizard({
         [adminSelectedPrice, customerPriceConfirmed]
     );
     const [currentStep, setCurrentStep] = useState(unlockedStep);
+    const [lightModeEnabled, setLightModeEnabled] = useState(false);
 
     useEffect(() => {
         setCurrentStep(unlockedStep);
     }, [unlockedStep]);
 
     useEffect(() => {
+        setLightModeEnabled(readAdminLightMode());
+        const syncMode = () => setLightModeEnabled(readAdminLightMode());
+        window.addEventListener("storage", syncMode);
+        window.addEventListener(ADMIN_LIGHT_MODE_EVENT, syncMode as EventListener);
+        return () => {
+            window.removeEventListener("storage", syncMode);
+            window.removeEventListener(ADMIN_LIGHT_MODE_EVENT, syncMode as EventListener);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (lightModeEnabled) return;
         if (!TRIP_OPS_AUTO_REFRESH_ENABLED || unlockedStep !== 1) return;
         const timer = window.setInterval(() => {
+            if (document.visibilityState !== "visible") return;
             router.refresh();
         }, TRIP_OPS_REFRESH_MS);
         return () => window.clearInterval(timer);
-    }, [router, unlockedStep]);
+    }, [lightModeEnabled, router, unlockedStep]);
 
     return (
         <div className="space-y-5 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">

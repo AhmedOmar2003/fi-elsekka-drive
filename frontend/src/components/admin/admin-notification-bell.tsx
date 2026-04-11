@@ -11,6 +11,7 @@ import {
   mergeNotificationIntoList,
 } from "@/services/notificationsService";
 import { showInstantDeviceNotification } from "@/lib/device-notifications";
+import { ADMIN_LIGHT_MODE_EVENT, readAdminLightMode } from "@/lib/admin-stability-client";
 
 const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_KEY || "";
 const ADMIN_BELL_POLLING_ENABLED = process.env.NEXT_PUBLIC_ADMIN_BELL_POLLING_ENABLED !== "false";
@@ -57,6 +58,7 @@ export function AdminNotificationBell() {
   const [pushSetupState, setPushSetupState] = React.useState<PushSetupState>("checking");
   const [isSubscribingPush, setIsSubscribingPush] = React.useState(false);
   const [isClearingNotifications, setIsClearingNotifications] = React.useState(false);
+  const [lightModeEnabled, setLightModeEnabled] = React.useState(false);
   const popoverRef = React.useRef<HTMLDivElement>(null);
   const knownNotificationIdsRef = React.useRef<Set<string>>(new Set());
   const hasCompletedInitialLoadRef = React.useRef(false);
@@ -301,7 +303,19 @@ export function AdminNotificationBell() {
   }, [ensureAudioContext]);
 
   React.useEffect(() => {
+    setLightModeEnabled(readAdminLightMode());
+    const syncMode = () => setLightModeEnabled(readAdminLightMode());
+    window.addEventListener("storage", syncMode);
+    window.addEventListener(ADMIN_LIGHT_MODE_EVENT, syncMode as EventListener);
+    return () => {
+      window.removeEventListener("storage", syncMode);
+      window.removeEventListener(ADMIN_LIGHT_MODE_EVENT, syncMode as EventListener);
+    };
+  }, []);
+
+  React.useEffect(() => {
     if (!ADMIN_BELL_POLLING_ENABLED) return;
+    if (lightModeEnabled) return;
 
     const poll = () => {
       if (document.visibilityState !== "visible") return;
@@ -316,7 +330,7 @@ export function AdminNotificationBell() {
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-  }, [loadNotifications]);
+  }, [lightModeEnabled, loadNotifications]);
 
   React.useEffect(() => {
     void subscribeToPhoneNotifications(false);

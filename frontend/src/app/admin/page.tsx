@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BarList, EntityLink, SectionCard, StatsCard, StatusBadge } from "@/components/admin-dashboard/primitives";
+import { AdminStabilityTools } from "@/components/admin-dashboard/stability-tools";
 import { fetchDashboardOverview } from "@/lib/admin-dashboard-data";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,8 @@ export default async function AdminOverviewPage() {
                     </div>
                 </div>
             </section>
+
+            <AdminStabilityTools />
 
             {overview.isDegraded ? (
                 <section className="rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">

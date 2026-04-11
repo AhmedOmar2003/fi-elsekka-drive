@@ -9,6 +9,7 @@ import { TripDispatchForm } from "@/components/admin-dashboard/actions";
 import { FilterBar, MetricPanel, SectionCard, StatusBadge, formatLabel } from "@/components/admin-dashboard/primitives";
 import { supabase } from "@/lib/supabase";
 import type { DispatchBoardData, DispatchFleetDriverItem, DispatchLiveTripItem, DispatchQueueTripItem, DispatchSlaState } from "@/lib/admin-dispatch-types";
+import { ADMIN_LIGHT_MODE_EVENT, readAdminLightMode } from "@/lib/admin-stability-client";
 
 type DispatchBoardLiveProps = {
     initialBoard: DispatchBoardData;
@@ -46,6 +47,7 @@ function slaClasses(state: DispatchSlaState) {
 
 export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
     const [board, setBoard] = useState(initialBoard);
+    const [lightModeEnabled, setLightModeEnabled] = useState(false);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(initialBoard.queueTrips[0]?.id || initialBoard.liveTrips[0]?.id || null);
     const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
     const [search, setSearch] = useState("");
@@ -58,6 +60,17 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
     useEffect(() => {
         setBoard(initialBoard);
     }, [initialBoard]);
+
+    useEffect(() => {
+        setLightModeEnabled(readAdminLightMode());
+        const syncMode = () => setLightModeEnabled(readAdminLightMode());
+        window.addEventListener("storage", syncMode);
+        window.addEventListener(ADMIN_LIGHT_MODE_EVENT, syncMode as EventListener);
+        return () => {
+            window.removeEventListener("storage", syncMode);
+            window.removeEventListener(ADMIN_LIGHT_MODE_EVENT, syncMode as EventListener);
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -77,13 +90,14 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
             }
         };
 
-        const interval = DISPATCH_BOARD_POLLING_ENABLED ? window.setInterval(refreshBoard, DISPATCH_BOARD_POLLING_MS) : null;
+        const interval = DISPATCH_BOARD_POLLING_ENABLED && !lightModeEnabled ? window.setInterval(refreshBoard, DISPATCH_BOARD_POLLING_MS) : null;
         const onFocus = () => {
+            if (lightModeEnabled) return;
             void refreshBoard();
         };
         window.addEventListener("focus", onFocus);
 
-        const channel = DISPATCH_BOARD_REALTIME_ENABLED
+        const channel = DISPATCH_BOARD_REALTIME_ENABLED && !lightModeEnabled
             ? supabase
                   .channel("admin-dispatch-board-live")
                   .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, refreshBoard)
@@ -98,7 +112,7 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
             if (interval !== null) window.clearInterval(interval);
             if (channel) supabase.removeChannel(channel);
         };
-    }, []);
+    }, [lightModeEnabled]);
 
     const filteredBoard = useMemo(() => {
         const searchValue = deferredSearch.trim().toLowerCase();
@@ -249,7 +263,11 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
                     <div className="flex items-end">
                         <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/70">
                             <p className="font-semibold text-white">Realtime hints</p>
-                            <p className="mt-1 text-xs leading-6 text-white/45">التحديث يعمل عبر polling + Supabase triggers على الرحلات والعروض والكباتن.</p>
+                            <p className="mt-1 text-xs leading-6 text-white/45">
+                                {lightModeEnabled
+                                    ? "الوضع الخفيف مفعّل: التحديثات اللحظية متوقفة مؤقتًا لتقليل الضغط."
+                                    : "التحديث يعمل عبر polling + Supabase triggers على الرحلات والعروض والكباتن."}
+                            </p>
                         </div>
                     </div>
                 </FilterBar>
