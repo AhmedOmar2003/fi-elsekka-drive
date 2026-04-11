@@ -101,14 +101,21 @@ function parseTokenClaims(token: string): TokenClaims {
     const userMetadata = (payload.user_metadata as Record<string, unknown> | undefined) || {};
     const appMetadata = (payload.app_metadata as Record<string, unknown> | undefined) || {};
 
+    const payloadRole = typeof payload.role === 'string' ? payload.role : null;
     const metaRole = typeof userMetadata.role === 'string'
         ? userMetadata.role
         : typeof appMetadata.role === 'string'
             ? appMetadata.role
-            : null;
+            : payloadRole;
 
-    const permissionsRaw = Array.isArray(userMetadata.permissions) ? userMetadata.permissions : [];
-    const permissions = permissionsRaw.filter((item): item is string => typeof item === 'string');
+    const permissionsRaw = [
+        ...(Array.isArray(userMetadata.permissions) ? userMetadata.permissions : []),
+        ...(Array.isArray(appMetadata.permissions) ? appMetadata.permissions : []),
+        ...(Array.isArray(payload.permissions) ? payload.permissions : []),
+    ];
+    const permissions = permissionsRaw
+        .filter((item): item is string => typeof item === 'string')
+        .filter((item, index, arr) => arr.indexOf(item) === index);
 
     const disabled = userMetadata.disabled === true || appMetadata.disabled === true;
     const exp = typeof payload.exp === 'number' ? payload.exp : null;

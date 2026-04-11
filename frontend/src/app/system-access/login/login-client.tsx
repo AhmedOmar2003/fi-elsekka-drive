@@ -15,6 +15,15 @@ type LoginClientProps = {
   redirect: string;
 };
 
+type LocalFallbackProfile = {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  disabled: boolean;
+};
+
 export function LoginClient({
   emailPlaceholder,
   redirect,
@@ -79,6 +88,60 @@ export function LoginClient({
     }
   };
 
+  const looksLikeInfrastructureAuthError = (errorLike: unknown) => {
+    const source =
+      typeof errorLike === "string"
+        ? errorLike
+        : errorLike instanceof Error
+          ? errorLike.message
+          : typeof errorLike === "object" && errorLike !== null && "message" in errorLike
+            ? String((errorLike as { message?: unknown }).message || "")
+            : "";
+    const message = source.toLowerCase();
+    return (
+      message.includes("timeout") ||
+      message.includes("failed to fetch") ||
+      message.includes("network") ||
+      message.includes("gateway") ||
+      message.includes("522") ||
+      message.includes("503") ||
+      message.includes("504")
+    );
+  };
+
+  const attemptLocalFallbackLogin = async (
+    normalizedEmail: string,
+    rawPassword: string,
+  ): Promise<LocalFallbackProfile | null> => {
+    try {
+      const response = await withTimeout(
+        fetch("/api/system-access/local-login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          credentials: "include",
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password: rawPassword,
+          }),
+        }),
+        10000,
+        "local-login",
+      );
+      if (!response.ok) return null;
+      const payload = (await response.json().catch(() => ({}))) as {
+        fallback?: boolean;
+        profile?: LocalFallbackProfile;
+      };
+      if (!payload?.fallback || !payload?.profile) return null;
+      return payload.profile;
+    } catch {
+      return null;
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -92,6 +155,8 @@ export function LoginClient({
 
     setIsLoading(true);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+
       // Do not block login flow on this lightweight endpoint.
       void fetch("/api/system-access/rate-limit", {
         method: "POST",
@@ -99,12 +164,24 @@ export function LoginClient({
       }).catch(() => {});
 
       const { data: signInData, error } = await withTimeout(
-        signIn(email.trim().toLowerCase(), password),
+        signIn(normalizedEmail, password),
         25000,
         "signin",
       );
 
       if (error) {
+        const fallbackProfile = await attemptLocalFallbackLogin(normalizedEmail, password);
+        if (fallbackProfile) {
+          toast.success("تم تسجيل الدخول بوضع الطوارئ لحين استقرار الخادم.");
+          router.replace(
+            redirect === "/admin" ? getFirstAccessibleAdminPath(fallbackProfile) : redirect
+          );
+          return;
+        }
+        if (looksLikeInfrastructureAuthError(error)) {
+          toast.error("الخادم تأخر في الاستجابة. حاول مرة أخرى خلال لحظات.");
+          return;
+        }
         toast.error("بيانات الدخول غير صحيحة أو الحساب مقيد.");
         return;
       }
@@ -130,6 +207,14 @@ export function LoginClient({
         redirect === "/admin" ? getFirstAccessibleAdminPath(resolvedProfile) : redirect
       );
     } catch (error) {
+      const fallbackProfile = await attemptLocalFallbackLogin(email.trim().toLowerCase(), password);
+      if (fallbackProfile) {
+        toast.success("تم تسجيل الدخول بوضع الطوارئ لحين استقرار الخادم.");
+        router.replace(
+          redirect === "/admin" ? getFirstAccessibleAdminPath(fallbackProfile) : redirect
+        );
+        return;
+      }
       const message = error instanceof Error && error.message.startsWith("timeout:")
         ? "الخادم تأخر في الاستجابة. حاول مرة أخرى خلال لحظات."
         : "حصلت مشكلة أثناء تسجيل الدخول. حاول مرة أخرى.";

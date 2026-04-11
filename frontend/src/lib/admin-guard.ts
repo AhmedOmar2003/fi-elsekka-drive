@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
+import { verifyLocalAdminToken } from '@/lib/local-admin-session';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
@@ -103,6 +104,23 @@ function extractToken(req: Request): string | null {
 }
 
 async function fetchUser(token: string) {
+  const localPayload = verifyLocalAdminToken(token);
+  if (localPayload) {
+    const localUser = {
+      id: localPayload.sub,
+      email: localPayload.email,
+      user_metadata: localPayload.user_metadata,
+      app_metadata: localPayload.app_metadata,
+      role: localPayload.role,
+    } as unknown as User;
+    return {
+      user: localUser,
+      role: localPayload.role,
+      permissions: Array.isArray(localPayload.permissions) ? localPayload.permissions : [],
+      disabled: false,
+    };
+  }
+
   if (!supabaseAdmin) return { user: null, role: null, permissions: [] as string[], disabled: true };
 
   const { data, error } = await supabaseAdmin.auth.getUser(token);
