@@ -13,8 +13,6 @@ type LoginPageProps = {
 export default async function SecureAdminLogin({ searchParams }: LoginPageProps) {
   if (process.env.NODE_ENV !== "production") {
     await ensureBootstrappedSuperAdmin();
-  } else {
-    void ensureBootstrappedSuperAdmin();
   }
 
   const resolvedSearchParams = (await searchParams) || {};

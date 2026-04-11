@@ -19,6 +19,10 @@ export function MaintenanceModeOverlay() {
   const [siteName, setSiteName] = React.useState(DEFAULT_APP_SETTINGS.siteName);
 
   React.useEffect(() => {
+    if (!pathname || isAdminPath(pathname)) {
+      return;
+    }
+
     let active = true;
 
     const load = async () => {
@@ -32,7 +36,7 @@ export function MaintenanceModeOverlay() {
 
     const interval = window.setInterval(() => {
       void load();
-    }, 15000);
+    }, 120000);
 
     const onFocus = () => {
       void load();

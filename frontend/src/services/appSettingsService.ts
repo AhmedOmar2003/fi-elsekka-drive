@@ -20,6 +20,11 @@ export const APP_SETTINGS_STORAGE_KEY = 'fi-elsekka:public-app-settings';
 export const APP_SETTINGS_UPDATED_EVENT = 'fi-elsekka:app-settings-updated';
 let appSettingsTableUnavailable = false;
 let appSettingsInflight: Promise<AppSettings> | null = null;
+let appSettingsLastResolved: AppSettings | null = null;
+let appSettingsLastResolvedAt = 0;
+let appSettingsCooldownUntil = 0;
+const APP_SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
+const APP_SETTINGS_FAILURE_COOLDOWN_MS = 60 * 1000;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   siteName: 'في السكة',
@@ -128,6 +133,15 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
     return DEFAULT_APP_SETTINGS;
   }
 
+  const now = Date.now();
+  if (appSettingsLastResolved && now - appSettingsLastResolvedAt < APP_SETTINGS_CACHE_TTL_MS) {
+    return appSettingsLastResolved;
+  }
+
+  if (appSettingsCooldownUntil > now) {
+    return appSettingsLastResolved || readCachedAppSettings() || DEFAULT_APP_SETTINGS;
+  }
+
   if (appSettingsInflight) {
     return appSettingsInflight;
   }
@@ -174,6 +188,7 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
     const { data, error } = result;
 
     if (error || !data) {
+      appSettingsCooldownUntil = Date.now() + APP_SETTINGS_FAILURE_COOLDOWN_MS;
       const errorMessage = error?.message || '';
       if (
         error?.code === 'PGRST205' ||
@@ -183,7 +198,7 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
       ) {
         appSettingsTableUnavailable = true;
       }
-      return DEFAULT_APP_SETTINGS;
+      return appSettingsLastResolved || readCachedAppSettings() || DEFAULT_APP_SETTINGS;
     }
 
     const normalized = normalizeSettings({
@@ -202,6 +217,9 @@ export async function fetchPublicAppSettings(): Promise<AppSettings> {
     });
 
     emitAppSettingsUpdate(normalized);
+    appSettingsLastResolved = normalized;
+    appSettingsLastResolvedAt = Date.now();
+    appSettingsCooldownUntil = 0;
     return normalized;
   })();
 

@@ -8,6 +8,7 @@ const SESSION_ID_KEY = 'fi-elsekka-session-id';
 const LAST_PATH_KEY = 'fi-elsekka-last-path';
 const EXCLUDED_PREFIXES = ['/admin', '/driver', '/system-access', '/api', '/_next'];
 const PAGE_VIEW_DEBOUNCE_MS = 5000;
+const ENABLE_VISIT_TRACKING = process.env.NEXT_PUBLIC_ENABLE_VISIT_TRACKING === 'true';
 
 function todayKey() {
     return new Date().toISOString().slice(0, 10);
@@ -41,6 +42,10 @@ export function SiteVisitTracker() {
     const pathname = usePathname();
 
     useEffect(() => {
+        if (!ENABLE_VISIT_TRACKING) {
+            return;
+        }
+
         if (!pathname || EXCLUDED_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
             return;
         }
