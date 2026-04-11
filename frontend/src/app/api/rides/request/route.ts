@@ -15,7 +15,22 @@ function normalizeVehicleType(value: unknown) {
 }
 
 function normalizeRequestSource(value: unknown): "manual" | "map" {
-  return value === "manual" ? "manual" : "map";
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    raw === "manual" ||
+    raw === "manual_request" ||
+    raw === "manual_text" ||
+    raw === "typed" ||
+    raw === "text" ||
+    raw === "name"
+  ) {
+    return "manual";
+  }
+
+  return "map";
 }
 
 type CreateTripRecordInput = {
@@ -156,7 +171,9 @@ export async function POST(request: Request) {
       ? Math.min(720, Math.max(0, Number(body.waitingDurationMinutes || 0)))
       : null;
     const waitingEnabled = body.waitingEnabled === true;
-    const requestSource = normalizeRequestSource(body.requestSource);
+    const requestSource = normalizeRequestSource(
+      body.requestSource ?? body.requestMethod ?? body.request_method ?? body.source
+    );
     const preferredVehicleType =
       tripType === "airport_ride" ? "car" : normalizeVehicleType(body.preferredVehicleType);
     const estimate = body.estimate;
