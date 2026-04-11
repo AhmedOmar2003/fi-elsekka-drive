@@ -1,6 +1,126 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractAccessToken, verifyAdminToken } from './lib/admin-guard';
 import { getFirstAccessibleAdminPath, requiredPermissionForPath } from './lib/permissions';
+
+type TokenClaims = {
+    role: string | null;
+    permissions: string[];
+    disabled: boolean;
+    exp: number | null;
+};
+
+const ALLOWED_ROLES = ['super_admin', 'operations_manager', 'catalog_manager', 'support_agent', 'admin'];
+
+function parseSupabaseCookieValue(rawValue: string): string | null {
+    try {
+        const decoded = decodeURIComponent(rawValue);
+        const parsed = JSON.parse(decoded);
+        if (typeof parsed === 'string') return parsed;
+        if (Array.isArray(parsed) && typeof parsed[0] === 'string') return parsed[0];
+        if (parsed && typeof parsed === 'object' && 'access_token' in parsed) {
+            const token = (parsed as { access_token?: unknown }).access_token;
+            return typeof token === 'string' ? token : null;
+        }
+        return decoded || null;
+    } catch {
+        try {
+            return decodeURIComponent(rawValue);
+        } catch {
+            return rawValue || null;
+        }
+    }
+}
+
+function extractTokenFromCookieHeader(cookie: string): string | null {
+    const cookieEntries = cookie
+        .split(';')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => {
+            const separatorIndex = part.indexOf('=');
+            if (separatorIndex === -1) return [part, ''] as const;
+            return [
+                part.slice(0, separatorIndex).trim(),
+                part.slice(separatorIndex + 1).trim(),
+            ] as const;
+        });
+
+    const directCookie = cookieEntries.find(([name]) =>
+        name === 'sb-access-token' || /(^sb-.*-auth-token$)/.test(name)
+    );
+    if (directCookie) {
+        return parseSupabaseCookieValue(directCookie[1]);
+    }
+
+    const chunked = cookieEntries
+        .map(([name, value]) => {
+            const match = name.match(/^(sb-.*-auth-token)\.(\d+)$/);
+            if (!match) return null;
+            return {
+                index: Number(match[2]),
+                value,
+            };
+        })
+        .filter((item): item is { index: number; value: string } => item !== null)
+        .sort((left, right) => left.index - right.index);
+
+    if (chunked.length > 0) {
+        const merged = chunked.map((item) => item.value).join('');
+        return parseSupabaseCookieValue(merged);
+    }
+
+    return null;
+}
+
+function extractAccessToken(request: NextRequest): string | null {
+    const header = request.headers.get('authorization');
+    if (header?.startsWith('Bearer ')) {
+        return header.slice('Bearer '.length);
+    }
+    return extractTokenFromCookieHeader(request.headers.get('cookie') || '');
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    try {
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const normalized = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+        const json = atob(normalized);
+        return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+        return null;
+    }
+}
+
+function parseTokenClaims(token: string): TokenClaims {
+    const payload = decodeJwtPayload(token);
+    if (!payload) {
+        return { role: null, permissions: [], disabled: true, exp: null };
+    }
+
+    const userMetadata = (payload.user_metadata as Record<string, unknown> | undefined) || {};
+    const appMetadata = (payload.app_metadata as Record<string, unknown> | undefined) || {};
+
+    const metaRole = typeof userMetadata.role === 'string'
+        ? userMetadata.role
+        : typeof appMetadata.role === 'string'
+            ? appMetadata.role
+            : null;
+
+    const permissionsRaw = Array.isArray(userMetadata.permissions) ? userMetadata.permissions : [];
+    const permissions = permissionsRaw.filter((item): item is string => typeof item === 'string');
+
+    const disabled = userMetadata.disabled === true || appMetadata.disabled === true;
+    const exp = typeof payload.exp === 'number' ? payload.exp : null;
+
+    return { role: metaRole, permissions, disabled, exp };
+}
+
+function isTokenExpired(exp: number | null): boolean {
+    if (!exp) return false;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return exp <= nowSeconds;
+}
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -39,7 +159,9 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    const { isAdmin, role, disabled, permissions } = await verifyAdminToken(token);
+    const { role, disabled, permissions, exp } = parseTokenClaims(token);
+    const hasValidRole = !!role && ALLOWED_ROLES.includes(role);
+    const isAdmin = hasValidRole && !disabled && !isTokenExpired(exp);
 
     if (!isAdmin || (disabled && role !== 'super_admin')) {
         if (isAdminApi) {
