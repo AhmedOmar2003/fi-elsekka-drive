@@ -13,6 +13,7 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
     const tripType = typeof params.tripType === "string" ? params.tripType : "all";
     const city = typeof params.city === "string" ? params.city : "";
     const driverId = typeof params.driverId === "string" ? params.driverId : "all";
+    const manualMode = typeof params.manualMode === "string" ? params.manualMode : "all";
 
     const [drivers, trips] = await Promise.all([
         fetchDriversList({}),
@@ -21,23 +22,36 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
             tripType,
             city: city || undefined,
             driverId,
+            manualMode: manualMode !== "all" ? manualMode : undefined,
         }),
     ]);
 
     const pendingTrips = trips.filter((trip) => trip.status === "pending");
+    const manualTrips = trips.filter((trip) => trip.requestSource === "manual");
+    const mapTrips = trips.filter((trip) => trip.requestSource !== "manual");
 
     return (
         <div className="space-y-6">
             <SectionCard title="إدارة المشاوير" subtitle="حدد السعر ← تأكيد العميل ← تعيين الكابتن">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-4">
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
                         <p className="text-xs text-white/45">طلبات في انتظار الإدارة</p>
                         <p className="mt-2 text-2xl font-black text-white">{pendingTrips.length}</p>
                     </div>
-                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/5 p-4 md:col-span-2">
+                    <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
+                        <p className="text-xs text-white/45">طلبات يدوية</p>
+                        <p className="mt-2 text-2xl font-black text-amber-400">{manualTrips.length}</p>
+                        <p className="mt-1 text-xs text-white/30">العميل كتب اسم المكان بنفسه</p>
+                    </div>
+                    <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
+                        <p className="text-xs text-white/45">طلبات من الخريطة</p>
+                        <p className="mt-2 text-2xl font-black text-emerald-400">{mapTrips.length}</p>
+                        <p className="mt-1 text-xs text-white/30">تحديد مباشر على الخريطة</p>
+                    </div>
+                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/5 p-4">
                         <p className="text-sm font-black text-white">طلبات تحتاج إجراء الآن</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                            {pendingTrips.slice(0, 4).map((trip) => (
+                            {pendingTrips.slice(0, 3).map((trip) => (
                                 <Link key={trip.id} href={`/admin/trips/${trip.id}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
                                     {trip.customerName} · {trip.pickup}
                                 </Link>
@@ -72,6 +86,11 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                             <option value="airport_ride">مشوار مطار</option>
                             <option value="normal_ride">مشوار عادي</option>
                         </Select>
+                        <Select name="manualMode" defaultValue={manualMode} className="bg-white/5 text-white">
+                            <option value="all">كل أنواع الطلبات</option>
+                            <option value="manual">🖊 طلب يدوي (اسم مخصوص)</option>
+                            <option value="map">🗺️ من الخريطة</option>
+                        </Select>
                         <Select name="driverId" defaultValue={driverId} className="bg-white/5 text-white">
                             <option value="all">كل الكباتن</option>
                             {drivers.map((driver) => (
@@ -92,6 +111,7 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                             { key: "customer", label: "العميل" },
                             { key: "driver", label: "الكابتن" },
                             { key: "type", label: "النوع" },
+                            { key: "source", label: "نوع الطلب" },
                             { key: "route", label: "خط السير" },
                             { key: "status", label: "الحالة" },
                             { key: "created", label: "وقت الإنشاء" },
@@ -107,6 +127,15 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                             ),
                             driver: trip.driverName || <span className="text-white/40">لسه من غير كابتن</span>,
                             type: <span className="text-white/70">{trip.tripType}</span>,
+                            source: trip.requestSource === "manual" ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/10 px-2.5 py-1 text-xs font-bold text-amber-400 border border-amber-400/20">
+                                    🖊 يدوي
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-bold text-emerald-400 border border-emerald-400/20">
+                                    🗺️ خريطة
+                                </span>
+                            ),
                             route: (
                                 <div>
                                     <p className="text-white/70">{trip.pickup}</p>

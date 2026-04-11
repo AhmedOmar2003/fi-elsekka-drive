@@ -44,7 +44,7 @@ export type AdminTripListItem = {
     city: string | null;
     passengerCount: number;
     luggageCount: number;
-    manualRequest: boolean;
+    requestSource: string;
 };
 
 export type AdminTripOffer = {
@@ -591,9 +591,9 @@ export async function fetchTripsList(filters: {
     let rows = (data || []) as Array<Record<string, unknown>>;
 
     if (filters.manualMode === "manual") {
-        rows = rows.filter((row) => Boolean((row.metadata as Record<string, unknown> | null)?.manual_location_request));
-    } else if (filters.manualMode === "mapped") {
-        rows = rows.filter((row) => !Boolean((row.metadata as Record<string, unknown> | null)?.manual_location_request));
+        rows = rows.filter((row) => String((row.metadata as Record<string, unknown> | null)?.request_source) === "manual");
+    } else if (filters.manualMode === "map") {
+        rows = rows.filter((row) => String((row.metadata as Record<string, unknown> | null)?.request_source) !== "manual");
     }
     const profilesMap = await loadProfilesMap(rows.flatMap((row) => [String(row.customer_id), String(row.assigned_driver_id || "")]));
 
@@ -609,7 +609,7 @@ export async function fetchTripsList(filters: {
         city: cityFromAddress(row.pickup_address as string | null),
         passengerCount: Number(row.passenger_count || 1),
         luggageCount: Number(row.luggage_count || 0),
-        manualRequest: Boolean((row.metadata as Record<string, unknown> | null)?.manual_location_request),
+        requestSource: String((row.metadata as Record<string, unknown> | null)?.request_source || "map"),
     }));
 }
 
