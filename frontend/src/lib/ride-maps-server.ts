@@ -41,7 +41,67 @@ export type RideEstimateResult = {
   suggestedPrice: number;
   minPrice: number;
   maxPrice: number;
+  routePoints: Array<{ latitude: number; longitude: number }>;
 };
+
+type RouteCoordinate = { latitude: number; longitude: number };
+
+function sampleRoutePoints(
+  points: RouteCoordinate[],
+  maxPoints = 90
+): RouteCoordinate[] {
+  if (points.length <= 2) {
+    return points;
+  }
+  if (points.length <= maxPoints) {
+    return points;
+  }
+  const sampled: RouteCoordinate[] = [points[0]!];
+  const stride = Math.max(1, Math.floor(points.length / (maxPoints - 2)));
+  for (let index = stride; index < points.length - 1; index += stride) {
+    sampled.push(points[index]!);
+  }
+  sampled.push(points[points.length - 1]!);
+  return sampled.slice(0, maxPoints);
+}
+
+function decodeGooglePolyline(encoded: string): RouteCoordinate[] {
+  if (!encoded) return [];
+  const points: RouteCoordinate[] = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+    const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    latitude += deltaLat;
+
+    shift = 0;
+    result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+    const deltaLng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    longitude += deltaLng;
+
+    points.push({
+      latitude: latitude / 1e5,
+      longitude: longitude / 1e5,
+    });
+  }
+
+  return points;
+}
 
 function buildReadableAddress(payload: any) {
   const address = payload?.address || {};
@@ -346,15 +406,34 @@ async function getRouteDistanceAndDurationWithGoogle(
   }
 
   const payload = await response.json();
+  const route = payload.routes?.[0];
   const leg = payload.routes?.[0]?.legs?.[0];
 
   if (payload.status !== "OK" || !leg?.distance?.value || !leg?.duration?.value) {
     throw new Error("مش قادر أحسب المدة والمسافة من خرائط جوجل.");
   }
 
+  let routePoints: RouteCoordinate[] = [];
+  const overviewPolyline = route?.overview_polyline?.points;
+  if (typeof overviewPolyline === "string" && overviewPolyline.trim().length > 0) {
+    routePoints = decodeGooglePolyline(overviewPolyline);
+  }
+  if (!routePoints.length && Array.isArray(leg?.steps)) {
+    const stepPoints: RouteCoordinate[] = [];
+    for (const step of leg.steps) {
+      const encoded = step?.polyline?.points;
+      if (typeof encoded === "string" && encoded.trim().length > 0) {
+        stepPoints.push(...decodeGooglePolyline(encoded));
+      }
+    }
+    routePoints = stepPoints;
+  }
+  routePoints = sampleRoutePoints(routePoints);
+
   return {
     distanceKm: Number(leg.distance.value) / 1000,
     durationMinutes: Number(leg.duration.value) / 60,
+    routePoints,
   };
 }
 
@@ -687,7 +766,7 @@ async function getRouteDistanceAndDurationWithOsm(
   pickup: GeocodedLocation,
   destination: GeocodedLocation
 ) {
-  const url = `${OSRM_BASE_URL}/${pickup.longitude},${pickup.latitude};${destination.longitude},${destination.latitude}?overview=false`;
+  const url = `${OSRM_BASE_URL}/${pickup.longitude},${pickup.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&steps=false`;
   const response = await fetch(url, {
     headers: REQUEST_HEADERS,
     cache: "no-store",
@@ -704,9 +783,31 @@ async function getRouteDistanceAndDurationWithOsm(
     throw new Error("مش قادر أحسب المسافة والوقت حاليًا.");
   }
 
+  const rawCoordinates = Array.isArray(route?.geometry?.coordinates)
+    ? route.geometry.coordinates
+    : [];
+  const routePoints = sampleRoutePoints(
+    rawCoordinates
+      .filter(
+        (coordinate: unknown) =>
+          Array.isArray(coordinate) &&
+          coordinate.length >= 2 &&
+          Number.isFinite(Number(coordinate[0])) &&
+          Number.isFinite(Number(coordinate[1]))
+      )
+      .map((coordinate: unknown) => {
+        const [longitude, latitude] = coordinate as [number, number];
+        return {
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+        } satisfies RouteCoordinate;
+      })
+  );
+
   return {
     distanceKm: Number(route.distance) / 1000,
     durationMinutes: Number(route.duration) / 60,
+    routePoints,
   };
 }
 
@@ -800,6 +901,7 @@ export async function estimateRideFromText(input: {
     destination,
     distanceKm: Number(route.distanceKm.toFixed(1)),
     durationMinutes: Math.max(1, Math.round(route.durationMinutes)),
+    routePoints: route.routePoints,
     ...fare,
   } satisfies RideEstimateResult;
 }
