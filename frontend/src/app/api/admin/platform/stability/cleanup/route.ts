@@ -28,6 +28,11 @@ function isMissingRelationError(message?: string) {
     return text.includes("does not exist") || text.includes("relation") || text.includes("schema cache");
 }
 
+function isAvailabilityEnumMismatch(message?: string) {
+    const text = String(message || "").toLowerCase();
+    return text.includes("availability_status") && text.includes("driver_availability_status") && text.includes("type text");
+}
+
 function chunk<T>(items: T[], size: number) {
     const result: T[][] = [];
     for (let index = 0; index < items.length; index += size) {
@@ -275,6 +280,17 @@ export async function POST(request: Request) {
                     : "تم تنظيف المشاوير المنتهية/الملغية وملحقاتها بنجاح.",
         });
     } catch (error: any) {
-        return NextResponse.json({ error: error?.message || "فشل تنفيذ تنظيف الاستقرار" }, { status: 500 });
+        const message = String(error?.message || "");
+        if (isAvailabilityEnumMismatch(message)) {
+            return NextResponse.json(
+                {
+                    error:
+                        "تنظيف المشاوير متوقف مؤقتًا بسبب تعارض enum في الدالة الخاصة بحالة الكابتن. طبّق آخر migration في Supabase (20260411_000013_fix_driver_availability_enum_case) ثم أعد المحاولة.",
+                    technical: message,
+                },
+                { status: 500 },
+            );
+        }
+        return NextResponse.json({ error: message || "فشل تنفيذ تنظيف الاستقرار" }, { status: 500 });
     }
 }
