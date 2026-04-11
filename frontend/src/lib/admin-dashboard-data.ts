@@ -299,9 +299,24 @@ export type AdminInboxNotification = {
     link: string;
 };
 
+export type DashboardOverview = {
+    stats: DashboardStat[];
+    tripsPerDay: DashboardBarPoint[];
+    tripsPerCity: DashboardBarPoint[];
+    driverActivity: DashboardStatusPoint[];
+    tripStatusDistribution: DashboardStatusPoint[];
+    activeTrips: DispatchTripItem[];
+    isDegraded: boolean;
+    degradedReason: string | null;
+    generatedAt: string;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY || "";
 const ADMIN_QUERY_TIMEOUT_MS = Math.max(2500, Number(process.env.ADMIN_QUERY_TIMEOUT_MS || 7000));
+const DASHBOARD_OVERVIEW_CACHE_TTL_MS = Math.max(30000, Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_MS || 300000));
+let dashboardOverviewCache: DashboardOverview | null = null;
+let dashboardOverviewCacheAt = 0;
 
 function createAdminClient() {
     if (!supabaseUrl || !serviceRoleKey) return null;
@@ -439,27 +454,33 @@ function computeLiveSla(status: string, ageMinutes: number, captainEtaMinutes: n
     return { state: "healthy", label: "الحركة مستقرة" };
 }
 
-async function withQueryTimeout<T>(promise: PromiseLike<T>, fallback: T): Promise<T> {
+async function withQueryTimeout<T>(
+    promise: PromiseLike<T>,
+    fallback: T,
+    onFallback?: () => void
+): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackReported = false;
+    const reportFallback = () => {
+        if (fallbackReported) return;
+        fallbackReported = true;
+        onFallback?.();
+    };
     const timeoutPromise = new Promise<T>((resolve) => {
-        timer = setTimeout(() => resolve(fallback), ADMIN_QUERY_TIMEOUT_MS);
+        timer = setTimeout(() => {
+            reportFallback();
+            resolve(fallback);
+        }, ADMIN_QUERY_TIMEOUT_MS);
     });
 
     try {
         return await Promise.race([Promise.resolve(promise), timeoutPromise]);
     } catch {
+        reportFallback();
         return fallback;
     } finally {
         if (timer) clearTimeout(timer);
     }
-}
-
-async function safeCount(builder: PromiseLike<{ count: number | null; error: { message?: string } | null }>) {
-    const { count } = await withQueryTimeout(
-        Promise.resolve(builder),
-        { count: 0, error: null as { message?: string } | null }
-    );
-    return count || 0;
 }
 
 async function loadProfilesMap(ids: string[]) {
@@ -478,99 +499,155 @@ async function loadProfilesMap(ids: string[]) {
     return new Map((data || []).map((row) => [row.id as string, row as Json]));
 }
 
-export async function fetchDashboardOverview() {
+function buildEmptyDashboardOverview(reason: string): DashboardOverview {
+    return {
+        stats: [] as DashboardStat[],
+        tripsPerDay: [] as DashboardBarPoint[],
+        tripsPerCity: [] as DashboardBarPoint[],
+        driverActivity: [] as DashboardStatusPoint[],
+        tripStatusDistribution: [] as DashboardStatusPoint[],
+        activeTrips: [] as DispatchTripItem[],
+        isDegraded: true,
+        degradedReason: reason,
+        generatedAt: new Date().toISOString(),
+    };
+}
+
+export async function fetchDashboardOverview(): Promise<DashboardOverview> {
+    const emptyOverview = buildEmptyDashboardOverview("تعذر تحميل الإحصائيات الآن بسبب ضغط قاعدة البيانات.");
+    const now = Date.now();
+    const cacheIsFresh = dashboardOverviewCache && now - dashboardOverviewCacheAt < DASHBOARD_OVERVIEW_CACHE_TTL_MS;
+
     const supabase = createAdminClient();
     if (!supabase) {
-        return {
-            stats: [] as DashboardStat[],
-            tripsPerDay: [] as DashboardBarPoint[],
-            tripsPerCity: [] as DashboardBarPoint[],
-            driverActivity: [] as DashboardStatusPoint[],
-            tripStatusDistribution: [] as DashboardStatusPoint[],
-            activeTrips: [] as DispatchTripItem[],
-        };
+        return cacheIsFresh
+            ? { ...dashboardOverviewCache!, isDegraded: true, degradedReason: "عرض آخر لقطة محفوظة: الاتصال بقاعدة البيانات غير متاح حاليًا." }
+            : emptyOverview;
     }
 
     try {
+        let degraded = false;
         const todayIso = startOfTodayIso();
         const last14DaysIso = daysAgoIso(13);
 
-        const [
-            tripsToday,
-            tripsInProgress,
-            completedToday,
-            cancelledTrips,
-            activeDrivers,
-            onlineDrivers,
-            pendingApprovals,
-            openTickets,
-            recentTripsResult,
-        ] = await Promise.all([
-            safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).gte("created_at", todayIso)),
-            safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"])),
-            safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).eq("status", "completed").gte("completed_at", todayIso)),
-            safeCount(supabase.from("trips").select("*", { count: "exact", head: true }).eq("status", "cancelled")),
-            safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("application_status", "approved")),
-            safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).eq("availability_status", "available")),
-            safeCount(supabase.from("driver_profiles").select("*", { count: "exact", head: true }).in("application_status", ["pending", "requires_review"])),
-            safeCount(supabase.from("support_tickets").select("*", { count: "exact", head: true }).in("status", ["open", "in_progress", "waiting_user"])),
+        const [recentTripsResult, driverProfilesResult, supportTicketsResult] = await Promise.all([
             withQueryTimeout(
                 supabase
                     .from("trips")
-                    .select("id, status, created_at, pickup_address, customer_id, trip_type, pickup_label, destination_label")
+                    .select("id, status, created_at, completed_at, pickup_address, pickup_label, destination_label, customer_id, trip_type")
                     .gte("created_at", last14DaysIso)
-                    .order("created_at", { ascending: true }),
-                { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
+                    .order("created_at", { ascending: true })
+                    .limit(600),
+                { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" },
+                () => {
+                    degraded = true;
+                }
+            ),
+            withQueryTimeout(
+                supabase
+                    .from("driver_profiles")
+                    .select("availability_status, application_status")
+                    .order("created_at", { ascending: false })
+                    .limit(600),
+                { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" },
+                () => {
+                    degraded = true;
+                }
+            ),
+            withQueryTimeout(
+                supabase
+                    .from("support_tickets")
+                    .select("status, created_at")
+                    .gte("created_at", daysAgoIso(30))
+                    .order("created_at", { ascending: false })
+                    .limit(500),
+                { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" },
+                () => {
+                    degraded = true;
+                }
             ),
         ]);
 
-    const recentTrips = recentTripsResult.data || [];
-    const dayMap = new Map<string, number>();
-    const cityMap = new Map<string, number>();
-    const statusMap = new Map<string, number>();
+        const recentTrips = (recentTripsResult.data || []) as Array<Record<string, unknown>>;
+        const driverRows = (driverProfilesResult.data || []) as Array<Record<string, unknown>>;
+        const supportRows = (supportTicketsResult.data || []) as Array<Record<string, unknown>>;
 
-    for (const trip of recentTrips) {
-        const dateKey = new Date(trip.created_at).toLocaleDateString("en-CA");
-        dayMap.set(dateKey, (dayMap.get(dateKey) || 0) + 1);
+        if (recentTrips.length === 0 && driverRows.length === 0 && cacheIsFresh) {
+            return {
+                ...dashboardOverviewCache!,
+                isDegraded: true,
+                degradedReason: "تعذر تحديث الأرقام الآن، وتم عرض آخر لقطة ناجحة.",
+                generatedAt: new Date().toISOString(),
+            };
+        }
 
-        const city = cityFromAddress(trip.pickup_address as string | null);
-        if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+        const activeStatuses = new Set(["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"]);
+        const dashboardStatuses = new Set(["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"]);
+        const openTicketStatuses = new Set(["open", "in_progress", "waiting_user"]);
 
-        const status = trip.status as string;
-        statusMap.set(status, (statusMap.get(status) || 0) + 1);
-    }
+        let tripsToday = 0;
+        let tripsInProgress = 0;
+        let completedToday = 0;
+        let cancelledTrips = 0;
+        const dayMap = new Map<string, number>();
+        const cityMap = new Map<string, number>();
+        const statusMap = new Map<string, number>();
 
-        const { data: driverRows } = await withQueryTimeout(
-            supabase
-                .from("driver_profiles")
-                .select("availability_status")
-                .order("created_at", { ascending: false })
-                .limit(200),
-            { data: [] as any[], error: null, count: null, status: 200, statusText: "OK" }
-        );
+        for (const trip of recentTrips) {
+            const createdAt = String(trip.created_at || "");
+            const status = String(trip.status || "");
 
-    const driverStatusMap = new Map<string, number>();
-    for (const driver of driverRows || []) {
-        const key = String(driver.availability_status || "busy");
-        driverStatusMap.set(key, (driverStatusMap.get(key) || 0) + 1);
-    }
+            if (createdAt >= todayIso) tripsToday += 1;
+            if (activeStatuses.has(status)) tripsInProgress += 1;
+            if (status === "cancelled") cancelledTrips += 1;
+            if (status === "completed" && String(trip.completed_at || "") >= todayIso) completedToday += 1;
 
-    const profilesMap = await loadProfilesMap(recentTrips.map((trip) => String(trip.customer_id)));
-    const activeTrips = recentTrips
-            .filter((trip) => ["pending", "searching_driver", "offered", "accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"].includes(String(trip.status)))
-        .slice(-6)
-        .reverse()
-        .map((trip) => ({
-            id: String(trip.id),
-            customerName: String((profilesMap.get(String(trip.customer_id))?.full_name as string) || "عميل"),
-            pickup: String(trip.pickup_label || trip.pickup_address || "نقطة الانطلاق"),
-            destination: String(trip.destination_label || "الوجهة"),
-            tripType: String(trip.trip_type),
-            status: String(trip.status),
-            createdAt: String(trip.created_at),
-        }));
+            const dateKey = new Date(createdAt).toLocaleDateString("en-CA");
+            dayMap.set(dateKey, (dayMap.get(dateKey) || 0) + 1);
 
-    const stats: DashboardStat[] = [
+            const city = cityFromAddress((trip.pickup_address as string | null) || (trip.pickup_label as string | null));
+            if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+
+            statusMap.set(status, (statusMap.get(status) || 0) + 1);
+        }
+
+        const driverStatusMap = new Map<string, number>();
+        let activeDrivers = 0;
+        let onlineDrivers = 0;
+        let pendingApprovals = 0;
+
+        for (const driver of driverRows) {
+            const availabilityStatus = String(driver.availability_status || "busy");
+            const applicationStatus = String(driver.application_status || "");
+
+            if (applicationStatus === "approved") activeDrivers += 1;
+            if (availabilityStatus === "available") onlineDrivers += 1;
+            if (applicationStatus === "pending" || applicationStatus === "requires_review") pendingApprovals += 1;
+
+            driverStatusMap.set(availabilityStatus, (driverStatusMap.get(availabilityStatus) || 0) + 1);
+        }
+
+        let openTickets = 0;
+        for (const ticket of supportRows) {
+            const status = String(ticket.status || "");
+            if (openTicketStatuses.has(status)) openTickets += 1;
+        }
+
+        const activeTrips = recentTrips
+            .filter((trip) => dashboardStatuses.has(String(trip.status || "")))
+            .slice(-6)
+            .reverse()
+            .map((trip) => ({
+                id: String(trip.id),
+                customerName: "عميل",
+                pickup: String(trip.pickup_label || trip.pickup_address || "نقطة الانطلاق"),
+                destination: String(trip.destination_label || "الوجهة"),
+                tripType: String(trip.trip_type || "normal_ride"),
+                status: String(trip.status || "pending"),
+                createdAt: String(trip.created_at || new Date().toISOString()),
+            }));
+
+        const stats: DashboardStat[] = [
             { label: "Total trips today", value: tripsToday, tone: "primary", hint: "طلبات اليوم من أول اليوم لحد دلوقتي" },
             { label: "Trips in progress", value: tripsInProgress, tone: "info", hint: "المشاوير اللي شغالة حاليًا" },
             { label: "Completed today", value: completedToday, tone: "success", hint: "مشاوير خلصت النهارده" },
@@ -581,23 +658,25 @@ export async function fetchDashboardOverview() {
             { label: "Open tickets", value: openTickets, tone: "warning", hint: "تذاكر الدعم المفتوحة" },
         ];
 
-        return {
+        const overview: DashboardOverview = {
             stats,
             tripsPerDay: [...dayMap.entries()].map(([label, value]) => ({ label, value })),
             tripsPerCity: [...cityMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value]) => ({ label, value })),
             driverActivity: [...driverStatusMap.entries()].map(([status, value]) => ({ label: status.replaceAll("_", " "), value, status })),
             tripStatusDistribution: [...statusMap.entries()].map(([status, value]) => ({ label: status.replaceAll("_", " "), value, status })),
             activeTrips,
+            isDegraded: degraded,
+            degradedReason: degraded ? "تم تحميل الأرقام من وضع خفيف بسبب ضغط قاعدة البيانات." : null,
+            generatedAt: new Date().toISOString(),
         };
+
+        dashboardOverviewCache = overview;
+        dashboardOverviewCacheAt = Date.now();
+        return overview;
     } catch {
-        return {
-            stats: [] as DashboardStat[],
-            tripsPerDay: [] as DashboardBarPoint[],
-            tripsPerCity: [] as DashboardBarPoint[],
-            driverActivity: [] as DashboardStatusPoint[],
-            tripStatusDistribution: [] as DashboardStatusPoint[],
-            activeTrips: [] as DispatchTripItem[],
-        };
+        return cacheIsFresh
+            ? { ...dashboardOverviewCache!, isDegraded: true, degradedReason: "تعذر تحديث الأرقام الآن، وتم عرض آخر لقطة ناجحة." }
+            : emptyOverview;
     }
 }
 

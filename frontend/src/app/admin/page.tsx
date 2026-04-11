@@ -30,6 +30,12 @@ export default async function AdminOverviewPage() {
                 </div>
             </section>
 
+            {overview.isDegraded ? (
+                <section className="rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                    {overview.degradedReason || "الإحصائيات مؤقتًا غير متاحة بالكامل بسبب ضغط الخادم، وسيتم تحديثها تلقائيًا عند استقرار الاتصال."}
+                </section>
+            ) : null}
+
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {overview.stats.map((stat) => (
                     <StatsCard key={stat.label} {...stat} />
