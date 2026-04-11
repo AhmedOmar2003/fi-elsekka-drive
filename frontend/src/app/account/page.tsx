@@ -4,6 +4,8 @@ import { EmptyState, StatusBadge } from "@/components/ride/shared";
 import { Button } from "@/components/ui/button";
 import { profileSavedPlaces, tripHistory } from "@/lib/ride-content";
 
+export const dynamic = "force-dynamic";
+
 export default function AccountPage() {
   return (
     <>

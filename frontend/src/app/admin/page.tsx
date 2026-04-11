@@ -3,6 +3,8 @@ import Link from "next/link";
 import { BarList, EntityLink, SectionCard, StatsCard, StatusBadge } from "@/components/admin-dashboard/primitives";
 import { fetchDashboardOverview } from "@/lib/admin-dashboard-data";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminOverviewPage() {
     const overview = await fetchDashboardOverview();
 
