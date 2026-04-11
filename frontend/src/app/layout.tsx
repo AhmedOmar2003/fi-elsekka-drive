@@ -4,10 +4,10 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
 import { MaintenanceModeOverlay } from "@/components/system/maintenance-mode-overlay";
-import { fetchPublicAppSettingsServer } from "@/services/serverAppSettingsService";
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://fi-elsekka-drive.vercel.app";
+const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME?.trim() || "وصلني";
 
 const ibmPlex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic"],
@@ -35,16 +35,8 @@ const cairo = Cairo({
   display: "swap",
 });
 
-export async function generateMetadata(): Promise<Metadata> {
-  let siteName = "وصلني";
-
-  try {
-    const settings = await fetchPublicAppSettingsServer();
-    siteName = settings.siteName || siteName;
-  } catch {
-    siteName = "وصلني";
-  }
-
+export function generateMetadata(): Metadata {
+  const siteName = SITE_NAME;
   const tagline = "منصة مشاوير عربية للمطار والتنقل اليومي";
   const description = `${siteName} اتحولت من متجر محلي لمنصة حجز مشاوير عربية بواجهة مصرية سهلة، جاهزة للربط مع الخرائط والتنبيهات ولوحات التشغيل.`;
 
