@@ -6,6 +6,7 @@ import { resolveAdminNotificationRecipientIds } from "@/lib/admin-notification-t
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
+const adminDbProtectMode = process.env.ADMIN_DB_PROTECT_MODE === "true";
 
 function createAdminServiceClient() {
   if (!supabaseUrl || !serviceRoleKey) return null;
@@ -53,6 +54,9 @@ function normalizeNotification(record: Record<string, unknown>) {
 export async function GET(request: Request) {
   const auth = await requireAdminApi(request);
   if (!auth.ok) return auth.response;
+  if (adminDbProtectMode) {
+    return NextResponse.json({ notifications: [] });
+  }
 
   const supabase = createAdminServiceClient();
   if (!supabase) {
@@ -89,6 +93,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireAdminApi(request);
   if (!auth.ok) return auth.response;
+  if (adminDbProtectMode) {
+    return NextResponse.json({ success: true, skipped: "admin_db_protect_mode" });
+  }
 
   const supabase = createAdminServiceClient();
   if (!supabase) {

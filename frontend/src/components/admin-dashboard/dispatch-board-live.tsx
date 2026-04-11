@@ -14,6 +14,10 @@ type DispatchBoardLiveProps = {
     initialBoard: DispatchBoardData;
 };
 
+const DISPATCH_BOARD_POLLING_ENABLED = process.env.NEXT_PUBLIC_ADMIN_DISPATCH_POLLING_ENABLED !== "false";
+const DISPATCH_BOARD_POLLING_MS = Math.max(30000, Number(process.env.NEXT_PUBLIC_ADMIN_DISPATCH_POLLING_MS || 60000));
+const DISPATCH_BOARD_REALTIME_ENABLED = process.env.NEXT_PUBLIC_ADMIN_DISPATCH_REALTIME_ENABLED === "true";
+
 const DispatchFleetMap = dynamic(
     () => import("@/components/admin-dashboard/dispatch-fleet-map").then((module) => module.DispatchFleetMap),
     {
@@ -59,6 +63,7 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
         let cancelled = false;
 
         const refreshBoard = async () => {
+            if (document.visibilityState !== "visible") return;
             try {
                 const response = await fetch("/api/admin/platform/dispatch-board", { cache: "no-store" });
                 if (!response.ok) return;
@@ -72,18 +77,26 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
             }
         };
 
-        const interval = window.setInterval(refreshBoard, 15000);
-        const channel = supabase
-            .channel("admin-dispatch-board-live")
-            .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, refreshBoard)
-            .on("postgres_changes", { event: "*", schema: "public", table: "trip_offers" }, refreshBoard)
-            .on("postgres_changes", { event: "*", schema: "public", table: "driver_profiles" }, refreshBoard)
-            .subscribe();
+        const interval = DISPATCH_BOARD_POLLING_ENABLED ? window.setInterval(refreshBoard, DISPATCH_BOARD_POLLING_MS) : null;
+        const onFocus = () => {
+            void refreshBoard();
+        };
+        window.addEventListener("focus", onFocus);
+
+        const channel = DISPATCH_BOARD_REALTIME_ENABLED
+            ? supabase
+                  .channel("admin-dispatch-board-live")
+                  .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, refreshBoard)
+                  .on("postgres_changes", { event: "*", schema: "public", table: "trip_offers" }, refreshBoard)
+                  .on("postgres_changes", { event: "*", schema: "public", table: "driver_profiles" }, refreshBoard)
+                  .subscribe()
+            : null;
 
         return () => {
             cancelled = true;
-            window.clearInterval(interval);
-            supabase.removeChannel(channel);
+            window.removeEventListener("focus", onFocus);
+            if (interval !== null) window.clearInterval(interval);
+            if (channel) supabase.removeChannel(channel);
         };
     }, []);
 

@@ -313,12 +313,17 @@ export type DashboardOverview = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY || "";
+const ADMIN_DB_PROTECT_MODE = process.env.ADMIN_DB_PROTECT_MODE === "true";
 const ADMIN_QUERY_TIMEOUT_MS = Math.max(2500, Number(process.env.ADMIN_QUERY_TIMEOUT_MS || 7000));
 const DASHBOARD_OVERVIEW_CACHE_TTL_MS = Math.max(30000, Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_MS || 300000));
+const DISPATCH_BOARD_CACHE_TTL_MS = Math.max(10000, Number(process.env.ADMIN_DISPATCH_BOARD_CACHE_TTL_MS || 45000));
 let dashboardOverviewCache: DashboardOverview | null = null;
 let dashboardOverviewCacheAt = 0;
+let dispatchBoardCache: DispatchBoardData | null = null;
+let dispatchBoardCacheAt = 0;
 
 function createAdminClient() {
+    if (ADMIN_DB_PROTECT_MODE) return null;
     if (!supabaseUrl || !serviceRoleKey) return null;
     return createClient(supabaseUrl, serviceRoleKey, {
         auth: { autoRefreshToken: false, persistSession: false },
@@ -514,7 +519,11 @@ function buildEmptyDashboardOverview(reason: string): DashboardOverview {
 }
 
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
-    const emptyOverview = buildEmptyDashboardOverview("تعذر تحميل الإحصائيات الآن بسبب ضغط قاعدة البيانات.");
+    const emptyOverview = buildEmptyDashboardOverview(
+        ADMIN_DB_PROTECT_MODE
+            ? "وضع حماية قاعدة البيانات مُفعل مؤقتًا لتخفيف الضغط."
+            : "تعذر تحميل الإحصائيات الآن بسبب ضغط قاعدة البيانات."
+    );
     const now = Date.now();
     const cacheIsFresh = dashboardOverviewCache && now - dashboardOverviewCacheAt < DASHBOARD_OVERVIEW_CACHE_TTL_MS;
 
@@ -1090,55 +1099,69 @@ export async function fetchVehiclesList() {
 }
 
 export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
+    const now = Date.now();
+    const cacheIsFresh = dispatchBoardCache && now - dispatchBoardCacheAt < DISPATCH_BOARD_CACHE_TTL_MS;
+    if (cacheIsFresh) return dispatchBoardCache!;
+
+    const emptyBoard: DispatchBoardData = {
+        generatedAt: new Date().toISOString(),
+        regionOptions: [],
+        metrics: {
+            queueTripsCount: 0,
+            liveTripsCount: 0,
+            onlineDriversCount: 0,
+            adminRescueCount: 0,
+            breachedTripsCount: 0,
+        },
+        queueTrips: [],
+        liveTrips: [],
+        availableDrivers: [],
+        assignableDrivers: [],
+    };
+
     const supabase = createAdminClient();
     if (!supabase) {
-        return {
-            generatedAt: new Date().toISOString(),
-            regionOptions: [],
-            metrics: {
-                queueTripsCount: 0,
-                liveTripsCount: 0,
-                onlineDriversCount: 0,
-                adminRescueCount: 0,
-                breachedTripsCount: 0,
-            },
-            queueTrips: [],
-            liveTrips: [],
-            availableDrivers: [],
-            assignableDrivers: [],
-        };
+        return dispatchBoardCache || emptyBoard;
     }
 
-    const nowIso = new Date().toISOString();
-    const [
-        { data: queueTripsData },
-        { data: liveTripsData },
-        { data: drivers },
-    ] = await Promise.all([
-        supabase
-            .from("trips")
-            .select("id, customer_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, estimated_price, offered_driver_count, metadata")
-            .in("status", ["pending", "searching_driver", "offered"])
-            .order("created_at", { ascending: false })
-            .limit(40),
-        supabase
-            .from("trips")
-            .select("id, customer_id, assigned_driver_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, accepted_at, metadata")
-            .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"])
-            .order("updated_at", { ascending: false })
-            .limit(50),
-        supabase
-            .from("driver_profiles")
-            .select("id, availability_status, working_city, working_area, is_accepting_offers, application_status, verification_status, last_seen_at")
-            .eq("application_status", "approved")
-            .eq("verification_status", "approved")
-            .order("updated_at", { ascending: false })
-            .limit(120),
-    ]);
+    try {
+        const nowIso = new Date().toISOString();
+        const [
+            { data: queueTripsData },
+            { data: liveTripsData },
+            { data: drivers },
+        ] = await withQueryTimeout(
+            Promise.all([
+                supabase
+                    .from("trips")
+                    .select("id, customer_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, estimated_price, offered_driver_count, metadata")
+                    .in("status", ["pending", "searching_driver", "offered"])
+                    .order("created_at", { ascending: false })
+                    .limit(40),
+                supabase
+                    .from("trips")
+                    .select("id, customer_id, assigned_driver_id, pickup_label, pickup_address, pickup_latitude, pickup_longitude, destination_label, destination_address, destination_latitude, destination_longitude, trip_type, status, created_at, accepted_at, metadata")
+                    .in("status", ["accepted", "driver_on_the_way", "driver_arrived", "trip_started", "waiting_for_return"])
+                    .order("updated_at", { ascending: false })
+                    .limit(50),
+                supabase
+                    .from("driver_profiles")
+                    .select("id, availability_status, working_city, working_area, is_accepting_offers, application_status, verification_status, last_seen_at")
+                    .eq("application_status", "approved")
+                    .eq("verification_status", "approved")
+                    .order("updated_at", { ascending: false })
+                    .limit(120),
+            ]),
+            [
+                { data: [] as any[] },
+                { data: [] as any[] },
+                { data: [] as any[] },
+            ] as any
+        );
 
-    const queueTripsRows = queueTripsData || [];
-    const liveTripsRows = liveTripsData || [];
-    const driverRows = drivers || [];
+    const queueTripsRows = (queueTripsData || []) as Record<string, unknown>[];
+    const liveTripsRows = (liveTripsData || []) as Record<string, unknown>[];
+    const driverRows = (drivers || []) as Record<string, unknown>[];
     const driverIds = driverRows.map((driver) => String(driver.id)).filter(Boolean);
     const [{ data: vehicles }, { data: openOffers }] = driverIds.length
         ? await Promise.all([
@@ -1325,21 +1348,28 @@ export async function fetchDispatchBoard(): Promise<DispatchBoardData> {
         )
     ).sort((left, right) => left.localeCompare(right, "ar"));
 
-    return {
-        generatedAt: new Date().toISOString(),
-        regionOptions,
-        metrics: {
-            queueTripsCount: queueTrips.length,
-            liveTripsCount: liveTrips.length,
-            onlineDriversCount: normalizedDrivers.filter((driver) => driver.availabilityStatus === "available").length,
-            adminRescueCount: queueTrips.filter((trip) => trip.awaitingAdminDispatch).length,
-            breachedTripsCount: [...queueTrips, ...liveTrips].filter((trip) => trip.slaState === "breached").length,
-        },
-        queueTrips,
-        liveTrips,
-        availableDrivers,
-        assignableDrivers: normalizedDrivers,
-    };
+        const board: DispatchBoardData = {
+            generatedAt: new Date().toISOString(),
+            regionOptions,
+            metrics: {
+                queueTripsCount: queueTrips.length,
+                liveTripsCount: liveTrips.length,
+                onlineDriversCount: normalizedDrivers.filter((driver) => driver.availabilityStatus === "available").length,
+                adminRescueCount: queueTrips.filter((trip) => trip.awaitingAdminDispatch).length,
+                breachedTripsCount: [...queueTrips, ...liveTrips].filter((trip) => trip.slaState === "breached").length,
+            },
+            queueTrips,
+            liveTrips,
+            availableDrivers,
+            assignableDrivers: normalizedDrivers,
+        };
+
+        dispatchBoardCache = board;
+        dispatchBoardCacheAt = Date.now();
+        return board;
+    } catch {
+        return dispatchBoardCache || emptyBoard;
+    }
 }
 
 export async function fetchSupportTickets() {

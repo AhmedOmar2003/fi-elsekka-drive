@@ -17,6 +17,9 @@ import { toast } from "sonner"
 
 const DUPLICATE_NOTIFICATION_WINDOW_MS = 10000
 const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_KEY || ""
+const USER_BELL_POLLING_ENABLED = process.env.NEXT_PUBLIC_USER_BELL_POLLING_ENABLED !== "false"
+const USER_BELL_POLLING_MS = Math.max(15000, Number(process.env.NEXT_PUBLIC_USER_BELL_POLLING_MS || 30000))
+const USER_BELL_REALTIME_ENABLED = process.env.NEXT_PUBLIC_USER_BELL_REALTIME_ENABLED !== "false"
 
 type PushSetupState = "checking" | "enabled" | "prompt" | "blocked" | "unsupported" | "error"
 
@@ -293,12 +296,14 @@ export function NotificationBell() {
 
     React.useEffect(() => {
         if (!user) return
+        if (!USER_BELL_POLLING_ENABLED) return
 
         const poll = () => {
+            if (document.visibilityState !== "visible") return
             void syncNotifications(true)
         }
 
-        const interval = window.setInterval(poll, 5000)
+        const interval = window.setInterval(poll, USER_BELL_POLLING_MS)
         const onFocus = () => poll()
         const onVisible = () => {
             if (document.visibilityState === "visible") {
@@ -318,6 +323,7 @@ export function NotificationBell() {
 
     React.useEffect(() => {
         if (!user) return
+        if (!USER_BELL_REALTIME_ENABLED) return
 
         const channelId = `notifications-${user.id}`
         const channel = supabase

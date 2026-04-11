@@ -13,6 +13,8 @@ import {
 import { showInstantDeviceNotification } from "@/lib/device-notifications";
 
 const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_KEY || "";
+const ADMIN_BELL_POLLING_ENABLED = process.env.NEXT_PUBLIC_ADMIN_BELL_POLLING_ENABLED !== "false";
+const ADMIN_BELL_POLLING_MS = Math.max(15000, Number(process.env.NEXT_PUBLIC_ADMIN_BELL_POLLING_MS || 60000));
 
 type PushSetupState = "checking" | "enabled" | "prompt" | "blocked" | "unsupported" | "error";
 type AdminNotificationsResponse = { notifications?: AppNotification[]; error?: string };
@@ -299,10 +301,21 @@ export function AdminNotificationBell() {
   }, [ensureAudioContext]);
 
   React.useEffect(() => {
-    const timer = window.setInterval(() => {
+    if (!ADMIN_BELL_POLLING_ENABLED) return;
+
+    const poll = () => {
+      if (document.visibilityState !== "visible") return;
       void loadNotifications();
-    }, 4000);
-    return () => window.clearInterval(timer);
+    };
+
+    const timer = window.setInterval(poll, ADMIN_BELL_POLLING_MS);
+    const onFocus = () => poll();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [loadNotifications]);
 
   React.useEffect(() => {

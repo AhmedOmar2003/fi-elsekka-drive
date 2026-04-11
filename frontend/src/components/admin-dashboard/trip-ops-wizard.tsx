@@ -18,6 +18,8 @@ type WizardDriver = {
 };
 
 const STEP_LABELS = ["حدد السعر", "تأكيد العميل", "تعيين الكابتن"] as const;
+const TRIP_OPS_AUTO_REFRESH_ENABLED = process.env.NEXT_PUBLIC_TRIP_OPS_AUTO_REFRESH_ENABLED !== "false";
+const TRIP_OPS_REFRESH_MS = Math.max(30000, Number(process.env.NEXT_PUBLIC_TRIP_OPS_REFRESH_MS || 60000));
 
 function resolveUnlockedStep(hasAdminPrice: boolean, customerPriceConfirmed: boolean) {
     if (!hasAdminPrice) return 0;
@@ -50,10 +52,10 @@ export function TripOpsWizard({
     }, [unlockedStep]);
 
     useEffect(() => {
-        if (unlockedStep !== 1) return;
+        if (!TRIP_OPS_AUTO_REFRESH_ENABLED || unlockedStep !== 1) return;
         const timer = window.setInterval(() => {
             router.refresh();
-        }, 10000);
+        }, TRIP_OPS_REFRESH_MS);
         return () => window.clearInterval(timer);
     }, [router, unlockedStep]);
 

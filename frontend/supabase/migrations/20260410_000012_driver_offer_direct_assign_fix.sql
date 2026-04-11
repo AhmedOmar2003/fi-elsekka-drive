@@ -17,7 +17,7 @@ begin
     select * into v_offer
     from public.trip_offers
     where id = p_offer_id
-      and driver_id = auth.uid()
+      and driver_id = auth.uid()f
     for update;
 
     if v_offer.id is null then
