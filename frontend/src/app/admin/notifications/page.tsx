@@ -3,6 +3,8 @@ import { NotificationComposer } from "@/components/admin-dashboard/actions";
 import { DataTable, SectionCard, StatusBadge } from "@/components/admin-dashboard/primitives";
 import { fetchAdminInboxNotifications, fetchAnnouncements } from "@/lib/admin-dashboard-data";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminNotificationsPage() {
     const inbox = await fetchAdminInboxNotifications();
     const announcements = await fetchAnnouncements();

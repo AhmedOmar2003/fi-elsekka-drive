@@ -349,7 +349,7 @@ export async function POST(request: Request, context: Params) {
           .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
           .map((result) => result.value);
 
-        await Promise.all(
+        void Promise.all(
           successfulNotifications.map((notification) =>
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "العميل أكد السعر",
@@ -358,7 +358,12 @@ export async function POST(request: Request, context: Params) {
               topic: "admin-customer-price-confirmed",
             })
           )
-        );
+        ).catch((pushError) => {
+          console.error("[rides/status] failed to send admin push notifications after customer_confirm_price", {
+            tripId: trip.id,
+            error: String(pushError),
+          });
+        });
       }
 
       await serviceClient.from("notifications").insert({
@@ -432,7 +437,7 @@ export async function POST(request: Request, context: Params) {
           .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
           .map((result) => result.value);
 
-        await Promise.all(
+        void Promise.all(
           successfulNotifications.map((notification) =>
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: isCustomer ? "العميل ألغى المشوار" : "تم إلغاء المشوار من الإدارة",
@@ -441,7 +446,12 @@ export async function POST(request: Request, context: Params) {
               topic: "admin-trip-cancelled",
             })
           )
-        );
+        ).catch((pushError) => {
+          console.error("[rides/status] failed to send admin push notifications after customer_cancel_trip", {
+            tripId: trip.id,
+            error: String(pushError),
+          });
+        });
       }
 
       return NextResponse.json({ success: true, status: "cancelled", routeVersion: ROUTE_VERSION });
@@ -699,11 +709,16 @@ export async function POST(request: Request, context: Params) {
         related_trip_id: trip.id,
       });
 
-      await sendPushToUserDevices(serviceClient, trip.customer_id, {
+      void sendPushToUserDevices(serviceClient, trip.customer_id, {
         title: "المشوار بدأ",
         message: "الكابتن بدأ المشوار. تقدر تتابع الحالة من التطبيق.",
         link: "/trip/live",
         topic: "trip-started",
+      }).catch((pushError) => {
+        console.error("[rides/status] failed to send trip-started push", {
+          tripId: trip.id,
+          error: String(pushError),
+        });
       });
 
       return NextResponse.json({ success: true, status: "trip_started", routeVersion: ROUTE_VERSION });
@@ -881,7 +896,7 @@ export async function POST(request: Request, context: Params) {
           .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
           .map((result) => result.value);
 
-        await Promise.all(
+        void Promise.all(
           successfulNotifications.map((notification) =>
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "تم إلغاء رحلة الرجوع",
@@ -890,7 +905,12 @@ export async function POST(request: Request, context: Params) {
               topic: "admin-return-cancelled",
             })
           )
-        );
+        ).catch((pushError) => {
+          console.error("[rides/status] failed to send admin push notifications after customer_cancel_return", {
+            tripId: trip.id,
+            error: String(pushError),
+          });
+        });
       }
 
       return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
@@ -1019,12 +1039,17 @@ export async function POST(request: Request, context: Params) {
         related_trip_id: trip.id,
       });
 
-      await sendPushToUserDevices(serviceClient, trip.customer_id, {
+      void sendPushToUserDevices(serviceClient, trip.customer_id, {
         title: "المشوار اكتمل",
         message: "لو وصلت بالسلامة، قيّم الكابتن من التطبيق.",
         link: "/trip/live",
         requireInteraction: true,
         topic: "trip-completed",
+      }).catch((pushError) => {
+        console.error("[rides/status] failed to send trip-completed push", {
+          tripId: trip.id,
+          error: String(pushError),
+        });
       });
 
       return NextResponse.json({ success: true, status: "completed", routeVersion: ROUTE_VERSION });
@@ -1102,7 +1127,7 @@ export async function POST(request: Request, context: Params) {
           .filter((result): result is PromiseFulfilledResult<(typeof adminNotifications)[number]> => result.status === "fulfilled")
           .map((result) => result.value);
 
-        await Promise.all(
+        void Promise.all(
           successfulNotifications.map((notification) =>
             sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
               title: "العميل أكد السعر",
@@ -1111,7 +1136,12 @@ export async function POST(request: Request, context: Params) {
               topic: "admin-customer-price-confirmed",
             })
           )
-        );
+        ).catch((pushError) => {
+          console.error("[rides/status] failed to send admin push notifications after customer_confirm_price_status", {
+            tripId: trip.id,
+            error: String(pushError),
+          });
+        });
       }
 
       return NextResponse.json({
