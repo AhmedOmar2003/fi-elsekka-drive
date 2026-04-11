@@ -161,6 +161,140 @@ function isMeaningfulName(value: string) {
   return !blocked.has(normalized);
 }
 
+function isGenericAdministrativeLabel(value: string) {
+  const normalized = normalizeText(value);
+  const administrativeLabels = new Set([
+    "الدقهليه",
+    "دقهليه",
+    "dakahlia",
+    "الدقهلية",
+    "القاهره",
+    "القاهرة",
+    "cairo",
+    "الجيزه",
+    "الجيزة",
+    "giza",
+    "المنصوره",
+    "المنصورة",
+    "mansoura",
+    "مصر",
+    "egypt",
+  ]);
+  if (administrativeLabels.has(normalized)) {
+    return true;
+  }
+  return normalized.startsWith("محافظه ") || normalized.startsWith("محافظة ");
+}
+
+function labelSpecificityScore(value: string) {
+  const cleaned = String(value || "").trim().replace(/\s+/g, " ");
+  const normalized = normalizeText(cleaned);
+  if (!normalized) return -1000;
+  if (!isMeaningfulName(cleaned)) return -500;
+
+  let score = Math.min(cleaned.length, 50);
+  const words = normalized.split(" ").filter(Boolean);
+  if (words.length >= 2) score += 20;
+  if (words.length >= 3) score += 10;
+  if (/\d/.test(cleaned)) score += 8;
+  if (/[-,،/]/.test(cleaned)) score += 6;
+
+  const detailHints = [
+    "قريه",
+    "قرية",
+    "شارع",
+    "حاره",
+    "حارة",
+    "عزبه",
+    "عزبة",
+    "نجع",
+    "كفر",
+    "حي",
+    "ميدان",
+    "منطقه",
+    "منطقة",
+    "عماره",
+    "عمارة",
+    "مدخل",
+    "زقاق",
+    "villa",
+    "village",
+    "street",
+    "district",
+    "block",
+  ];
+  if (detailHints.some((hint) => normalized.includes(hint))) {
+    score += 40;
+  }
+
+  if (isGenericAdministrativeLabel(normalized)) {
+    score -= 120;
+  }
+  if (normalized.includes("مكان محفوظ")) {
+    score -= 160;
+  }
+  return score;
+}
+
+function choosePreferredLabel(current: string, incoming: string) {
+  const currentClean = String(current || "").trim().replace(/\s+/g, " ");
+  const incomingClean = String(incoming || "").trim().replace(/\s+/g, " ");
+  const currentScore = labelSpecificityScore(currentClean);
+  const incomingScore = labelSpecificityScore(incomingClean);
+
+  if (incomingScore > currentScore) {
+    return incomingClean;
+  }
+  if (currentScore > incomingScore) {
+    return currentClean;
+  }
+  if (!isMeaningfulName(currentClean) && isMeaningfulName(incomingClean)) {
+    return incomingClean;
+  }
+  if (incomingClean.length > currentClean.length + 6 && isMeaningfulName(incomingClean)) {
+    return incomingClean;
+  }
+  return currentClean || incomingClean;
+}
+
+function extractSpecificAddressPart(address: string) {
+  const raw = String(address || "").trim();
+  if (!raw) return "";
+  const parts = raw
+    .split(/[،,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const specific = parts.find(
+    (part) => isMeaningfulName(part) && !isGenericAdministrativeLabel(part)
+  );
+  return specific || "";
+}
+
+function promoteSuggestionLabel(place: SharedGeocodedLocation): SharedGeocodedLocation {
+  if (!isGenericAdministrativeLabel(place.label)) {
+    return place;
+  }
+
+  const fromAddress = extractSpecificAddressPart(place.address || "");
+  const fromArea =
+    place.area && isMeaningfulName(place.area) && !isGenericAdministrativeLabel(place.area)
+      ? place.area.trim()
+      : "";
+  const fromCity =
+    place.city && isMeaningfulName(place.city) && !isGenericAdministrativeLabel(place.city)
+      ? place.city.trim()
+      : "";
+
+  const candidate = fromAddress || fromArea || fromCity;
+  if (!candidate) {
+    return place;
+  }
+  return {
+    ...place,
+    label: choosePreferredLabel(place.label, candidate),
+  };
+}
+
 function normalizeLocation(
   input: SharedGeocodedLocation,
   fallbackSource = "user_created"
@@ -426,6 +560,7 @@ export async function searchCommunityPlaces(
     .map((row) => row as CommunityPlaceRow)
     .filter((row) => isSearchVisible(row))
     .map((row) => rowToLocation(row))
+    .map((place) => promoteSuggestionLabel(place))
     .map((place) => ({
       place,
       ...scoreSearchMatch(place, query, options.nearLatitude, options.nearLongitude),
@@ -530,10 +665,7 @@ export async function registerCommunityPlace(input: {
     const isPublic =
       contributorCount >= MIN_PUBLIC_CONTRIBUTORS ||
       (!hasContributorSignals && nextUsageCount >= MIN_PUBLIC_USAGE_COUNT);
-    const mergedLabel =
-      isMeaningfulName(nearby.label) && nearby.label.length >= normalized.label.length
-        ? nearby.label
-        : normalized.label;
+    const mergedLabel = choosePreferredLabel(nearby.label, normalized.label);
     const mergedAddress =
       nearby.address.length >= normalized.address.length ? nearby.address : normalized.address;
     const mergedCity = nearby.city || normalized.city || null;
