@@ -7,8 +7,8 @@ import { toast } from "sonner";
 
 import { getFirstAccessibleAdminPath } from "@/lib/permissions";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { getUserProfile, signIn } from "@/services/authService";
-import type { Session } from "@supabase/supabase-js";
+import { signIn } from "@/services/authService";
+import type { Session, User } from "@supabase/supabase-js";
 
 type LoginClientProps = {
   emailPlaceholder: string;
@@ -92,14 +92,15 @@ export function LoginClient({
 
     setIsLoading(true);
     try {
-      await fetch("/api/system-access/rate-limit", {
+      // Do not block login flow on this lightweight endpoint.
+      void fetch("/api/system-access/rate-limit", {
         method: "POST",
         cache: "no-store",
       }).catch(() => {});
 
       const { data: signInData, error } = await withTimeout(
         signIn(email.trim().toLowerCase(), password),
-        15000,
+        25000,
         "signin",
       );
 
@@ -109,48 +110,7 @@ export function LoginClient({
       }
 
       persistSessionCookies(signInData?.session);
-      if (!signInData?.session?.access_token) {
-        const { data } = await withTimeout(supabase.auth.getSession(), 10000, "session");
-        persistSessionCookies(data?.session);
-      }
-
-      const profile = signInData?.user?.id
-        ? await withTimeout(getUserProfile(signInData.user.id), 12000, "profile")
-        : null;
-      const authMetadataRole =
-        signInData?.user?.user_metadata?.role ||
-        signInData?.user?.app_metadata?.role ||
-        null;
-      const authMetadataPermissions = Array.isArray(
-        signInData?.user?.user_metadata?.permissions
-      )
-        ? signInData.user.user_metadata.permissions
-        : Array.isArray(signInData?.user?.app_metadata?.permissions)
-          ? signInData.user.app_metadata.permissions
-          : [];
-
-      const resolvedProfile = profile
-        ? {
-            ...profile,
-            role: profile.role || authMetadataRole || undefined,
-            permissions:
-              Array.isArray(profile.permissions) && profile.permissions.length > 0
-                ? profile.permissions
-                : authMetadataPermissions,
-          }
-        : signInData?.user?.id
-          ? {
-              id: signInData.user.id,
-              full_name:
-                signInData.user.user_metadata?.full_name ||
-                signInData.user.email ||
-                "",
-              email: signInData.user.email || "",
-              role: authMetadataRole || undefined,
-              permissions: authMetadataPermissions,
-              disabled: false,
-            }
-          : null;
+      const resolvedProfile = buildAdminProfileFromUser(signInData?.user);
 
       const adminRoles = [
         "super_admin",
@@ -171,13 +131,38 @@ export function LoginClient({
       );
     } catch (error) {
       const message = error instanceof Error && error.message.startsWith("timeout:")
-        ? "التحقق أخذ وقتًا أطول من اللازم. تأكد من اتصال الإنترنت وحاول مرة أخرى."
+        ? "الخادم تأخر في الاستجابة. حاول مرة أخرى خلال لحظات."
         : "حصلت مشكلة أثناء تسجيل الدخول. حاول مرة أخرى.";
       toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
+
+  function buildAdminProfileFromUser(user: User | null | undefined) {
+    if (!user) return null;
+    const userMeta = user.user_metadata as Record<string, unknown> | undefined;
+    const appMeta = user.app_metadata as Record<string, unknown> | undefined;
+    const role =
+      (typeof userMeta?.role === "string" ? userMeta.role : null) ||
+      (typeof appMeta?.role === "string" ? appMeta.role : null) ||
+      undefined;
+    const userPerms = Array.isArray(userMeta?.permissions) ? userMeta?.permissions : [];
+    const appPerms = Array.isArray(appMeta?.permissions) ? appMeta?.permissions : [];
+    const permissions = [...userPerms, ...appPerms].filter(
+      (item, index, arr): item is string =>
+        typeof item === "string" && arr.findIndex((entry) => entry === item) === index,
+    );
+
+    return {
+      id: user.id,
+      full_name: (typeof userMeta?.full_name === "string" ? userMeta.full_name : user.email) || "",
+      email: user.email || "",
+      role,
+      permissions,
+      disabled: false,
+    };
+  }
 
   return (
     <div className="min-h-screen bg-[#05070a] flex items-center justify-center p-4">
