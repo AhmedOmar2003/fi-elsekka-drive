@@ -11,7 +11,11 @@ type LoginPageProps = {
 };
 
 export default async function SecureAdminLogin({ searchParams }: LoginPageProps) {
-  await ensureBootstrappedSuperAdmin();
+  if (process.env.NODE_ENV !== "production") {
+    await ensureBootstrappedSuperAdmin();
+  } else {
+    void ensureBootstrappedSuperAdmin();
+  }
 
   const resolvedSearchParams = (await searchParams) || {};
   const redirect = resolvedSearchParams.redirect || "/admin";

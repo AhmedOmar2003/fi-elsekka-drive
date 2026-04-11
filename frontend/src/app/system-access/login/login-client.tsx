@@ -6,8 +6,8 @@ import { ShieldCheck, Mail, Lock, Loader2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { getFirstAccessibleAdminPath } from "@/lib/permissions";
-import { supabase } from "@/lib/supabase";
-import { getUserProfile, signIn, signOut } from "@/services/authService";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { getUserProfile, signIn } from "@/services/authService";
 import type { Session } from "@supabase/supabase-js";
 
 type LoginClientProps = {
@@ -24,8 +24,37 @@ export function LoginClient({
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`timeout:${label}`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
   useEffect(() => {
-    signOut();
+    if (typeof window === "undefined") return;
+    // Clear stale local session instantly without waiting on network signOut.
+    localStorage.removeItem("guestCart");
+    localStorage.removeItem("fi-elsekka-auth-session");
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+        localStorage.removeItem(key);
+      }
+    });
+    const secure = window.location.protocol === "https:" ? " Secure;" : "";
+    document.cookie = `sb-access-token=; path=/; max-age=0; SameSite=Lax;${secure}`;
+    document.cookie = `sb-refresh-token=; path=/; max-age=0; SameSite=Lax;${secure}`;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : null;
+    if (projectRef) {
+      document.cookie = `sb-${projectRef}-auth-token=; path=/; max-age=0; SameSite=Lax;${secure}`;
+    }
+    void supabase.auth.signOut({ scope: "local" }).catch(() => {});
   }, []);
 
   const persistSessionCookies = (session: Session | null | undefined) => {
@@ -56,88 +85,98 @@ export function LoginClient({
       toast.error("أدخل البريد وكلمة المرور.");
       return;
     }
+    if (!isSupabaseConfigured) {
+      toast.error("إعدادات Supabase غير مكتملة على بيئة النشر.");
+      return;
+    }
 
     setIsLoading(true);
+    try {
+      await fetch("/api/system-access/rate-limit", {
+        method: "POST",
+        cache: "no-store",
+      }).catch(() => {});
 
-    await fetch("/api/system-access/rate-limit", {
-      method: "POST",
-      cache: "no-store",
-    }).catch(() => {});
+      const { data: signInData, error } = await withTimeout(
+        signIn(email.trim().toLowerCase(), password),
+        15000,
+        "signin",
+      );
 
-    const { data: signInData, error } = await signIn(
-      email.trim().toLowerCase(),
-      password
-    );
+      if (error) {
+        toast.error("بيانات الدخول غير صحيحة أو الحساب مقيد.");
+        return;
+      }
 
-    if (error) {
-      setIsLoading(false);
-      toast.error("بيانات الدخول غير صحيحة أو الحساب مقيد.");
-      return;
-    }
+      persistSessionCookies(signInData?.session);
+      if (!signInData?.session?.access_token) {
+        const { data } = await withTimeout(supabase.auth.getSession(), 10000, "session");
+        persistSessionCookies(data?.session);
+      }
 
-    persistSessionCookies(signInData?.session);
-    if (!signInData?.session?.access_token) {
-      const { data } = await supabase.auth.getSession();
-      persistSessionCookies(data?.session);
-    }
-
-    const profile = signInData?.user?.id
-      ? await getUserProfile(signInData.user.id)
-      : null;
-    const authMetadataRole =
-      signInData?.user?.user_metadata?.role ||
-      signInData?.user?.app_metadata?.role ||
-      null;
-    const authMetadataPermissions = Array.isArray(
-      signInData?.user?.user_metadata?.permissions
-    )
-      ? signInData.user.user_metadata.permissions
-      : Array.isArray(signInData?.user?.app_metadata?.permissions)
-        ? signInData.user.app_metadata.permissions
-        : [];
-
-    const resolvedProfile = profile
-      ? {
-          ...profile,
-          role: profile.role || authMetadataRole || undefined,
-          permissions:
-            Array.isArray(profile.permissions) && profile.permissions.length > 0
-              ? profile.permissions
-              : authMetadataPermissions,
-        }
-      : signInData?.user?.id
-        ? {
-            id: signInData.user.id,
-            full_name:
-              signInData.user.user_metadata?.full_name ||
-              signInData.user.email ||
-              "",
-            email: signInData.user.email || "",
-            role: authMetadataRole || undefined,
-            permissions: authMetadataPermissions,
-            disabled: false,
-          }
+      const profile = signInData?.user?.id
+        ? await withTimeout(getUserProfile(signInData.user.id), 12000, "profile")
         : null;
+      const authMetadataRole =
+        signInData?.user?.user_metadata?.role ||
+        signInData?.user?.app_metadata?.role ||
+        null;
+      const authMetadataPermissions = Array.isArray(
+        signInData?.user?.user_metadata?.permissions
+      )
+        ? signInData.user.user_metadata.permissions
+        : Array.isArray(signInData?.user?.app_metadata?.permissions)
+          ? signInData.user.app_metadata.permissions
+          : [];
 
-    const adminRoles = [
-      "super_admin",
-      "admin",
-      "operations_manager",
-      "catalog_manager",
-      "support_agent",
-    ];
+      const resolvedProfile = profile
+        ? {
+            ...profile,
+            role: profile.role || authMetadataRole || undefined,
+            permissions:
+              Array.isArray(profile.permissions) && profile.permissions.length > 0
+                ? profile.permissions
+                : authMetadataPermissions,
+          }
+        : signInData?.user?.id
+          ? {
+              id: signInData.user.id,
+              full_name:
+                signInData.user.user_metadata?.full_name ||
+                signInData.user.email ||
+                "",
+              email: signInData.user.email || "",
+              role: authMetadataRole || undefined,
+              permissions: authMetadataPermissions,
+              disabled: false,
+            }
+          : null;
 
-    if (!resolvedProfile || !adminRoles.includes(resolvedProfile.role || "")) {
-      await signOut();
+      const adminRoles = [
+        "super_admin",
+        "admin",
+        "operations_manager",
+        "catalog_manager",
+        "support_agent",
+      ];
+
+      if (!resolvedProfile || !adminRoles.includes(resolvedProfile.role || "")) {
+        void supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        toast.error("الحساب ده مش مخصص لدخول لوحة التحكم.");
+        return;
+      }
+
+      router.replace(
+        redirect === "/admin" ? getFirstAccessibleAdminPath(resolvedProfile) : redirect
+      );
+    } catch (error) {
+      const message = error instanceof Error && error.message.startsWith("timeout:")
+        ? "التحقق أخذ وقتًا أطول من اللازم. تأكد من اتصال الإنترنت وحاول مرة أخرى."
+        : "حصلت مشكلة أثناء تسجيل الدخول. حاول مرة أخرى.";
+      toast.error(message);
+    } finally {
       setIsLoading(false);
-      toast.error("الحساب ده مش مخصص لدخول لوحة التحكم.");
-      return;
     }
-
-    setIsLoading(false);
-    router.replace(
-      redirect === "/admin" ? getFirstAccessibleAdminPath(resolvedProfile) : redirect
-    );
   };
 
   return (
