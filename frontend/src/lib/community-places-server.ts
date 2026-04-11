@@ -5,6 +5,8 @@ import type { GeocodedLocation } from "@/lib/ride-maps-server";
 
 const MAX_PROXIMITY_RADIUS_METERS = 500;
 const SEARCH_BOUNDING_BOX_DEGREES = 0.008;
+const MIN_PUBLIC_CONTRIBUTORS = 4;
+const MIN_PUBLIC_USAGE_COUNT = 5;
 
 type CommunityPlaceRow = {
   id: string;
@@ -19,14 +21,18 @@ type CommunityPlaceRow = {
   search_key: string;
   phonetic_key: string;
   created_by: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
+
+type CommunityPlaceMetadata = Record<string, unknown>;
 
 export type SharedGeocodedLocation = GeocodedLocation & {
   id?: string;
   source?: string;
   usageCount?: number;
+  metadata?: CommunityPlaceMetadata;
 };
 
 function normalizeText(value: string) {
@@ -210,7 +216,63 @@ function rowToLocation(row: CommunityPlaceRow): SharedGeocodedLocation {
     area: row.area,
     source: row.source === "user_created" ? "user_created" : "shared_community",
     usageCount: Math.max(1, Number(row.usage_count || 1)),
+    metadata: extractMetadata(row),
   };
+}
+
+function extractMetadata(row: CommunityPlaceRow): CommunityPlaceMetadata {
+  if (row.metadata && typeof row.metadata === "object") {
+    return row.metadata as CommunityPlaceMetadata;
+  }
+  return {};
+}
+
+function contributorIdsFromMetadata(metadata: CommunityPlaceMetadata) {
+  const raw = metadata.contributor_user_ids;
+  if (!Array.isArray(raw)) {
+    return [] as string[];
+  }
+  return Array.from(
+    new Set(
+      raw
+        .map((item) => String(item || "").trim())
+        .filter((item) => item.length > 0)
+    )
+  );
+}
+
+function visibilityStats(row: CommunityPlaceRow) {
+  const metadata = extractMetadata(row);
+  const contributors = contributorIdsFromMetadata(metadata);
+  const rawContributorCount = Number(
+    metadata.unique_contributors || metadata.contributor_count || 0
+  );
+  const contributorCount = Math.max(
+    contributors.length,
+    rawContributorCount
+  );
+  const usageCount = Math.max(0, Number(row.usage_count || 0));
+  const isPublicByMetadata = metadata.is_public === true;
+  const hasContributorSignals = contributors.length > 0 || rawContributorCount > 0;
+  const isPublic =
+    isPublicByMetadata ||
+    contributorCount >= MIN_PUBLIC_CONTRIBUTORS ||
+    (!hasContributorSignals && usageCount >= MIN_PUBLIC_USAGE_COUNT);
+  return {
+    metadata,
+    contributors,
+    contributorCount,
+    usageCount,
+    isPublic,
+    hasContributorSignals,
+  };
+}
+
+function isSearchVisible(row: CommunityPlaceRow) {
+  if (row.source !== "user_created") {
+    return true;
+  }
+  return visibilityStats(row).isPublic;
 }
 
 function shouldMergePlace(
@@ -336,7 +398,7 @@ export async function searchCommunityPlaces(
   let request = supabase
     .from("community_places")
     .select(
-      "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,created_at,updated_at"
+      "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,metadata,created_at,updated_at"
     )
     .limit(80);
 
@@ -361,7 +423,9 @@ export async function searchCommunityPlaces(
   }
 
   const scored = data
-    .map((row) => rowToLocation(row as CommunityPlaceRow))
+    .map((row) => row as CommunityPlaceRow)
+    .filter((row) => isSearchVisible(row))
+    .map((row) => rowToLocation(row))
     .map((place) => ({
       place,
       ...scoreSearchMatch(place, query, options.nearLatitude, options.nearLongitude),
@@ -397,7 +461,7 @@ export async function findNearestCommunityPlace(
   const { data, error } = await supabase
     .from("community_places")
     .select(
-      "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,created_at,updated_at"
+      "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,metadata,created_at,updated_at"
     )
     .gte("latitude", latitude - SEARCH_BOUNDING_BOX_DEGREES)
     .lte("latitude", latitude + SEARCH_BOUNDING_BOX_DEGREES)
@@ -444,10 +508,28 @@ export async function registerCommunityPlace(input: {
   });
 
   if (nearby && shouldMergePlace(nearby, normalized) && nearby.id) {
+    const currentMetadata = nearby.metadata || {};
+    const currentContributors = contributorIdsFromMetadata(currentMetadata);
+    const nextContributors = Array.from(
+      new Set([
+        ...currentContributors,
+        ...(input.createdBy ? [input.createdBy] : []),
+      ])
+    );
     const nextUsageCount = Math.max(
       (nearby.usageCount || 1) + Math.max(1, normalized.usageCount || 1),
       1
     );
+    const contributorCount = Math.max(
+      nextContributors.length,
+      Number(currentMetadata.unique_contributors || currentMetadata.contributor_count || 0)
+    );
+    const hasContributorSignals =
+      nextContributors.length > 0 ||
+      Number(currentMetadata.unique_contributors || currentMetadata.contributor_count || 0) > 0;
+    const isPublic =
+      contributorCount >= MIN_PUBLIC_CONTRIBUTORS ||
+      (!hasContributorSignals && nextUsageCount >= MIN_PUBLIC_USAGE_COUNT);
     const mergedLabel =
       isMeaningfulName(nearby.label) && nearby.label.length >= normalized.label.length
         ? nearby.label
@@ -473,13 +555,18 @@ export async function registerCommunityPlace(input: {
         phonetic_key: phoneticKey(`${mergedLabel} ${mergedAddress} ${mergedCity || ""} ${mergedArea || ""}`),
         updated_at: new Date().toISOString(),
         metadata: {
+          ...currentMetadata,
           merged_with_user: input.createdBy,
           last_source: normalized.source,
+          contributor_user_ids: nextContributors,
+          contributor_count: contributorCount,
+          unique_contributors: contributorCount,
+          is_public: isPublic,
         },
       })
       .eq("id", nearby.id)
       .select(
-        "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,created_at,updated_at"
+        "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,metadata,created_at,updated_at"
       )
       .maybeSingle();
 
@@ -496,6 +583,11 @@ export async function registerCommunityPlace(input: {
   const phonetic = phoneticKey(
     `${normalized.label} ${normalized.address} ${normalized.city || ""} ${normalized.area || ""}`
   );
+  const initialContributors = input.createdBy ? [input.createdBy] : [];
+  const initialContributorCount = initialContributors.length;
+  const initialUsageCount = Math.max(1, normalized.usageCount || 1);
+  const initialPublic =
+    initialContributorCount >= MIN_PUBLIC_CONTRIBUTORS;
 
   const { data, error } = await supabase
     .from("community_places")
@@ -506,17 +598,21 @@ export async function registerCommunityPlace(input: {
       longitude: normalized.longitude,
       city: normalized.city,
       area: normalized.area,
-      usage_count: Math.max(1, normalized.usageCount || 1),
+      usage_count: initialUsageCount,
       source: normalized.source || "user_created",
       search_key: searchKey,
       phonetic_key: phonetic,
       created_by: input.createdBy,
       metadata: {
         created_from: "mobile_app",
+        contributor_user_ids: initialContributors,
+        contributor_count: initialContributorCount,
+        unique_contributors: initialContributorCount,
+        is_public: initialPublic,
       },
     })
     .select(
-      "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,created_at,updated_at"
+      "id,name,address_text,latitude,longitude,city,area,usage_count,source,search_key,phonetic_key,created_by,metadata,created_at,updated_at"
     )
     .maybeSingle();
 
