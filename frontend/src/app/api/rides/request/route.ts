@@ -14,6 +14,10 @@ function normalizeVehicleType(value: unknown) {
   return value === "car" || value === "tuk_tuk" || value === "mini_bus" ? value : "car";
 }
 
+function normalizeRequestSource(value: unknown): "manual" | "map" {
+  return value === "manual" ? "manual" : "map";
+}
+
 type CreateTripRecordInput = {
   customerId: string;
   tripType: "normal_ride" | "airport_ride";
@@ -152,6 +156,7 @@ export async function POST(request: Request) {
       ? Math.min(720, Math.max(0, Number(body.waitingDurationMinutes || 0)))
       : null;
     const waitingEnabled = body.waitingEnabled === true;
+    const requestSource = normalizeRequestSource(body.requestSource);
     const preferredVehicleType =
       tripType === "airport_ride" ? "car" : normalizeVehicleType(body.preferredVehicleType);
     const estimate = body.estimate;
@@ -221,6 +226,7 @@ export async function POST(request: Request) {
           waiting_chargeable_seconds: 0,
           waiting_cost: 0,
           final_price: null,
+          request_source: requestSource,
           return_status: isRoundTrip ? 'outbound' : 'not_applicable',
           dispatch_mode: "awaiting_admin_pricing",
           awaiting_admin_pricing: true,
@@ -242,6 +248,7 @@ export async function POST(request: Request) {
         distance_km: estimate.distanceKm,
         duration_minutes: estimate.durationMinutes,
         preferred_vehicle_type: preferredVehicleType,
+        request_source: requestSource,
         dispatch_mode: "awaiting_admin_pricing",
         map_estimated_price: estimatedPrice > 0 ? estimatedPrice : null,
         is_round_trip: isRoundTrip,
