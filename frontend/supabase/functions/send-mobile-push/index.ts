@@ -8,15 +8,12 @@ type FunctionRecipient = {
   provider?: string;
 };
 
-type FunctionPayload = {
+type IncomingPayload = {
   recipients?: FunctionRecipient[];
   token?: string;
   title?: string;
   body?: string;
-  notification?: {
-    title?: string;
-    body?: string;
-  };
+  notification?: { title?: string; body?: string };
   data?: Record<string, unknown>;
   record?: Record<string, unknown>;
   new?: Record<string, unknown>;
@@ -39,53 +36,48 @@ type FcmErrorBody = {
   error?: {
     code?: number;
     message?: string;
-    details?: Array<{
-      "@type"?: string;
-      errorCode?: string;
-    }>;
+    details?: Array<{ "@type"?: string; errorCode?: string }>;
   };
 };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
 
-const LEGACY_CHANNEL_ID = "fi_elsekka_rides";
 const DEFAULT_UPDATES_CHANNEL_ID = "waselny_trip_updates_v2";
 const DEFAULT_CRITICAL_CHANNEL_ID = "waselny_trip_critical_v2";
 const DEFAULT_WARNING_CHANNEL_ID = "waselny_trip_warning_v2";
+const LEGACY_CHANNEL_ID = "fi_elsekka_rides";
 const SEND_CONCURRENCY = 20;
 
 const SUPABASE_URL = (Deno.env.get("SUPABASE_URL") || "").trim();
-const SUPABASE_SERVICE_ROLE_KEY = (
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
-).trim();
+const SUPABASE_SERVICE_ROLE_KEY =
+  (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
 
 function loadServiceAccount(): FirebaseServiceAccount | null {
-  const rawJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON")?.trim() || "";
+  const rawJson = (Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "").trim();
   if (!rawJson) return null;
-
   try {
     const parsed = JSON.parse(rawJson) as FirebaseServiceAccount;
     if (parsed.private_key) {
       parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
     }
     return parsed;
-  } catch (error) {
-    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON", error);
+  } catch (e) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
     return null;
   }
 }
 
-async function getAccessToken(serviceAccount: FirebaseServiceAccount) {
+async function getAccessToken(sa: FirebaseServiceAccount) {
   const auth = new GoogleAuth({
     credentials: {
-      client_email: serviceAccount.client_email,
-      private_key: serviceAccount.private_key,
+      client_email: sa.client_email,
+      private_key: sa.private_key,
     },
-    projectId: serviceAccount.project_id,
+    projectId: sa.project_id,
     scopes: ["https://www.googleapis.com/auth/firebase.messaging"],
   });
 
@@ -93,25 +85,23 @@ async function getAccessToken(serviceAccount: FirebaseServiceAccount) {
   return typeof token === "string" ? token : token?.token || null;
 }
 
-function normalizeUnknownData(rawData: unknown): Record<string, string> {
-  if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) return {};
+function toStringMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return Object.fromEntries(
-    Object.entries(rawData as Record<string, unknown>)
-      .filter(([, value]) => value !== undefined && value !== null)
-      .map(([key, value]) => [key, String(value)])
+    Object.entries(raw as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => [k, String(v)])
   );
 }
 
-function parseNotificationRecordPayload(
-  rawPayload: NotificationRecord["payload"]
+function parseRecordPayload(
+  raw: NotificationRecord["payload"]
 ): Record<string, unknown> {
-  if (!rawPayload) return {};
-  if (typeof rawPayload === "object" && !Array.isArray(rawPayload)) {
-    return rawPayload as Record<string, unknown>;
-  }
-  if (typeof rawPayload === "string") {
+  if (!raw) return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
     try {
-      const parsed = JSON.parse(rawPayload);
+      const parsed = JSON.parse(raw);
       return typeof parsed === "object" && parsed && !Array.isArray(parsed)
         ? (parsed as Record<string, unknown>)
         : {};
@@ -122,54 +112,12 @@ function parseNotificationRecordPayload(
   return {};
 }
 
-function extractNotificationRecord(payload: FunctionPayload): NotificationRecord | null {
-  const record = payload.record || payload.new;
-  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
-  return record as NotificationRecord;
-}
-
-function createSupabaseAdminClient() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function dedupeRecipients(recipients: FunctionRecipient[]) {
-  const seen = new Set<string>();
-  const out: FunctionRecipient[] = [];
-  for (const recipient of recipients) {
-    const token = String(recipient?.token || "").trim();
-    const provider = String(recipient?.provider || "fcm").trim().toLowerCase();
-    if (!token || provider !== "fcm" || seen.has(token)) continue;
-    seen.add(token);
-    out.push({ ...recipient, token, provider: "fcm" });
-  }
-  return out;
-}
-
-async function fetchRecipientsFromNotificationRecord(record: NotificationRecord) {
-  const recipientUserId = String(record.recipient_user_id || "").trim();
-  if (!recipientUserId) return [] as FunctionRecipient[];
-
-  const supabaseAdmin = createSupabaseAdminClient();
-  if (!supabaseAdmin) {
-    throw new Error(
-      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Edge Function secrets."
-    );
-  }
-
-  const { data: tokens, error } = await supabaseAdmin
-    .from("mobile_push_tokens")
-    .select("token, platform, provider")
-    .eq("user_id", recipientUserId)
-    .eq("is_active", true);
-
-  if (error) {
-    throw new Error(`Failed to fetch mobile push tokens: ${error.message}`);
-  }
-
-  return dedupeRecipients((tokens || []) as FunctionRecipient[]);
+function extractNotificationRecord(
+  payload: IncomingPayload
+): NotificationRecord | null {
+  const rec = payload.record || payload.new;
+  if (!rec || typeof rec !== "object" || Array.isArray(rec)) return null;
+  return rec as NotificationRecord;
 }
 
 function normalizeSoundProfile(data: Record<string, string>) {
@@ -179,20 +127,19 @@ function normalizeSoundProfile(data: Record<string, string>) {
     data.sound ||
     ""
   )
-    .toString()
-    .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .trim();
 
   if (raw === "critical") return "critical";
   if (raw === "warning") return "warning";
   if (raw === "silent" || raw === "none" || raw === "off") return "silent";
 
-  const eventType = (data.eventType || data.event_type || "").toLowerCase().trim();
-  if (eventType === "driver_arrived" || eventType === "trip_requested") return "critical";
+  const event = (data.eventType || data.event_type || "").toLowerCase().trim();
+  if (event === "driver_arrived" || event === "trip_requested") return "critical";
   if (
-    eventType === "driver_cancelled" ||
-    eventType === "user_cancelled" ||
-    eventType === "trip_cancelled"
+    event === "driver_cancelled" ||
+    event === "user_cancelled" ||
+    event === "trip_cancelled"
   )
     return "warning";
 
@@ -205,22 +152,13 @@ function resolveChannelId(data: Record<string, string>, profile: string) {
     data.channel_id ||
     data.android_channel_id ||
     ""
-  )
-    .toString()
-    .trim();
+  ).trim();
 
   if (explicit) return explicit;
-
-  switch (profile) {
-    case "critical":
-      return DEFAULT_CRITICAL_CHANNEL_ID;
-    case "warning":
-      return DEFAULT_WARNING_CHANNEL_ID;
-    case "silent":
-    case "medium":
-    default:
-      return DEFAULT_UPDATES_CHANNEL_ID || LEGACY_CHANNEL_ID;
-  }
+  if (profile === "critical") return DEFAULT_CRITICAL_CHANNEL_ID;
+  if (profile === "warning") return DEFAULT_WARNING_CHANNEL_ID;
+  if (profile === "silent") return DEFAULT_UPDATES_CHANNEL_ID || LEGACY_CHANNEL_ID;
+  return DEFAULT_UPDATES_CHANNEL_ID || LEGACY_CHANNEL_ID;
 }
 
 function resolveSoundName(profile: string) {
@@ -230,28 +168,70 @@ function resolveSoundName(profile: string) {
 function isInvalidTokenError(body: FcmErrorBody) {
   const details = Array.isArray(body.error?.details) ? body.error!.details! : [];
   const codes = details
-    .map((entry) => String(entry?.errorCode || "").trim().toUpperCase())
+    .map((d) => String(d?.errorCode || "").toUpperCase().trim())
     .filter(Boolean);
+
   return codes.includes("UNREGISTERED") || codes.includes("INVALID_ARGUMENT");
 }
 
-async function markInvalidTokensAsInactive(tokens: string[]) {
-  if (!tokens.length) return;
-  const supabaseAdmin = createSupabaseAdminClient();
-  if (!supabaseAdmin) return;
+function uniqueByToken(recipients: FunctionRecipient[]) {
+  const seen = new Set<string>();
+  const result: FunctionRecipient[] = [];
+  for (const r of recipients) {
+    const token = String(r?.token || "").trim();
+    const provider = String(r?.provider || "fcm").toLowerCase().trim();
+    if (!token || provider !== "fcm" || seen.has(token)) continue;
+    seen.add(token);
+    result.push({ ...r, token, provider: "fcm" });
+  }
+  return result;
+}
 
-  await supabaseAdmin
+function createSupabaseAdmin() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+async function fetchRecipientsFromUserId(userId: string) {
+  const supabase = createSupabaseAdmin();
+  if (!supabase) {
+    throw new Error(
+      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Edge Function secrets."
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("mobile_push_tokens")
+    .select("token, platform, provider")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (error) {
+    throw new Error(`Failed to fetch mobile_push_tokens: ${error.message}`);
+  }
+
+  return uniqueByToken((data || []) as FunctionRecipient[]);
+}
+
+async function deactivateInvalidTokens(tokens: string[]) {
+  if (!tokens.length) return;
+  const supabase = createSupabaseAdmin();
+  if (!supabase) return;
+
+  await supabase
     .from("mobile_push_tokens")
     .update({ is_active: false, updated_at: new Date().toISOString() })
     .in("token", tokens);
 }
 
-async function sendToRecipient(
+async function sendOne(
   recipient: FunctionRecipient,
   accessToken: string,
   projectId: string,
-  notificationTitle: string,
-  notificationBody: string,
+  title: string,
+  body: string,
   data: Record<string, string>,
   channelId: string,
   soundName: string | undefined
@@ -267,24 +247,19 @@ async function sendToRecipient(
       body: JSON.stringify({
         message: {
           token: recipient.token,
-          notification: {
-            title: notificationTitle,
-            body: notificationBody,
-          },
+          notification: { title, body },
           data,
           android: {
             priority: "high",
             notification: {
-              channel_id: channelId || LEGACY_CHANNEL_ID,
+              channel_id: channelId,
               click_action: "FLUTTER_NOTIFICATION_CLICK",
               sound: soundName,
-              tag: `${data.link || data.url || "/notifications"}::${notificationTitle}`,
+              tag: `${data.link || data.url || "/notifications"}::${title}`,
             },
           },
           apns: {
-            headers: {
-              "apns-priority": "10",
-            },
+            headers: { "apns-priority": "10" },
             payload: {
               aps: {
                 sound: soundName,
@@ -298,12 +273,11 @@ async function sendToRecipient(
     }
   );
 
-  if (response.ok) {
-    return { success: true, invalid: false };
-  }
+  if (response.ok) return { success: true, invalid: false };
 
   const errorBody = (await response.json().catch(() => ({}))) as FcmErrorBody;
   console.error("FCM HTTP v1 send failed:", errorBody);
+
   return {
     success: false,
     invalid: isInvalidTokenError(errorBody),
@@ -323,15 +297,25 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const expectedKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
+    // Authorization (Webhook secret OR service role headers)
+    const pushAuthBypass =
+      String(Deno.env.get("PUSH_AUTH_BYPASS") || "").trim().toLowerCase() === "true";
+    const expectedWebhookSecret = (Deno.env.get("PUSH_WEBHOOK_SECRET") || "").trim();
+    const expectedServiceRole = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
+
     const authHeader = (request.headers.get("authorization") || "").trim();
     const apiKeyHeader = (request.headers.get("apikey") || "").trim();
+    const webhookSecretHeader = (request.headers.get("x-webhook-secret") || "").trim();
+
     const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
       ? authHeader.slice(7).trim()
       : "";
 
     const isAuthorized =
-      !expectedKey || bearerToken === expectedKey || apiKeyHeader === expectedKey;
+      pushAuthBypass ||
+      (expectedWebhookSecret && webhookSecretHeader === expectedWebhookSecret) ||
+      (expectedServiceRole &&
+        (bearerToken === expectedServiceRole || apiKeyHeader === expectedServiceRole));
 
     if (!isAuthorized) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -340,15 +324,12 @@ Deno.serve(async (request) => {
       });
     }
 
-    const serviceAccount = loadServiceAccount();
-    if (
-      !serviceAccount?.project_id ||
-      !serviceAccount.client_email ||
-      !serviceAccount.private_key
-    ) {
+    const sa = loadServiceAccount();
+    if (!sa?.project_id || !sa.client_email || !sa.private_key) {
       return new Response(
         JSON.stringify({
-          error: "Missing Firebase service account secret FIREBASE_SERVICE_ACCOUNT_JSON.",
+          error:
+            "Missing Firebase service account secrets. Set FIREBASE_SERVICE_ACCOUNT_JSON.",
         }),
         {
           status: 500,
@@ -357,42 +338,61 @@ Deno.serve(async (request) => {
       );
     }
 
-    const payload = (await request.json().catch(() => ({}))) as FunctionPayload;
+    const payload = (await request.json().catch(() => ({}))) as IncomingPayload;
 
-    // mode A: direct recipients
-    let recipients = Array.isArray(payload.recipients)
-      ? dedupeRecipients(payload.recipients)
+    let recipients: FunctionRecipient[] = Array.isArray(payload.recipients)
+      ? uniqueByToken(
+        payload.recipients.filter((r) => String(r?.token || "").trim().length > 0)
+      )
       : [];
 
-    // mode B: single token
-    if (recipients.length === 0) {
-      const singleToken = String(payload.token || "").trim();
-      if (singleToken) recipients = [{ token: singleToken, provider: "fcm" }];
+    const directToken = String(payload.token || "").trim();
+    if (!recipients.length && directToken) {
+      recipients = [{ token: directToken, provider: "fcm" }];
     }
 
     let title = String(payload.notification?.title || payload.title || "وصلني").trim();
     let body = String(payload.notification?.body || payload.body || "").trim();
-    let data = normalizeUnknownData(payload.data);
+    let data = toStringMap(payload.data);
 
-    // mode C: webhook record from notifications insert
-    if (recipients.length === 0) {
+    // Webhook mode: INSERT on notifications
+    if (!recipients.length) {
       const record = extractNotificationRecord(payload);
       if (record) {
-        recipients = await fetchRecipientsFromNotificationRecord(record);
+        const recipientUserId = String(record.recipient_user_id || "").trim();
+        if (recipientUserId) {
+          recipients = await fetchRecipientsFromUserId(recipientUserId);
+        }
+
         if (!title) title = String(record.title || "وصلني").trim();
         if (!body) body = String(record.body || "").trim();
-        const mergedData = {
-          ...parseNotificationRecordPayload(record.payload),
+
+        const merged = {
+          ...parseRecordPayload(record.payload),
           ...data,
         };
-        data = normalizeUnknownData(mergedData);
+        data = toStringMap(merged);
       }
     }
 
-    if (recipients.length === 0) {
+    if (!recipients.length) {
       return new Response(
-        JSON.stringify({ success: true, sent: 0, invalidTokens: [], reason: "no_recipients" }),
+        JSON.stringify({
+          success: true,
+          sent: 0,
+          invalidTokens: [],
+          reason: "no_recipients",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const accessToken = await getAccessToken(sa);
+    if (!accessToken) {
+      return new Response(
+        JSON.stringify({ error: "Failed to obtain Firebase access token." }),
         {
+          status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -401,33 +401,19 @@ Deno.serve(async (request) => {
     const soundProfile = normalizeSoundProfile(data);
     const channelId = resolveChannelId(data, soundProfile);
     const soundName = resolveSoundName(soundProfile);
-    const accessToken = await getAccessToken(serviceAccount);
-
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Failed to obtain a Firebase access token." }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
 
     let sent = 0;
     const invalidTokens: string[] = [];
-    const batches: FunctionRecipient[][] = [];
 
     for (let i = 0; i < recipients.length; i += SEND_CONCURRENCY) {
-      batches.push(recipients.slice(i, i + SEND_CONCURRENCY));
-    }
+      const batch = recipients.slice(i, i + SEND_CONCURRENCY);
 
-    for (const batch of batches) {
       const settled = await Promise.allSettled(
         batch.map((recipient) =>
-          sendToRecipient(
+          sendOne(
             recipient,
             accessToken,
-            serviceAccount.project_id!,
+            sa.project_id!,
             title,
             body,
             data,
@@ -437,21 +423,20 @@ Deno.serve(async (request) => {
         )
       );
 
-      for (const entry of settled) {
-        if (entry.status === "rejected") {
-          console.error("FCM send failed by exception:", entry.reason);
+      for (const item of settled) {
+        if (item.status === "rejected") {
+          console.error("FCM send exception:", item.reason);
           continue;
         }
-
-        if (entry.value.result.success) {
+        if (item.value.result.success) {
           sent += 1;
-        } else if (entry.value.result.invalid) {
-          invalidTokens.push(entry.value.recipient.token);
+        } else if (item.value.result.invalid) {
+          invalidTokens.push(item.value.recipient.token);
         }
       }
     }
 
-    await markInvalidTokensAsInactive(invalidTokens);
+    await deactivateInvalidTokens(invalidTokens);
 
     return new Response(
       JSON.stringify({
@@ -460,9 +445,7 @@ Deno.serve(async (request) => {
         attempted: recipients.length,
         invalidTokens,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("send-mobile-push edge function failed:", error);
