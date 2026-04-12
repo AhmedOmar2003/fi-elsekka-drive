@@ -9,9 +9,9 @@ type MobilePushPayload = {
   channelId?: string;
 };
 
-const waselnyCriticalChannelId = "waselny_trip_critical";
-const waselnyUpdatesChannelId = "waselny_trip_updates";
-const waselnyWarningChannelId = "waselny_trip_warning";
+const waselnyCriticalChannelId = "waselny_trip_critical_v2";
+const waselnyUpdatesChannelId = "waselny_trip_updates_v2";
+const waselnyWarningChannelId = "waselny_trip_warning_v2";
 
 function inferEventType(payload: MobilePushPayload): string {
   if ((payload.eventType || "").trim()) return String(payload.eventType).trim();

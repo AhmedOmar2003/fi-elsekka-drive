@@ -42,9 +42,9 @@ const corsHeaders = {
 type SoundProfile = "critical" | "medium" | "warning" | "silent";
 
 const LEGACY_CHANNEL_ID = "fi_elsekka_rides";
-const DEFAULT_UPDATES_CHANNEL_ID = "waselny_trip_updates";
-const DEFAULT_CRITICAL_CHANNEL_ID = "waselny_trip_critical";
-const DEFAULT_WARNING_CHANNEL_ID = "waselny_trip_warning";
+const DEFAULT_UPDATES_CHANNEL_ID = "waselny_trip_updates_v2";
+const DEFAULT_CRITICAL_CHANNEL_ID = "waselny_trip_critical_v2";
+const DEFAULT_WARNING_CHANNEL_ID = "waselny_trip_warning_v2";
 const SEND_CONCURRENCY = 20;
 
 function loadServiceAccount(): FirebaseServiceAccount | null {
@@ -338,3 +338,4 @@ Deno.serve(async (request) => {
     );
   }
 });
+
