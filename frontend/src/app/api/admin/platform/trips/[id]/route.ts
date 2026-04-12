@@ -579,6 +579,13 @@ export async function PATCH(request: NextRequest, context: Context) {
                     },
                     related_trip_id: id,
                 });
+
+                await sendPushToUserDevices(supabase, trip.customer_id, {
+                    title: "تم إرسال الطلب للكباتن المتاحين",
+                    message: "رحلتك اتبعتت الآن لكل الكباتن المتاحين، وأول ما أحدهم يوافق هيوصلك إشعار فورًا.",
+                    link: "/trip/live",
+                    topic: "customer-broadcast-available",
+                });
             }
 
             return NextResponse.json({ success: true, offeredDriverCount: eligibleDrivers.length });
