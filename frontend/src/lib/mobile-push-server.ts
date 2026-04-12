@@ -67,9 +67,17 @@ type MobilePushFunctionResult = {
 
 const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_KEY || "").trim();
+const pushViaDbTriggerOnly =
+  String(process.env.PUSH_VIA_DB_TRIGGER_ONLY || "").trim().toLowerCase() ===
+  "true";
+const mobilePushFunctionName = (
+  process.env.MOBILE_PUSH_FUNCTION_NAME || "send-mobile-push"
+).trim();
 const mobilePushFunctionUrl = (
   process.env.MOBILE_PUSH_FUNCTION_URL ||
-  (supabaseUrl ? `${supabaseUrl}/functions/v1/send-mobile-push` : "")
+  (supabaseUrl && mobilePushFunctionName
+    ? `${supabaseUrl}/functions/v1/${mobilePushFunctionName}`
+    : "")
 ).trim();
 
 function buildFunctionPayload(
@@ -119,6 +127,10 @@ async function deliverToMobileTokens(
   userId: string,
   payload: MobilePushPayload
 ) {
+  if (pushViaDbTriggerOnly) {
+    return { success: true, skipped: true, devicesNotified: 0 };
+  }
+
   if (!supabaseAdmin || !userId) {
     return { success: false, skipped: true, devicesNotified: 0 };
   }
@@ -146,7 +158,7 @@ async function deliverToMobileTokens(
 
   if (!mobilePushFunctionUrl || !supabaseServiceKey) {
     console.error(
-      "Supabase mobile push function is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_KEY, or override MOBILE_PUSH_FUNCTION_URL."
+      "Supabase mobile push function is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_KEY, or override MOBILE_PUSH_FUNCTION_URL / MOBILE_PUSH_FUNCTION_NAME."
     );
     return { success: false, skipped: true, devicesNotified: 0 };
   }
