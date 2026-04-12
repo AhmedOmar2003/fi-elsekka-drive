@@ -356,6 +356,8 @@ export async function POST(request: Request, context: Params) {
               message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
               link: `/admin/trips/${trip.id}`,
               topic: "admin-customer-price-confirmed",
+              eventType: "trip_accepted",
+              soundProfile: "medium",
             })
           )
         ).catch((pushError) => {
@@ -444,6 +446,8 @@ export async function POST(request: Request, context: Params) {
               message: `${cancelledByLabel} ألغى الرحلة. افتح المشوار لمراجعة التفاصيل.`,
               link: `/admin/trips/${trip.id}`,
               topic: "admin-trip-cancelled",
+              eventType: isCustomer ? "user_cancelled" : "driver_cancelled",
+              soundProfile: "warning",
             })
           )
         ).catch((pushError) => {
@@ -714,6 +718,8 @@ export async function POST(request: Request, context: Params) {
         message: "الكابتن بدأ المشوار. تقدر تتابع الحالة من التطبيق.",
         link: "/trip/live",
         topic: "trip-started",
+        eventType: "trip_started",
+        soundProfile: "medium",
       }).catch((pushError) => {
         console.error("[rides/status] failed to send trip-started push", {
           tripId: trip.id,
@@ -903,6 +909,8 @@ export async function POST(request: Request, context: Params) {
               message: `${cancelledByLabel} ألغى رحلة الرجوع. راجع تفاصيل المشوار.`,
               link: `/admin/trips/${trip.id}`,
               topic: "admin-return-cancelled",
+              eventType: "user_cancelled",
+              soundProfile: "warning",
             })
           )
         ).catch((pushError) => {
@@ -1045,6 +1053,8 @@ export async function POST(request: Request, context: Params) {
         link: "/trip/live",
         requireInteraction: true,
         topic: "trip-completed",
+        eventType: "trip_ended",
+        soundProfile: "medium",
       }).catch((pushError) => {
         console.error("[rides/status] failed to send trip-completed push", {
           tripId: trip.id,
@@ -1134,6 +1144,8 @@ export async function POST(request: Request, context: Params) {
               message: "العميل وافق على السعر النهائي. عيّن كابتن مناسب الآن.",
               link: `/admin/trips/${trip.id}`,
               topic: "admin-customer-price-confirmed",
+              eventType: "trip_accepted",
+              soundProfile: "medium",
             })
           )
         ).catch((pushError) => {

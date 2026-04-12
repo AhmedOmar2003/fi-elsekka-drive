@@ -328,14 +328,16 @@ export async function POST(request: Request) {
         .map((result) => result.value);
       void Promise.all(
         successfulNotifications.map((notification) =>
-          sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
-            title: "طلب مشوار جديد يحتاج تسعير",
-            message: "يوجد طلب جديد في انتظار تحديد السعر النهائي من الإدارة.",
-            link: `/admin/trips/${tripId}`,
-            topic: "admin-price-trip-request",
-          })
-        )
-      ).catch((pushError) => {
+            sendPushToUserDevices(serviceClient, notification.recipient_user_id, {
+              title: "طلب مشوار جديد يحتاج تسعير",
+              message: "يوجد طلب جديد في انتظار تحديد السعر النهائي من الإدارة.",
+              link: `/admin/trips/${tripId}`,
+              topic: "admin-price-trip-request",
+              eventType: "trip_requested",
+              soundProfile: "critical",
+            })
+          )
+        ).catch((pushError) => {
         console.error("[rides/request] failed to send admin push notifications", {
           tripId,
           error: String(pushError),

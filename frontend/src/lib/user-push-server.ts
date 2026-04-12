@@ -15,6 +15,12 @@ type PushNotificationPayload = {
   link?: string;
   requireInteraction?: boolean;
   topic?: string;
+  eventType?: string;
+  soundProfile?: "critical" | "medium" | "warning" | "silent";
+  channelId?: string;
+  relatedTripId?: string;
+  notificationType?: string;
+  payload?: Record<string, unknown>;
 };
 
 function buildPushPayload(payload: PushNotificationPayload) {
@@ -130,12 +136,23 @@ export async function createUserNotificationWithPush(
   userId: string,
   payload: PushNotificationPayload
 ) {
+  const notificationPayload = {
+    ...(payload.payload || {}),
+    ...(payload.link ? { link: payload.link } : {}),
+    ...(payload.eventType ? { eventType: payload.eventType } : {}),
+    ...(payload.soundProfile ? { soundProfile: payload.soundProfile } : {}),
+    ...(payload.channelId ? { channelId: payload.channelId } : {}),
+    ...(payload.topic ? { topic: payload.topic } : {}),
+  };
+
   const { error } = await supabaseAdmin.from('notifications').insert([
     {
-      user_id: userId,
+      recipient_user_id: userId,
+      type: payload.notificationType || "admin_message",
       title: payload.title,
-      message: payload.message,
-      link: payload.link || '/notifications',
+      body: payload.message,
+      payload: notificationPayload,
+      related_trip_id: payload.relatedTripId || null,
       is_read: false,
     },
   ]);

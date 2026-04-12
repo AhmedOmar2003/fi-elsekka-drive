@@ -39,6 +39,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+type SoundProfile = "critical" | "medium" | "warning" | "silent";
+
+const LEGACY_CHANNEL_ID = "fi_elsekka_rides";
+const DEFAULT_UPDATES_CHANNEL_ID = "waselny_trip_updates";
+const DEFAULT_CRITICAL_CHANNEL_ID = "waselny_trip_critical";
+const DEFAULT_WARNING_CHANNEL_ID = "waselny_trip_warning";
+const SEND_CONCURRENCY = 20;
+
 function loadServiceAccount(): FirebaseServiceAccount | null {
   const rawJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON")?.trim() || "";
   if (rawJson) {
@@ -92,6 +100,51 @@ function normalizeData(
   );
 }
 
+function normalizeSoundProfile(data: Record<string, string>): SoundProfile {
+  const raw = (
+    data.soundProfile ||
+    data.sound_profile ||
+    data.sound ||
+    "medium"
+  )
+    .toString()
+    .trim()
+    .toLowerCase();
+
+  if (raw === "critical") return "critical";
+  if (raw === "warning") return "warning";
+  if (raw === "silent" || raw === "none" || raw === "off") return "silent";
+  return "medium";
+}
+
+function resolveChannelId(data: Record<string, string>, profile: SoundProfile) {
+  const explicit = (
+    data.channelId ||
+    data.channel_id ||
+    data.android_channel_id ||
+    ""
+  )
+    .toString()
+    .trim();
+
+  if (explicit) return explicit;
+
+  switch (profile) {
+    case "critical":
+      return DEFAULT_CRITICAL_CHANNEL_ID;
+    case "warning":
+      return DEFAULT_WARNING_CHANNEL_ID;
+    case "silent":
+    case "medium":
+    default:
+      return DEFAULT_UPDATES_CHANNEL_ID || LEGACY_CHANNEL_ID;
+  }
+}
+
+function resolveSoundName(profile: SoundProfile) {
+  return profile === "silent" ? undefined : "default";
+}
+
 function isInvalidTokenError(body: FcmErrorBody) {
   const details = Array.isArray(body.error?.details) ? body.error!.details! : [];
   const codes = details
@@ -106,7 +159,9 @@ async function sendToRecipient(
   projectId: string,
   notificationTitle: string,
   notificationBody: string,
-  data: Record<string, string>
+  data: Record<string, string>,
+  channelId: string,
+  soundName: string | undefined
 ) {
   const response = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -127,9 +182,9 @@ async function sendToRecipient(
           android: {
             priority: "high",
             notification: {
-              channel_id: "fi_elsekka_rides",
+              channel_id: channelId || LEGACY_CHANNEL_ID,
               click_action: "FLUTTER_NOTIFICATION_CLICK",
-              sound: "default",
+              sound: soundName,
               tag: `${data.link || data.url || "/notifications"}::${notificationTitle}`,
             },
           },
@@ -139,7 +194,7 @@ async function sendToRecipient(
             },
             payload: {
               aps: {
-                sound: "default",
+                sound: soundName,
                 badge: 1,
                 category: "FI_ELSEKKA_RIDE_UPDATE",
               },
@@ -207,6 +262,9 @@ Deno.serve(async (request) => {
     const title = String(payload.notification?.title || "وصلني").trim();
     const body = String(payload.notification?.body || "").trim();
     const data = normalizeData(payload.data);
+    const soundProfile = normalizeSoundProfile(data);
+    const channelId = resolveChannelId(data, soundProfile);
+    const soundName = resolveSoundName(soundProfile);
     const accessToken = await getAccessToken(serviceAccount);
 
     if (!accessToken) {
@@ -221,20 +279,39 @@ Deno.serve(async (request) => {
 
     let sent = 0;
     const invalidTokens: string[] = [];
+    const batches: FunctionRecipient[][] = [];
 
-    for (const recipient of recipients) {
-      const result = await sendToRecipient(
-        recipient,
-        accessToken,
-        serviceAccount.project_id,
-        title,
-        body,
-        data
+    for (let i = 0; i < recipients.length; i += SEND_CONCURRENCY) {
+      batches.push(recipients.slice(i, i + SEND_CONCURRENCY));
+    }
+
+    for (const batch of batches) {
+      const settled = await Promise.allSettled(
+        batch.map((recipient) =>
+          sendToRecipient(
+            recipient,
+            accessToken,
+            serviceAccount.project_id!,
+            title,
+            body,
+            data,
+            channelId,
+            soundName
+          ).then((result) => ({ recipient, result }))
+        )
       );
-      if (result.success) {
-        sent += 1;
-      } else if (result.invalid) {
-        invalidTokens.push(recipient.token);
+
+      for (const entry of settled) {
+        if (entry.status === "rejected") {
+          console.error("FCM send failed by exception:", entry.reason);
+          continue;
+        }
+
+        if (entry.value.result.success) {
+          sent += 1;
+        } else if (entry.value.result.invalid) {
+          invalidTokens.push(entry.value.recipient.token);
+        }
       }
     }
 
@@ -261,4 +338,3 @@ Deno.serve(async (request) => {
     );
   }
 });
-

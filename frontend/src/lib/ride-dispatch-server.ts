@@ -506,6 +506,8 @@ export async function dispatchTripToMarketplace(
                 link: "/captain/offers",
                 requireInteraction: true,
                 topic: "instant-marketplace-offer",
+                eventType: "trip_requested",
+                soundProfile: "critical",
             })
         )
     );

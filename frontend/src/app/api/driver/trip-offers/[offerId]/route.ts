@@ -80,6 +80,8 @@ async function notifyAdminsAboutDriverDecision(options: {
         link: `/admin/trips/${tripId}`,
         requireInteraction: true,
         topic: action === "accept" ? "admin-driver-accepted" : "admin-driver-rejected",
+        eventType: action === "accept" ? "trip_accepted" : "driver_cancelled",
+        soundProfile: action === "accept" ? "medium" : "warning",
       }).catch(() => null)
     )
   );
@@ -369,6 +371,8 @@ export async function POST(request: Request, context: Params) {
         link: "/trip/live",
         requireInteraction: true,
         topic: "driver-eta-update",
+        eventType: "trip_accepted",
+        soundProfile: "medium",
       });
 
       if (isDirectOffer) {

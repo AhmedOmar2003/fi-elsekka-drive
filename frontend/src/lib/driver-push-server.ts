@@ -15,6 +15,9 @@ type DriverPushPayload = {
   link?: string;
   requireInteraction?: boolean;
   topic?: string;
+  eventType?: string;
+  soundProfile?: "critical" | "medium" | "warning" | "silent";
+  channelId?: string;
 };
 
 function buildDriverPushPayload(payload: DriverPushPayload) {

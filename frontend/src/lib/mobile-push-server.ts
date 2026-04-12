@@ -4,9 +4,53 @@ type MobilePushPayload = {
   link?: string;
   requireInteraction?: boolean;
   topic?: string;
+  eventType?: string;
+  soundProfile?: "critical" | "medium" | "warning" | "silent";
+  channelId?: string;
 };
 
-const fiElsekkaMobileChannelId = "fi_elsekka_rides_v2";
+const waselnyCriticalChannelId = "waselny_trip_critical";
+const waselnyUpdatesChannelId = "waselny_trip_updates";
+const waselnyWarningChannelId = "waselny_trip_warning";
+
+function inferEventType(payload: MobilePushPayload): string {
+  if ((payload.eventType || "").trim()) return String(payload.eventType).trim();
+  const topic = String(payload.topic || "").toLowerCase();
+  if (topic.includes("trip-completed")) return "trip_ended";
+  if (topic.includes("eta") || topic.includes("driver-accepted")) return "trip_accepted";
+  if (topic.includes("cancel")) return "trip_cancelled";
+  if (topic.includes("arrived")) return "driver_arrived";
+  if (topic.includes("trip-started")) return "trip_started";
+  if (topic.includes("marketplace-offer") || topic.includes("trip-request")) return "trip_requested";
+  return "trip_update";
+}
+
+function inferSoundProfile(eventType: string, payload: MobilePushPayload) {
+  if (payload.soundProfile) return payload.soundProfile;
+  const event = eventType.toLowerCase();
+  if (event === "trip_requested" || event === "driver_arrived") return "critical" as const;
+  if (event === "driver_cancelled" || event === "user_cancelled" || event === "trip_cancelled") {
+    return "warning" as const;
+  }
+  if (event === "trip_accepted" || event === "trip_started" || event === "trip_ended") {
+    return "medium" as const;
+  }
+  return "medium" as const;
+}
+
+function resolveChannelId(soundProfile: MobilePushPayload["soundProfile"], payload: MobilePushPayload) {
+  if ((payload.channelId || "").trim()) return String(payload.channelId).trim();
+  switch (soundProfile) {
+    case "critical":
+      return waselnyCriticalChannelId;
+    case "warning":
+      return waselnyWarningChannelId;
+    case "silent":
+    case "medium":
+    default:
+      return waselnyUpdatesChannelId;
+  }
+}
 
 type MobilePushTokenRecord = {
   id: string;
@@ -33,6 +77,9 @@ function buildFunctionPayload(
   payload: MobilePushPayload
 ) {
   const link = payload.link || "/notifications";
+  const eventType = inferEventType(payload);
+  const soundProfile = inferSoundProfile(eventType, payload);
+  const channelId = resolveChannelId(soundProfile, payload);
   return {
     recipients: recipients.map((record) => ({
       token: record.token,
@@ -54,9 +101,14 @@ function buildFunctionPayload(
         : `وصلني | ${payload.title}`,
       body: payload.message,
       topic: payload.topic || "fi_elsekka_mobile",
-      sound: "default",
-      channelId: fiElsekkaMobileChannelId,
-      android_channel_id: fiElsekkaMobileChannelId,
+      eventType,
+      event_type: eventType,
+      soundProfile: soundProfile,
+      sound_profile: soundProfile,
+      sound: soundProfile === "silent" ? "none" : "default",
+      channelId,
+      channel_id: channelId,
+      android_channel_id: channelId,
       requireInteraction: String(payload.requireInteraction ?? true),
     },
   };

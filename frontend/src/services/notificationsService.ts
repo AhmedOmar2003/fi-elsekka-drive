@@ -312,14 +312,17 @@ export const deleteAllNotifications = async (userId: string): Promise<boolean> =
  * Creates a notification for a specific user. (Usually called server-side or by an admin context)
  */
 export const createNotification = async (payload: Omit<AppNotification, 'id' | 'created_at' | 'is_read'>): Promise<boolean> => {
+    const normalizedPayload = {
+        ...(payload.payload || {}),
+        ...(payload.link ? { link: payload.link } : {}),
+    };
     const { error } = await supabase
         .from('notifications')
         .insert([{
             recipient_user_id: payload.user_id,
             title: payload.title,
             body: payload.message,
-            link: payload.link || null,
-            payload: payload.payload || null,
+            payload: normalizedPayload,
             related_trip_id: payload.related_trip_id || null,
             is_read: false
         }]);
