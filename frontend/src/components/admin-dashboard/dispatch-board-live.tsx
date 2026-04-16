@@ -18,6 +18,7 @@ type DispatchBoardLiveProps = {
 const DISPATCH_BOARD_POLLING_ENABLED = process.env.NEXT_PUBLIC_ADMIN_DISPATCH_POLLING_ENABLED !== "false";
 const DISPATCH_BOARD_POLLING_MS = Math.max(30000, Number(process.env.NEXT_PUBLIC_ADMIN_DISPATCH_POLLING_MS || 60000));
 const DISPATCH_BOARD_REALTIME_ENABLED = process.env.NEXT_PUBLIC_ADMIN_DISPATCH_REALTIME_ENABLED === "true";
+const MAX_VISIBLE_ITEMS = 20;
 
 const DispatchFleetMap = dynamic(
     () => import("@/components/admin-dashboard/dispatch-fleet-map").then((module) => module.DispatchFleetMap),
@@ -50,10 +51,14 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
     const [lightModeEnabled, setLightModeEnabled] = useState(false);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(initialBoard.queueTrips[0]?.id || initialBoard.liveTrips[0]?.id || null);
     const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+    const [expandedQueueTripId, setExpandedQueueTripId] = useState<string | null>(initialBoard.queueTrips[0]?.id || null);
     const [search, setSearch] = useState("");
     const [region, setRegion] = useState("all");
     const [sla, setSla] = useState<DispatchSlaState | "all">("all");
     const [scope, setScope] = useState<"all" | "queue" | "live" | "drivers">("all");
+    const [queueVisibleCount, setQueueVisibleCount] = useState(MAX_VISIBLE_ITEMS);
+    const [liveVisibleCount, setLiveVisibleCount] = useState(MAX_VISIBLE_ITEMS);
+    const [driverVisibleCount, setDriverVisibleCount] = useState(MAX_VISIBLE_ITEMS);
     const [isPending, startTransition] = useTransition();
     const deferredSearch = useDeferredValue(search);
 
@@ -155,6 +160,32 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
         };
     }, [board, deferredSearch, region, scope, sla]);
 
+    useEffect(() => {
+        setQueueVisibleCount(MAX_VISIBLE_ITEMS);
+        setLiveVisibleCount(MAX_VISIBLE_ITEMS);
+        setDriverVisibleCount(MAX_VISIBLE_ITEMS);
+    }, [deferredSearch, region, scope, sla]);
+
+    useEffect(() => {
+        if (!filteredBoard.queueTrips.some((trip) => trip.id === expandedQueueTripId)) {
+            setExpandedQueueTripId(filteredBoard.queueTrips[0]?.id || null);
+        }
+    }, [filteredBoard.queueTrips, expandedQueueTripId]);
+
+    const displayedQueueTrips = useMemo(
+        () => filteredBoard.queueTrips.slice(0, queueVisibleCount),
+        [filteredBoard.queueTrips, queueVisibleCount]
+    );
+    const displayedLiveTrips = useMemo(
+        () => filteredBoard.liveTrips.slice(0, liveVisibleCount),
+        [filteredBoard.liveTrips, liveVisibleCount]
+    );
+    const visibleAvailableDrivers = scope === "all" || scope === "drivers" ? filteredBoard.availableDrivers : [];
+    const displayedDrivers = useMemo(
+        () => visibleAvailableDrivers.slice(0, driverVisibleCount),
+        [visibleAvailableDrivers, driverVisibleCount]
+    );
+
     const availableDriverOptions = filteredBoard.availableDrivers.map((driver) => ({
         id: driver.id,
         fullName: driver.fullName,
@@ -168,7 +199,6 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
         vehicleId: driver.vehicleId,
         vehicleLabel: driver.vehicleLabel,
     }));
-    const visibleAvailableDrivers = scope === "all" || scope === "drivers" ? filteredBoard.availableDrivers : [];
 
     const handleTripFocus = (trip: DispatchQueueTripItem | DispatchLiveTripItem) => {
         setSelectedTripId(trip.id);
@@ -281,7 +311,9 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
                 <div className="space-y-6">
                     <SectionCard title="طابور التوزيع" subtitle="الطلبات التي تنتظر البث أو الإنقاذ">
                         <div className="space-y-4">
-                            {filteredBoard.queueTrips.map((trip) => (
+                            {displayedQueueTrips.map((trip) => {
+                                const isExpanded = expandedQueueTripId === trip.id;
+                                return (
                                 <div
                                     key={trip.id}
                                     className={`w-full rounded-[26px] border p-4 text-right transition ${
@@ -324,22 +356,41 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
                                         >
                                             ركّز على الخريطة
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpandedQueueTripId(isExpanded ? null : trip.id)}
+                                            className="inline-flex items-center rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-white/80 transition hover:bg-black/30"
+                                        >
+                                            {isExpanded ? "إخفاء أدوات التوزيع" : "فتح أدوات التوزيع"}
+                                        </button>
                                         <Link href={`/admin/trips/${trip.id}`} className="inline-flex text-sm text-primary">
                                             فتح تفاصيل المشوار
                                         </Link>
                                     </div>
-                                    <div className="mt-4">
-                                        <TripDispatchForm tripId={trip.id} broadcastDrivers={availableDriverOptions} assignableDrivers={assignableDriverOptions} />
-                                    </div>
+                                    {isExpanded ? (
+                                        <div className="mt-4">
+                                            <TripDispatchForm tripId={trip.id} broadcastDrivers={availableDriverOptions} assignableDrivers={assignableDriverOptions} />
+                                        </div>
+                                    ) : null}
                                 </div>
-                            ))}
+                            );
+                            })}
+                            {filteredBoard.queueTrips.length > queueVisibleCount ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setQueueVisibleCount((prev) => prev + MAX_VISIBLE_ITEMS)}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/75 transition hover:bg-white/[0.06]"
+                                >
+                                    عرض المزيد من الطابور ({filteredBoard.queueTrips.length - queueVisibleCount})
+                                </button>
+                            ) : null}
                             {filteredBoard.queueTrips.length === 0 ? <p className="text-sm text-white/45">مفيش رحلات حالية في طابور التوزيع حسب الفلاتر.</p> : null}
                         </div>
                     </SectionCard>
 
                     <SectionCard title="الرحلات الحية" subtitle="رحلات اتسندت وبتتحرك الآن">
                         <div className="space-y-3">
-                            {filteredBoard.liveTrips.map((trip) => (
+                            {displayedLiveTrips.map((trip) => (
                                 <button
                                     key={trip.id}
                                     type="button"
@@ -361,13 +412,22 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
                                     <div className="mt-1 text-sm text-white/45">{trip.destination}</div>
                                 </button>
                             ))}
+                            {filteredBoard.liveTrips.length > liveVisibleCount ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setLiveVisibleCount((prev) => prev + MAX_VISIBLE_ITEMS)}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/75 transition hover:bg-white/[0.06]"
+                                >
+                                    عرض المزيد من الرحلات الحية ({filteredBoard.liveTrips.length - liveVisibleCount})
+                                </button>
+                            ) : null}
                             {filteredBoard.liveTrips.length === 0 ? <p className="text-sm text-white/45">مفيش رحلات حية مطابقة للفلاتر.</p> : null}
                         </div>
                     </SectionCard>
 
                     <SectionCard title="الكباتن المتاحون" subtitle="الجاهزون للبث أو الإسناد المباشر الآن">
                         <div className="space-y-3">
-                            {visibleAvailableDrivers.map((driver) => (
+                            {displayedDrivers.map((driver) => (
                                 <button
                                     key={driver.id}
                                     type="button"
@@ -394,6 +454,15 @@ export function DispatchBoardLive({ initialBoard }: DispatchBoardLiveProps) {
                                     </div>
                                 </button>
                             ))}
+                            {visibleAvailableDrivers.length > driverVisibleCount ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setDriverVisibleCount((prev) => prev + MAX_VISIBLE_ITEMS)}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/75 transition hover:bg-white/[0.06]"
+                                >
+                                    عرض المزيد من الكباتن ({visibleAvailableDrivers.length - driverVisibleCount})
+                                </button>
+                            ) : null}
                             {visibleAvailableDrivers.length === 0 ? <p className="text-sm text-white/45">لا يوجد كباتن متاحون ضمن الفلاتر الحالية.</p> : null}
                         </div>
                     </SectionCard>

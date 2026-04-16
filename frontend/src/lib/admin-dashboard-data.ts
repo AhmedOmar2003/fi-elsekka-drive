@@ -317,10 +317,35 @@ const ADMIN_DB_PROTECT_MODE = process.env.ADMIN_DB_PROTECT_MODE === "true";
 const ADMIN_QUERY_TIMEOUT_MS = Math.max(2500, Number(process.env.ADMIN_QUERY_TIMEOUT_MS || 7000));
 const DASHBOARD_OVERVIEW_CACHE_TTL_MS = Math.max(30000, Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_MS || 300000));
 const DISPATCH_BOARD_CACHE_TTL_MS = Math.max(10000, Number(process.env.ADMIN_DISPATCH_BOARD_CACHE_TTL_MS || 45000));
+const ADMIN_LIST_CACHE_TTL_MS = Math.max(5000, Number(process.env.ADMIN_LIST_CACHE_TTL_MS || 15000));
+const ADMIN_LIST_CACHE_MAX_ENTRIES = Math.max(20, Number(process.env.ADMIN_LIST_CACHE_MAX_ENTRIES || 80));
 let dashboardOverviewCache: DashboardOverview | null = null;
 let dashboardOverviewCacheAt = 0;
 let dispatchBoardCache: DispatchBoardData | null = null;
 let dispatchBoardCacheAt = 0;
+const tripsListCache = new Map<string, { value: AdminTripListItem[]; at: number }>();
+const driversListCache = new Map<string, { value: AdminDriverListItem[]; at: number }>();
+
+function getCachedList<T>(cache: Map<string, { value: T; at: number }>, key: string): T | null {
+    const hit = cache.get(key);
+    if (!hit) return null;
+    if (Date.now() - hit.at > ADMIN_LIST_CACHE_TTL_MS) {
+        cache.delete(key);
+        return null;
+    }
+    return hit.value;
+}
+
+function setCachedList<T>(cache: Map<string, { value: T; at: number }>, key: string, value: T) {
+    cache.set(key, { value, at: Date.now() });
+    if (cache.size <= ADMIN_LIST_CACHE_MAX_ENTRIES) return;
+
+    const oldest = [...cache.entries()].sort((left, right) => left[1].at - right[1].at);
+    const overflow = cache.size - ADMIN_LIST_CACHE_MAX_ENTRIES;
+    for (let i = 0; i < overflow; i += 1) {
+        cache.delete(oldest[i][0]);
+    }
+}
 
 function createAdminClient() {
     if (ADMIN_DB_PROTECT_MODE) return null;
@@ -717,6 +742,18 @@ export async function fetchTripsList(filters: {
     from?: string;
     to?: string;
 }) {
+    const cacheKey = JSON.stringify({
+        status: filters.status || "all",
+        tripType: filters.tripType || "all",
+        city: filters.city || "",
+        driverId: filters.driverId || "all",
+        manualMode: filters.manualMode || "all",
+        from: filters.from || "",
+        to: filters.to || "",
+    });
+    const cached = getCachedList(tripsListCache, cacheKey);
+    if (cached) return cached;
+
     const supabase = createAdminClient();
     if (!supabase) return [] as AdminTripListItem[];
 
@@ -756,7 +793,7 @@ export async function fetchTripsList(filters: {
     }
     const profilesMap = await loadProfilesMap(rows.flatMap((row) => [String(row.customer_id), String(row.assigned_driver_id || "")]));
 
-    return rows.map((row) => ({
+    const result = rows.map((row) => ({
         id: String(row.id),
         customerName: String((profilesMap.get(String(row.customer_id))?.full_name as string) || "عميل"),
         driverName: row.assigned_driver_id ? String((profilesMap.get(String(row.assigned_driver_id))?.full_name as string) || "كابتن") : null,
@@ -772,6 +809,9 @@ export async function fetchTripsList(filters: {
             (row.metadata as Record<string, unknown> | null)?.request_source
         ),
     }));
+
+    setCachedList(tripsListCache, cacheKey, result);
+    return result;
 }
 
 export async function fetchTripDetail(id: string) {
@@ -917,6 +957,15 @@ export async function fetchDriversList(filters: {
     city?: string;
     availabilityStatus?: string;
 }) {
+    const cacheKey = JSON.stringify({
+        approvalStatus: filters.approvalStatus || "all",
+        vehicleType: filters.vehicleType || "all",
+        city: filters.city || "",
+        availabilityStatus: filters.availabilityStatus || "all",
+    });
+    const cached = getCachedList(driversListCache, cacheKey);
+    if (cached) return cached;
+
     const supabase = createAdminClient();
     if (!supabase) return [] as AdminDriverListItem[];
 
@@ -1006,7 +1055,7 @@ export async function fetchDriversList(filters: {
         }
     }
 
-    return rows
+    const result = rows
         .filter((row) => !filters.vehicleType || filters.vehicleType === "all" || vehicleMap.get(String(row.id)) === filters.vehicleType)
         .map((row) => {
             const driverId = String(row.id);
@@ -1045,6 +1094,9 @@ export async function fetchDriversList(filters: {
             };
         })
         .filter((row) => !filters.availabilityStatus || filters.availabilityStatus === "all" || row.availabilityStatus === filters.availabilityStatus);
+
+    setCachedList(driversListCache, cacheKey, result);
+    return result;
 }
 
 export async function fetchDriverDetail(id: string) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useMemo, useRef, useState } from "react";
 import {
     Bell,
     CarFront,
@@ -64,6 +64,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
     const router = useRouter();
     const { user, profile } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+    const prefetchedRoutesRef = useRef<Set<string>>(new Set());
     const visibleItems = useMemo(() => {
         if (!profile && !user) {
             return NAV_ITEMS;
@@ -81,12 +82,12 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
         return current?.label || "لوحة التحكم";
     }, [pathname]);
 
-    useEffect(() => {
-        // Prefetch visible admin routes to make sidebar navigation feel instant.
-        visibleItems.forEach((item) => {
-            router.prefetch(item.href);
-        });
-    }, [router, visibleItems]);
+    const warmRoute = (href: string) => {
+        const prefetched = prefetchedRoutesRef.current;
+        if (prefetched.has(href)) return;
+        prefetched.add(href);
+        router.prefetch(href);
+    };
 
     const activeNavHref = useMemo(() => {
         if (!pathname) return null;
@@ -134,7 +135,10 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                                 <Link
                                     key={item.href}
                                     href={item.href}
-                                    prefetch
+                                    prefetch={false}
+                                    onMouseEnter={() => warmRoute(item.href)}
+                                    onFocus={() => warmRoute(item.href)}
+                                    onTouchStart={() => warmRoute(item.href)}
                                     className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                                         active
                                             ? "bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(20,148,111,0.25)]"
@@ -219,7 +223,10 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                                     <Link
                                         key={item.href}
                                         href={item.href}
-                                        prefetch
+                                        prefetch={false}
+                                        onMouseEnter={() => warmRoute(item.href)}
+                                        onFocus={() => warmRoute(item.href)}
+                                        onTouchStart={() => warmRoute(item.href)}
                                         onClick={() => {
                                             setIsOpen(false);
                                         }}
