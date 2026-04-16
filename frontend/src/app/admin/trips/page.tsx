@@ -115,7 +115,7 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                             { key: "route", label: "خط السير" },
                             { key: "status", label: "الحالة" },
                             { key: "created", label: "وقت الإنشاء" },
-                            { key: "actions", label: "الإجراءات", className: "text-left" },
+                            { key: "actions", label: "الإجراءات", className: "text-center min-w-[140px] whitespace-nowrap" },
                         ]}
                         rows={trips.map((trip) => ({
                             id: <span className="font-mono text-xs text-white/70">{trip.id.slice(0, 8)}</span>,
@@ -145,7 +145,10 @@ export default async function AdminTripsPage({ searchParams }: { searchParams: S
                             status: <StatusBadge status={trip.status} />,
                             created: new Date(trip.createdAt).toLocaleString("ar-EG"),
                             actions: (
-                                <Link href={`/admin/trips/${trip.id}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
+                                <Link
+                                    href={`/admin/trips/${trip.id}`}
+                                    className="inline-flex min-w-[106px] items-center justify-center whitespace-nowrap rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                                >
                                     فتح التفاصيل
                                 </Link>
                             ),
