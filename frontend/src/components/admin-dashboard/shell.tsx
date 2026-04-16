@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
     Bell,
     CarFront,
@@ -64,6 +64,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
     const router = useRouter();
     const { user, profile } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+    const [pendingHref, setPendingHref] = useState<string | null>(null);
     const visibleItems = useMemo(() => {
         if (!profile && !user) {
             return NAV_ITEMS;
@@ -80,6 +81,25 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
         const current = NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
         return current?.label || "لوحة التحكم";
     }, [pathname]);
+
+    useEffect(() => {
+        setPendingHref(null);
+    }, [pathname]);
+
+    useEffect(() => {
+        // Prefetch visible admin routes to make sidebar navigation feel instant.
+        visibleItems.forEach((item) => {
+            router.prefetch(item.href);
+        });
+    }, [router, visibleItems]);
+
+    const activePath = pendingHref ?? pathname;
+    const isItemActive = (href: string) => {
+        if (href === "/admin") {
+            return activePath === "/admin";
+        }
+        return activePath === href || activePath.startsWith(`${href}/`);
+    };
 
     const handleLogout = async () => {
         await signOut();
@@ -104,12 +124,14 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
 
                     <nav className="flex-1 space-y-1 px-4 py-6">
                         {visibleItems.map((item) => {
-                            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                            const active = isItemActive(item.href);
                             const Icon = item.icon;
                             return (
                                 <Link
                                     key={item.href}
                                     href={item.href}
+                                    prefetch
+                                    onClick={() => setPendingHref(item.href)}
                                     className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                                         active
                                             ? "bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(20,148,111,0.25)]"
@@ -188,13 +210,17 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                         </div>
                         <nav className="space-y-1">
                             {visibleItems.map((item) => {
-                                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                const active = isItemActive(item.href);
                                 const Icon = item.icon;
                                 return (
                                     <Link
                                         key={item.href}
                                         href={item.href}
-                                        onClick={() => setIsOpen(false)}
+                                        prefetch
+                                        onClick={() => {
+                                            setPendingHref(item.href);
+                                            setIsOpen(false);
+                                        }}
                                         className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                                             active ? "bg-primary/15 text-primary" : "text-white/70 hover:bg-white/5 hover:text-white"
                                         }`}
