@@ -64,7 +64,6 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
     const router = useRouter();
     const { user, profile } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
-    const [pendingHref, setPendingHref] = useState<string | null>(null);
     const visibleItems = useMemo(() => {
         if (!profile && !user) {
             return NAV_ITEMS;
@@ -78,12 +77,8 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
     }, [profile, user]);
 
     const pageTitle = useMemo(() => {
-        const current = NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+        const current = NAV_ITEMS.find((item) => pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`)));
         return current?.label || "لوحة التحكم";
-    }, [pathname]);
-
-    useEffect(() => {
-        setPendingHref(null);
     }, [pathname]);
 
     useEffect(() => {
@@ -93,13 +88,22 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
         });
     }, [router, visibleItems]);
 
-    const activePath = pendingHref ?? pathname;
-    const isItemActive = (href: string) => {
-        if (href === "/admin") {
-            return activePath === "/admin";
-        }
-        return activePath === href || activePath.startsWith(`${href}/`);
-    };
+    const activeNavHref = useMemo(() => {
+        if (!pathname) return null;
+
+        const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+
+        const exactMatch = visibleItems.find((item) => item.href === normalizedPath);
+        if (exactMatch) return exactMatch.href;
+
+        const nestedMatches = visibleItems
+            .filter((item) => item.href !== "/admin" && normalizedPath.startsWith(`${item.href}/`))
+            .sort((a, b) => b.href.length - a.href.length);
+
+        if (nestedMatches.length > 0) return nestedMatches[0].href;
+        if (normalizedPath === "/admin") return "/admin";
+        return null;
+    }, [pathname, visibleItems]);
 
     const handleLogout = async () => {
         await signOut();
@@ -124,14 +128,13 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
 
                     <nav className="flex-1 space-y-1 px-4 py-6">
                         {visibleItems.map((item) => {
-                            const active = isItemActive(item.href);
+                            const active = activeNavHref === item.href;
                             const Icon = item.icon;
                             return (
                                 <Link
                                     key={item.href}
                                     href={item.href}
                                     prefetch
-                                    onClick={() => setPendingHref(item.href)}
                                     className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                                         active
                                             ? "bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(20,148,111,0.25)]"
@@ -210,7 +213,7 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                         </div>
                         <nav className="space-y-1">
                             {visibleItems.map((item) => {
-                                const active = isItemActive(item.href);
+                                const active = activeNavHref === item.href;
                                 const Icon = item.icon;
                                 return (
                                     <Link
@@ -218,7 +221,6 @@ export function AdminDashboardShell({ children }: AdminShellProps) {
                                         href={item.href}
                                         prefetch
                                         onClick={() => {
-                                            setPendingHref(item.href);
                                             setIsOpen(false);
                                         }}
                                         className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
