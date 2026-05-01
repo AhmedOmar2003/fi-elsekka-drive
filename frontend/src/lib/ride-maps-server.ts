@@ -766,49 +766,83 @@ async function getRouteDistanceAndDurationWithOsm(
   pickup: GeocodedLocation,
   destination: GeocodedLocation
 ) {
-  const url = `${OSRM_BASE_URL}/${pickup.longitude},${pickup.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&steps=false`;
-  const response = await fetch(url, {
-    headers: REQUEST_HEADERS,
-    cache: "no-store",
-  });
+  const buildFallbackEstimate = () => {
+    const directDistanceKm = haversineDistanceKm(
+      pickup.latitude,
+      pickup.longitude,
+      destination.latitude,
+      destination.longitude
+    );
+    // Approximate road distance from direct-line distance for city routing.
+    const roadDistanceKm = Math.max(0.8, directDistanceKm * 1.25);
+    // Conservative average city speed (km/h) for fallback ETA.
+    const durationMinutes = Math.max(3, (roadDistanceKm / 28) * 60);
 
-  if (!response.ok) {
-    throw new Error("تعذر حساب خط السير دلوقتي.");
-  }
-
-  const payload = await response.json();
-  const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
-
-  if (!route?.distance || !route?.duration) {
-    throw new Error("مش قادر أحسب المسافة والوقت حاليًا.");
-  }
-
-  const rawCoordinates = Array.isArray(route?.geometry?.coordinates)
-    ? route.geometry.coordinates
-    : [];
-  const routePoints = sampleRoutePoints(
-    rawCoordinates
-      .filter(
-        (coordinate: unknown) =>
-          Array.isArray(coordinate) &&
-          coordinate.length >= 2 &&
-          Number.isFinite(Number(coordinate[0])) &&
-          Number.isFinite(Number(coordinate[1]))
-      )
-      .map((coordinate: unknown) => {
-        const [longitude, latitude] = coordinate as [number, number];
-        return {
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-        } satisfies RouteCoordinate;
-      })
-  );
-
-  return {
-    distanceKm: Number(route.distance) / 1000,
-    durationMinutes: Number(route.duration) / 60,
-    routePoints,
+    return {
+      distanceKm: roadDistanceKm,
+      durationMinutes,
+      routePoints: [
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        { latitude: destination.latitude, longitude: destination.longitude },
+      ] satisfies RouteCoordinate[],
+    };
   };
+
+  try {
+    const url = `${OSRM_BASE_URL}/${pickup.longitude},${pickup.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&steps=false`;
+    const response = await fetch(url, {
+      headers: REQUEST_HEADERS,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.warn("OSRM route failed with status:", response.status);
+      return buildFallbackEstimate();
+    }
+
+    const payload = await response.json();
+    const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
+
+    if (!route?.distance || !route?.duration) {
+      console.warn("OSRM route payload missing distance/duration.");
+      return buildFallbackEstimate();
+    }
+
+    const rawCoordinates = Array.isArray(route?.geometry?.coordinates)
+      ? route.geometry.coordinates
+      : [];
+    const routePoints = sampleRoutePoints(
+      rawCoordinates
+        .filter(
+          (coordinate: unknown) =>
+            Array.isArray(coordinate) &&
+            coordinate.length >= 2 &&
+            Number.isFinite(Number(coordinate[0])) &&
+            Number.isFinite(Number(coordinate[1]))
+        )
+        .map((coordinate: unknown) => {
+          const [longitude, latitude] = coordinate as [number, number];
+          return {
+            latitude: Number(latitude),
+            longitude: Number(longitude),
+          } satisfies RouteCoordinate;
+        })
+    );
+
+    return {
+      distanceKm: Number(route.distance) / 1000,
+      durationMinutes: Number(route.duration) / 60,
+      routePoints: routePoints.length
+        ? routePoints
+        : [
+            { latitude: pickup.latitude, longitude: pickup.longitude },
+            { latitude: destination.latitude, longitude: destination.longitude },
+          ],
+    };
+  } catch (error) {
+    console.warn("OSRM route exception, using fallback estimate:", error);
+    return buildFallbackEstimate();
+  }
 }
 
 export async function searchLocations(
